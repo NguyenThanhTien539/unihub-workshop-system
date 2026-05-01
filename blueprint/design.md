@@ -1,600 +1,959 @@
-# UniHub Workshop — Technical Design
+# UniHub Workshop — Database Design
 
-## 1. Architecture Overview
+## 1. Overview
 
-UniHub Workshop uses a **Java Spring Boot modular monolith with background workers**, organized using a **DDD-lite layered architecture**.
+This document defines the database schema for UniHub Workshop.
 
-The system has two client applications:
+The system uses:
 
-- A **Next.js web application** for students and organizers.
-- A **React Native mobile application** for check-in staff.
+| Storage          | Purpose                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PostgreSQL       | Main system of record for users, roles, students, workshops, sessions, registrations, payments, QR tickets, check-ins, notifications, AI summaries, and CSV imports |
+| Redis            | Volatile coordination only: rate limiting, short-lived idempotency, optional cache, and worker coordination                                                         |
+| Object Storage   | Uploaded workshop PDF files                                                                                                                                         |
+| SQLite on Mobile | Offline check-in cache and unsynced check-in events                                                                                                                 |
 
-Both clients communicate with the same Java Spring Boot Backend API over HTTPS. The backend remains one deployable application, but its internal modules are separated by domain:
+PostgreSQL is the source of truth for business data. Redis and SQLite must not be used as final truth for seat allocation, payment status, or attendance.
 
-- Auth/RBAC
-- Workshop
-- Registration
-- Payment
-- Notification
-- Check-in
-- AI Summary
-- CSV Import
+General conventions:
 
-The backend follows a DDD-lite layered structure:
-
-- `presentation/`: REST controllers, request/response DTOs, request validation, response formatting, and global exception handling.
-- `application/`: use case orchestration, transaction boundaries, command/query services, and ports to external providers.
-- `domain/`: aggregate roots, value objects, business rules, domain policies, repository interfaces, and domain exceptions.
-- `infrastructure/`: database repositories, Redis integration, JWT implementation, payment adapter, notification adapter, object storage adapter, AI adapter, and CSV file integration.
-
-Core persistence and coordination decisions:
-
-- PostgreSQL stores all transactional business data and remains the source of truth for seat reservation, registration state, payment state, and check-in state.
-- Redis supports rate limiting, short-lived idempotency state, optional caching, temporary locks, and worker coordination.
-- Object storage stores organizer-uploaded PDF files.
-- The React Native mobile app uses SQLite for offline check-in storage and synchronization.
-
-Why this fits the course project:
-
-- A modular monolith is easier for a student team to build, test, deploy, and explain than a distributed microservice system.
-- DDD-lite keeps important business rules inside the correct domain modules instead of spreading them across controllers or database scripts.
-- Background workers isolate long-running or failure-prone tasks such as email sending, AI summarization, CSV import, payment reconciliation, and expired reservation cleanup.
-- PostgreSQL transactions are appropriate because the hardest correctness problem is seat allocation, which requires strong consistency.
-- Payment, AI summary, notification, and CSV import are isolated so failures in those integrations do not break workshop browsing.
-
-Audit logging is not part of the MVP scope. It may be added later as an optional enhancement for admin and security-sensitive actions.
+- Primary keys use UUID.
+- All timestamps use UTC.
+- Status fields use string enum values.
+- Foreign keys are required for core relationships.
+- Database constraints are used to protect correctness where possible.
+- Business rules that are difficult to express as database constraints must be enforced in the application service layer.
 
 ---
 
-## 2. Implementation Technology Stack
+## 2. Core Status Values
 
-The selected implementation stack is:
+### User account status
 
-| Area                             | Selected technology               | Reason                                                                                                                   |
-| -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Student/Organizer Web App        | Next.js + TypeScript              | Supports structured routing, role-based pages, form-heavy admin UI, and API integration with the backend                 |
-| Check-in Mobile App              | React Native + TypeScript         | Provides a real mobile experience for QR scanning, offline storage, and synchronization                                  |
-| Backend API                      | Java Spring Boot                  | Provides strong typing, mature transaction support, dependency injection, validation, and structured backend development |
-| Backend architecture             | DDD-lite layered modular monolith | Keeps one deployable backend while preserving clear domain boundaries                                                    |
-| Primary database                 | PostgreSQL                        | Supports transactions, row-level locking, unique constraints, and relational integrity                                   |
-| Volatile coordination            | Redis                             | Supports rate limiting, short-lived idempotency, optional caching, temporary locks, and worker coordination              |
-| Object storage                   | MinIO for local development       | Stores uploaded PDF files independently from the application database                                                    |
-| Mobile offline storage           | SQLite                            | Provides durable local storage for offline check-in events                                                               |
-| API style                        | REST/JSON over HTTPS              | Simple and suitable for both web and mobile clients                                                                      |
-| Authentication and authorization | JWT with RBAC                     | Supports stateless authentication and role-based endpoint protection                                                     |
-
-The selected stack is intentionally practical for a course project. It avoids the operational complexity of microservices while still demonstrating real architectural concerns such as transaction safety, offline synchronization, idempotency, rate limiting, and integration isolation.
-
----
-
-## 3. Architecture Decision Records
-
-Detailed architecture decisions are documented separately in the `blueprint/adr/` folder:
-
-- [ADR-001: Use modular monolith with background workers](adr/001-architecture-style.md)
-- [ADR-002: Use PostgreSQL as the system of record](adr/002-database-choice.md)
-- [ADR-003: Use Redis for volatile coordination](adr/003-redis-coordination.md)
-- [ADR-004: Use adapter pattern for external providers](adr/004-provider-adapter.md)
-- [ADR-005: Use local mobile database for offline check-in](adr/005-offline-checkin-storage.md)
-- [ADR-006: Use Java Spring Boot with DDD-lite layered architecture](adr/006-java-spring-boot-ddd-lite.md)
-
----
-
-## 4. Main Components
-
-| Component                        | Responsibility                                                                               | Technology                                | Communication method                                 | Failure impact                                  |
-| -------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------- | ----------------------------------------------- |
-| Student/Organizer Web App        | Student browsing and registration; organizer admin UI                                        | Next.js + TypeScript                      | HTTPS to Backend API                                 | UI unavailable, but core data remains intact    |
-| Check-in Mobile App              | QR scanning, offline check-in, and sync                                                      | React Native + TypeScript                 | HTTPS when online; local SQLite when offline         | Staff can continue offline if sync path is down |
-| Backend API                      | Main request handling and business orchestration                                             | Java Spring Boot                          | REST/JSON                                            | Core application unavailable                    |
-| Auth/RBAC Module                 | Login, JWT issuance, role loading, permission enforcement                                    | Java Spring Boot module                   | In-process                                           | Blocks protected operations if faulty           |
-| Workshop Module                  | Workshop/session CRUD, schedules, room assignment, cancellation                              | Java Spring Boot module                   | In-process                                           | Workshop browsing/admin impacted                |
-| Registration Module              | Seat allocation, free registration, reservation lifecycle, QR issuance trigger               | Java Spring Boot module                   | In-process + PostgreSQL transaction                  | Overbooking risk if incorrect                   |
-| Payment Module                   | Payment intent creation, callback handling, reconciliation, idempotency                      | Java Spring Boot module                   | HTTPS to gateway; worker for callback/reconciliation | Paid registration degraded only                 |
-| Notification Module              | Notification composition and dispatch                                                        | Java Spring Boot worker + adapter pattern | Worker + provider API                                | Messages delayed, core registration still works |
-| AI Summary Worker                | PDF text extraction and summary generation                                                   | Java Spring Boot worker                   | Worker + object storage + AI API/adapter             | Summary delayed only                            |
-| CSV Import Worker                | Nightly student import from legacy CSV files                                                 | Java Spring Boot worker                   | File polling + PostgreSQL                            | Student data freshness delayed                  |
-| PostgreSQL Database              | Source of truth for users, workshops, registrations, payments, and check-ins                 | PostgreSQL                                | SQL                                                  | Critical system dependency                      |
-| Redis / Worker Coordination      | Rate limiting, idempotency cache, optional caching, temporary locks, and worker coordination | Redis                                     | TCP                                                  | Degraded protection/async coordination          |
-| Object Storage                   | PDF file storage                                                                             | MinIO or S3-compatible storage            | HTTP/S3 API                                          | PDF uploads and summary jobs blocked            |
-| Mobile Offline Storage           | Local check-in persistence and sync queue                                                    | SQLite                                    | Local file IO                                        | Offline mode impaired on that device            |
-| Payment Gateway                  | External payment processing                                                                  | Sandbox payment gateway or mock adapter   | HTTPS/webhook                                        | Paid registration degraded                      |
-| Notification Provider            | Email and in-app notification delivery                                                       | SMTP/service API or mock adapter          | HTTPS/SMTP                                           | Messages delayed                                |
-| AI Model Provider                | Summary generation                                                                           | External LLM API or mock adapter          | HTTPS                                                | Summary delayed                                 |
-| Legacy Student System CSV Export | Nightly student roster source                                                                | Existing system                           | File drop / shared storage                           | Student eligibility freshness delayed           |
-
----
-
-## 5. Backend Architecture: DDD-lite Layered Modular Monolith
-
-The backend is implemented with Java Spring Boot using a DDD-lite layered architecture inside a modular monolith.
-
-The purpose of DDD-lite in this project is not to introduce unnecessary complexity, but to keep important business rules close to the domain concepts they belong to. Business-critical modules such as Registration, Workshop, Payment, Check-in, and CSV Import contain domain models that protect their own invariants.
-
-### 5.1 Layer Responsibilities
-
-| Layer             | Responsibility                                                                                                                                                  |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `presentation/`   | REST controllers, request/response DTOs, request validation, response formatting, and global exception handling                                                 |
-| `application/`    | Use case orchestration, command/query services, transaction boundaries, and calls to repositories or provider interfaces                                        |
-| `domain/`         | Aggregate roots, value objects, domain rules, domain policies, domain exceptions, and repository contracts                                                      |
-| `infrastructure/` | PostgreSQL repositories, Redis integration, JWT implementation, payment adapter, notification adapter, object storage adapter, AI adapter, and CSV file adapter |
-
-### 5.2 Module Boundaries
-
-The backend is divided into domain modules:
-
-- Auth/RBAC
-- Workshop
-- Registration
-- Payment
-- Notification
-- Check-in
-- AI Summary
-- CSV Import
-
-Each module owns its domain rules and exposes application services to other modules. Modules should not directly modify another module’s internal state.
-
-Examples:
-
-- The Registration Module owns seat allocation rules, registration status transitions, reservation expiration, and QR issuance triggers.
-- The Workshop Module owns workshop metadata, room assignment, session schedule, and cancellation rules.
-- The Payment Module owns payment intents, idempotency checks, callback handling, and payment status mapping.
-- The Check-in Module owns QR validation, attendance records, offline sync event handling, and duplicate detection.
-- The Notification Module does not decide business status. It sends messages based on events emitted by other modules.
-- The CSV Import Module updates the student roster but does not directly create registrations.
-
-This structure keeps the backend deployable as one application while reducing coupling between business areas.
-
----
-
-## 6. Frontend and Mobile Architecture
-
-### 6.1 Web Application
-
-The web application is implemented with Next.js and TypeScript. A single Next.js application serves both students and organizers, separated by role-based routing.
-
-Student-facing pages include:
-
-- workshop listing and filtering,
-- workshop detail,
-- free and paid registration,
-- payment status,
-- QR ticket viewing,
-- registration history,
-- notifications.
-
-Organizer-facing pages include:
-
-- workshop management,
-- session scheduling,
-- room assignment,
-- PDF upload,
-- AI summary status,
-- registration statistics,
-- CSV import reports.
-
-Frontend route guards are used to improve user experience, but they are not the source of truth for security. All authorization decisions are enforced by the backend through JWT validation and RBAC.
-
-### 6.2 Mobile Application
-
-The check-in mobile application is implemented with React Native and TypeScript. It is used by check-in staff at room entrances.
-
-The mobile app supports:
-
-- staff login,
-- assigned/open session list,
-- QR scanning,
-- online QR validation,
-- offline check-in recording,
-- local SQLite sync queue,
-- synchronization when connectivity is restored,
-- duplicate/rejected/accepted sync result display.
-
-The mobile app is designed for intermittent connectivity. When offline, check-in events are stored locally and marked as provisional. When the device reconnects, queued events are sent to the backend, where final validation and duplicate detection are performed.
-
-The mobile app is not intended to replace the student web app or organizer admin web app. It focuses on check-in staff workflows only.
-
----
-
-## 7. Synchronous vs Asynchronous Communication
-
-### 7.1 Synchronous Operations
-
-Synchronous operations return immediate user-facing results and stay in the request path:
-
-- login,
-- student self-registration,
-- workshop browsing,
-- registration request,
-- payment initiation,
-- admin workshop update,
-- online check-in.
-
-### 7.2 Asynchronous Operations
-
-Asynchronous operations are handled by background workers:
-
-- email sending,
-- in-app notification fan-out,
-- AI Summary generation,
-- nightly CSV import,
-- expired seat reservation cleanup,
-- payment callback processing or reconciliation,
-- offline check-in sync retry.
-
-Asynchronous processing improves resilience because slow external providers do not hold user requests open. It also allows retries and workload smoothing during spikes.
-
----
-
-## 8. C4 Diagram — Level 1: System Context
-
-```mermaid
-flowchart LR
-    Student[Student]
-    Organizer[Organizer]
-    Staff[Check-in Staff]
-    System[UniHub Workshop System]
-    Legacy[Legacy Student System\nNightly CSV Export]
-    Payment[Payment Gateway]
-    Notify[Notification Provider\nEmail/In-App]
-    AI[AI Model Provider]
-
-    Student -->|Browse, register, pay, receive QR| System
-    Organizer -->|Manage workshops, upload PDFs, view reports| System
-    Staff -->|Scan QR, sync check-ins| System
-    System -->|Read nightly CSV files| Legacy
-    System -->|Create and confirm payments| Payment
-    System -->|Send notifications| Notify
-    System -->|Generate summaries from PDFs| AI
+```text
+ACTIVE
+DISABLED
+LOCKED
 ```
 
-Relationship notes:
+### Student status
 
-- Students use the system primarily for workshop browsing, registration, payment, and QR ticket access.
-- Organizers access privileged functions that need stronger backend authorization.
-- Check-in staff use a mobile flow optimized for fast validation and intermittent connectivity.
-- The legacy student system is one-way only; UniHub Workshop consumes CSV exports and never calls it directly.
-- Payment, notification, and AI are external dependencies and must be isolated from the core browsing experience.
+```text
+ACTIVE
+INACTIVE
+GRADUATED
+SUSPENDED
+```
 
----
+### Workshop status
 
-## 9. C4 Diagram — Level 2: Container
+```text
+DRAFT
+PUBLISHED
+CANCELED
+ARCHIVED
+```
 
-```mermaid
-flowchart LR
-    subgraph Client
-        Web[Web App\nStudent + Organizer]
-        Mobile[Mobile App\nCheck-in Staff]
-        LocalDB[SQLite\nOffline Check-in Store]
-    end
+### Workshop session status
 
-    subgraph UniHub[UniHub Workshop]
-        API[Backend API\nDDD-lite Modular Monolith]
-        Worker[Background Workers]
-        DB[(PostgreSQL)]
-        Redis[(Redis)]
-        Obj[Object Storage\nMinIO / S3-compatible]
-    end
+```text
+OPEN
+CLOSED
+CANCELED
+FULL
+```
 
-    Legacy[Legacy CSV Export]
-    Pay[Payment Gateway\nSandbox/Mock]
-    Notify[Notification Provider\nEmail/In-App]
-    AI[AI Model Provider\nLLM/Mock Adapter]
+### Fee type
 
-    Web -->|HTTPS REST/JSON| API
-    Mobile -->|HTTPS REST/JSON when online| API
-    Mobile -->|Offline writes| LocalDB
-    LocalDB -->|Sync queue| API
+```text
+FREE
+PAID
+```
 
-    API -->|SQL| DB
-    Worker -->|SQL| DB
+### Registration status
 
-    API -->|Rate limit, idempotency, cache| Redis
-    Worker -->|Temporary locks, retries, coordination| Redis
+```text
+PENDING_PAYMENT
+CONFIRMED
+PAYMENT_FAILED
+EXPIRED
+CANCELED
+```
 
-    API -->|Upload/read PDF metadata| Obj
-    Worker -->|Read PDF files| Obj
+### Payment status
 
-    Worker -->|Read nightly CSV file| Legacy
-    API -->|Create payment intent| Pay
-    Worker -->|Reconcile/retry payment| Pay
-    Worker -->|Send messages| Notify
-    Worker -->|Generate summary| AI
+```text
+PENDING_GATEWAY
+PENDING_PAYMENT
+SUCCEEDED
+FAILED
+EXPIRED
+CANCELED
+```
+
+### QR ticket status
+
+```text
+ACTIVE
+REVOKED
+EXPIRED
+```
+
+### Check-in source mode
+
+```text
+ONLINE
+OFFLINE_SYNC
+```
+
+### Notification channel
+
+```text
+IN_APP
+EMAIL
+```
+
+### Notification status
+
+```text
+PENDING
+SENT
+FAILED
+RETRYING
+READ
+```
+
+### AI summary status
+
+```text
+PENDING
+PROCESSING
+COMPLETED
+FAILED
+```
+
+### Workshop document upload status
+
+```text
+UPLOADED
+FAILED
+```
+
+### CSV import status
+
+```text
+PROCESSING
+SUCCESS
+PARTIAL_SUCCESS
+FAILED
+MISSED
 ```
 
 ---
 
-## 10. High-Level Architecture Diagram
+## 3. Entity Relationship Overview
 
 ```mermaid
-flowchart TD
-    Student[Student] --> Web[Web App]
-    Organizer[Organizer] --> Web
-    Staff[Check-in Staff] --> Mobile[Mobile App]
+erDiagram
+    USERS ||--o{ USER_ROLES : has
+    ROLES ||--o{ USER_ROLES : assigned
 
-    Web -->|HTTPS REST/JSON| API[Backend API]
-    Mobile -->|HTTPS REST/JSON| API
-    Mobile --> Offline[(SQLite Offline Store)]
-    Offline -->|Sync later| API
+    USERS ||--o| STUDENTS : linked_to
+    USERS ||--o{ REFRESH_TOKENS : owns
 
-    API --> PG[(PostgreSQL)]
-    API --> Redis[(Redis)]
-    API --> Obj[Object Storage]
-    API -->|Payment intent| Pay[Payment Gateway]
+    ROOMS ||--o{ WORKSHOP_SESSIONS : hosts
+    WORKSHOPS ||--o{ WORKSHOP_SESSIONS : contains
+    WORKSHOPS ||--o{ WORKSHOP_DOCUMENTS : has
 
-    Redis --> Worker[Background Workers]
-    Worker --> PG
-    Worker --> Obj
-    Worker --> Notify[Notification Provider]
-    Worker --> AI[AI Model Provider]
-    Worker --> CSV[Legacy CSV Files]
+    WORKSHOP_DOCUMENTS ||--o| AI_SUMMARIES : generates
+
+    STUDENTS ||--o{ REGISTRATIONS : creates
+    WORKSHOP_SESSIONS ||--o{ REGISTRATIONS : receives
+
+    REGISTRATIONS ||--o| PAYMENT_INTENTS : may_have
+    REGISTRATIONS ||--o| QR_TICKETS : issues
+    REGISTRATIONS ||--o| CHECKIN_RECORDS : produces
+
+    USERS ||--o{ NOTIFICATIONS : receives
+
+    CSV_IMPORT_BATCHES ||--o{ CSV_IMPORT_ERRORS : contains
+    CSV_IMPORT_BATCHES ||--o{ STUDENTS : updates
 ```
 
-Key dependency rules:
+---
 
-- Browsing depends only on the web app, Backend API, and PostgreSQL, so it remains available if payment or AI is unavailable.
-- Paid registration depends on the payment module, but free registration does not.
-- Offline check-in depends on local SQLite storage first and remote sync second.
-- CSV import, AI summary, notifications, payment reconciliation, and cleanup jobs are worker-driven so they cannot directly block browsing.
+# 4. PostgreSQL Tables
 
 ---
 
-## 11. Data Design
+## 4.1 `users`
 
-PostgreSQL is the system of record for transactional data. Redis is used only for volatile coordination such as rate limiting, idempotency, optional caching, temporary locks, and worker coordination. Object storage is used for organizer-uploaded PDF files. SQLite is used on the mobile app for offline check-in events.
+Stores login accounts for all roles: student, organizer, and check-in staff.
 
-Detailed ERD, table definitions, constraints, indexes, Redis key patterns, object storage layout, and mobile SQLite schema are documented in [`database.md`](database.md).
+| Column           | Type         | Constraint       | Description                    |
+| ---------------- | ------------ | ---------------- | ------------------------------ |
+| `id`             | UUID         | PK               | User ID                        |
+| `email`          | VARCHAR(255) | NOT NULL, UNIQUE | Login email                    |
+| `password_hash`  | VARCHAR(255) | NOT NULL         | Salted password hash           |
+| `full_name`      | VARCHAR(255) | NOT NULL         | User display name              |
+| `account_status` | VARCHAR(30)  | NOT NULL         | `ACTIVE`, `DISABLED`, `LOCKED` |
+| `created_at`     | TIMESTAMP    | NOT NULL         | Created time                   |
+| `updated_at`     | TIMESTAMP    | NOT NULL         | Last updated time              |
+| `last_login_at`  | TIMESTAMP    | NULL             | Last successful login time     |
 
-Important source-of-truth rules:
+Constraints:
 
-- PostgreSQL is the source of truth for users, roles, students, workshops, sessions, registrations, payments, QR tickets, check-ins, notifications, AI summary results, and CSV import records.
-- Redis must not be used as the durable source of truth for seat counts, payment state, or check-in records.
-- Object storage stores PDF binary files; PostgreSQL stores only PDF metadata.
-- Mobile SQLite stores provisional offline check-in events; backend validation remains final.
+- `email` must be unique.
+- `password_hash` must never store plaintext password.
+- `account_status` must be one of the defined user account statuses.
 
----
+Indexes:
 
-## 12. Key Business Flows
-
-### 12.1 Paid Workshop Registration
-
-```mermaid
-sequenceDiagram
-    participant S as Student Web App
-    participant API as Backend API
-    participant DB as PostgreSQL
-    participant R as Redis
-    participant P as Payment Gateway
-    participant W as Worker
-
-    S->>API: Register for paid session + idempotency key
-    API->>R: Check rate limit and idempotency
-    API->>DB: Begin transaction, lock session row
-    API->>DB: Create registration=PENDING_PAYMENT
-    API->>DB: Reserve seat / increment seats_reserved
-    API->>DB: Create local payment_intent=PENDING_GATEWAY
-    API->>DB: Commit transaction
-    API->>P: Create payment intent
-    P-->>API: Payment URL or gateway reference
-    API->>DB: Update payment_intent with gateway_ref
-    API-->>S: Return pending payment result
-    P-->>W: Webhook/callback
-    W->>DB: Confirm payment and convert reserved seat to confirmed seat
-    W->>DB: Generate QR ticket
-    W->>DB: Queue notifications
+```text
+users(email) UNIQUE
+users(account_status)
 ```
 
-Failure handling:
+---
 
-- If payment intent creation times out before a gateway reference is returned, the registration stays `PENDING_PAYMENT` until reconciliation or expiration.
-- Expired reservations are cleaned by a background worker and seats are released.
-- Duplicate client retries reuse the same idempotency key and return the same payment intent instead of creating a new charge.
-- The database transaction must not stay open while calling the external payment gateway. The system creates the short-lived reservation and local payment intent record first, commits the transaction, then calls the gateway. If gateway creation fails, the payment intent is marked as failed or pending reconciliation.
+## 4.2 `roles`
 
-### 12.2 Offline Check-in and Later Sync
+Stores RBAC roles.
 
-```mermaid
-sequenceDiagram
-    participant M as Mobile App
-    participant L as Local SQLite
-    participant API as Backend API
-    participant DB as PostgreSQL
+| Column        | Type         | Constraint       | Description      |
+| ------------- | ------------ | ---------------- | ---------------- |
+| `id`          | UUID         | PK               | Role ID          |
+| `name`        | VARCHAR(50)  | NOT NULL, UNIQUE | Role name        |
+| `description` | VARCHAR(255) | NULL             | Role description |
 
-    M->>L: Store cached sessions
-    M->>L: Scan QR while offline
-    L->>L: Validate locally where possible and create sync event
-    M-->>M: Show provisional offline check-in
-    M->>API: Sync queued events when online
-    API->>DB: Validate QR, registration, session, and duplicate state
-    API->>DB: Upsert by sync_event_id and registration_id
-    API-->>M: accepted / duplicate / rejected
-    M->>L: Mark event synced or needs review
+Seed values:
+
+```text
+student
+organizer
+checkin_staff
 ```
 
-Failure handling:
+Constraints:
 
-- If the same QR is scanned twice on one device, local validation can block the second provisional check-in.
-- If two devices sync the same student, the backend keeps the first successful `checkin_record` and returns `duplicate` for later events.
-- If sync fails, unsent events remain in SQLite and retry later.
-- If the QR is invalid, revoked, expired, or does not match the session, the backend rejects the event during final synchronization.
+- `name` must be unique.
+- Only the three MVP roles are required.
 
-### 12.3 Nightly CSV Import
+Indexes:
 
-```mermaid
-sequenceDiagram
-    participant File as CSV File Drop
-    participant W as CSV Import Worker
-    participant DB as PostgreSQL
-
-    File->>W: New nightly CSV file
-    W->>DB: Create import batch record
-    W->>W: Validate file structure
-    W->>DB: Load rows into staging process/table
-    W->>W: Validate columns, required fields, and duplicates
-    W->>DB: Upsert valid student records
-    W->>DB: Save row errors and batch summary
-    W-->>DB: Mark batch success, partial_success, or failed
+```text
+roles(name) UNIQUE
 ```
 
-Failure handling:
+---
 
-- Invalid files are quarantined or marked failed and do not overwrite existing student data.
-- Partial row errors do not cancel the whole batch unless the file structure itself is invalid.
-- Duplicate rows are resolved deterministically by student ID and latest valid row precedence within the same file.
-- If the newest import fails, registration can continue using the latest valid student data.
+## 4.3 `user_roles`
+
+Maps users to roles.
+
+| Column       | Type      | Constraint                | Description     |
+| ------------ | --------- | ------------------------- | --------------- |
+| `user_id`    | UUID      | PK part, FK -> `users.id` | User ID         |
+| `role_id`    | UUID      | PK part, FK -> `roles.id` | Role ID         |
+| `created_at` | TIMESTAMP | NOT NULL                  | Assignment time |
+
+Constraints:
+
+- `(user_id, role_id)` must be unique.
+- A user can have one or more roles.
+
+Indexes:
+
+```text
+user_roles(user_id, role_id) UNIQUE
+user_roles(role_id)
+```
 
 ---
 
-## 13. Access Control Design
+## 4.4 `students`
 
-### 13.1 Chosen Model
+Stores student roster data imported from the legacy CSV system.
 
-- **Chosen:** RBAC with roles `student`, `organizer`, and `checkin_staff`.
-- **Why:** The user groups and permissions in the project brief map directly to stable role boundaries.
-- **Trade-offs / risks:** RBAC is less flexible than attribute-based policies if fine-grained departmental rules appear later.
-- **Alternatives not chosen:** ABAC was rejected because it adds policy complexity not required by the current brief.
+| Column            | Type         | Constraint                          | Description                                    |
+| ----------------- | ------------ | ----------------------------------- | ---------------------------------------------- |
+| `id`              | UUID         | PK                                  | Internal student profile ID                    |
+| `user_id`         | UUID         | NULL, UNIQUE, FK -> `users.id`      | Linked login account                           |
+| `student_code`    | VARCHAR(50)  | NOT NULL, UNIQUE                    | Official student ID from legacy CSV            |
+| `full_name`       | VARCHAR(255) | NOT NULL                            | Student full name                              |
+| `email`           | VARCHAR(255) | NULL                                | Student email from CSV                         |
+| `faculty`         | VARCHAR(255) | NULL                                | Faculty                                        |
+| `major`           | VARCHAR(255) | NULL                                | Major                                          |
+| `class_name`      | VARCHAR(100) | NULL                                | Class/group name                               |
+| `status`          | VARCHAR(30)  | NOT NULL                            | `ACTIVE`, `INACTIVE`, `GRADUATED`, `SUSPENDED` |
+| `import_batch_id` | UUID         | NULL, FK -> `csv_import_batches.id` | Last import batch that updated this student    |
+| `imported_at`     | TIMESTAMP    | NOT NULL                            | Last imported time                             |
+| `created_at`      | TIMESTAMP    | NOT NULL                            | Created time                                   |
+| `updated_at`      | TIMESTAMP    | NOT NULL                            | Last updated time                              |
 
-### 13.2 Role Matrix
+Constraints:
 
-| Capability                    | Student | Organizer | Check-in Staff |
-| ----------------------------- | ------- | --------- | -------------- |
-| Browse workshop list/detail   | Yes     | Yes       | Limited        |
-| Register for workshop         | Yes     | No        | No             |
-| View own QR ticket            | Yes     | No        | No             |
-| View own notifications        | Yes     | Yes       | Yes            |
-| Create/update/cancel workshop | No      | Yes       | No             |
-| Upload PDF for AI summary     | No      | Yes       | No             |
-| View registration statistics  | No      | Yes       | No             |
-| View CSV import reports       | No      | Yes       | No             |
-| Scan QR and create check-in   | No      | No        | Yes            |
-| Sync offline check-in events  | No      | No        | Yes            |
-| Access organizer admin pages  | No      | Yes       | No             |
-| Access mobile check-in flow   | No      | No        | Yes            |
+- `student_code` must be unique.
+- `user_id` must be unique when not null.
+- Only students with status `ACTIVE` are eligible to register for workshops.
+- CSV import updates this table.
+- Public student account registration is not part of MVP; accounts may be prepared by seed data or controlled setup.
 
-### 13.3 Enforcement Points
+Indexes:
 
-- API middleware/security filters validate JWT, load roles, and enforce endpoint policies.
-- Organizer web routes additionally require role checks in the UI to reduce accidental navigation, but backend checks remain the source of truth.
-- Mobile app only exposes scan screens for `checkin_staff`.
-- Frontend and mobile route guards improve user experience but are not considered security boundaries.
-
----
-
-## 14. System Protection Mechanisms
-
-### 14.1 Seat Contention Protection
-
-- **Chosen:** Row-level locking on `workshop_sessions` plus short-lived seat reservations for paid flows.
-- **Why:** The final seat problem requires strong consistency at commit time.
-- **How it works:** The registration transaction locks the session row, verifies remaining seats, increments reserved or confirmed counters, and commits atomically.
-- **Trade-offs / risks:** High contention on one workshop can reduce throughput on that row.
-- **Alternatives not chosen:** Pure Redis counters were rejected as source of truth because reconciliation back to durable registration records is harder.
-
-### 14.2 Traffic Spike Protection
-
-- **Chosen:** Redis-backed token bucket or sliding-window rate limiting with stricter thresholds on registration endpoints.
-- **Why:** Registration opening periods may cause bursts of traffic.
-- **How it works:** Browsing endpoints get higher budgets; registration endpoints use lower per-user and per-IP budgets; repeated offenders receive `429 Too Many Requests`.
-- **Trade-offs / risks:** Shared campus IPs can cause false positives if the IP limit is too aggressive.
-- **Alternatives not chosen:** Database-only rate limiting was rejected because it creates unnecessary load on PostgreSQL during spikes.
-
-### 14.3 Payment Gateway Instability
-
-- **Chosen:** Circuit breaker plus graceful degradation.
-- **Why:** Paid registration depends on an external provider, but workshop browsing and free registration must survive gateway errors.
-- **How it works:** The breaker stays `closed` during healthy calls, opens after repeated failures, rejects new paid attempts quickly while showing a clear status, and probes in `half-open` before recovery.
-- **Trade-offs / risks:** Some users may be temporarily blocked even after the gateway has recovered if the cool-down is too conservative.
-- **Alternatives not chosen:** Blind retries inside the request path were rejected because they increase latency and load during provider incidents.
-
-### 14.4 Double-Charge Prevention
-
-- **Chosen:** Idempotency keys stored in Redis and PostgreSQL-backed payment intent uniqueness.
-- **Why:** Clients and mobile networks can retry unpredictably.
-- **How it works:** Each paid registration request carries a client-generated idempotency key. If the same key reappears with the same request data, the API returns the original result instead of issuing a new payment intent.
-- **Trade-offs / risks:** Clients must preserve the same key across retries.
-- **Alternatives not chosen:** Deduplicating only by timestamp or amount is unsafe because different users can pay identical amounts.
-
-### 14.5 Offline Check-in Durability
-
-- **Chosen:** Local SQLite event log plus backend upsert by `sync_event_id`.
-- **Why:** The staff app must continue working during network loss and sync safely later.
-- **How it works:** The mobile app stores provisional check-in events locally. When online, it sends queued events to the backend. The backend validates and deduplicates them.
-- **Trade-offs / risks:** Devices must protect local data and may require periodic cache refresh before the event.
-- **Alternatives not chosen:** In-memory-only offline storage was rejected because app restarts would lose unsynced check-ins.
-
-### 14.6 Robust CSV Import
-
-- **Chosen:** Staging-style import with validation, deduplication, and batch records.
-- **Why:** Invalid or duplicate data must not interrupt the running system.
-- **How it works:** The CSV worker loads data into a staging process/table, validates rows, upserts valid records, and records invalid rows in import error reports.
-- **Trade-offs / risks:** The import pipeline is more complex than direct row upserts.
-- **Alternatives not chosen:** Direct import into production tables was rejected because bad files could corrupt student eligibility data.
-
-### 14.7 External Provider Isolation
-
-- **Chosen:** Adapter pattern for payment, notification, AI, and object storage providers.
-- **Why:** External providers can fail, change APIs, or be replaced by mock implementations for local development.
-- **How it works:** Application code depends on provider interfaces; infrastructure implements concrete adapters.
-- **Trade-offs / risks:** Adds abstraction code.
-- **Alternatives not chosen:** Direct provider calls inside controllers or domain logic were rejected because they increase coupling and make testing harder.
+```text
+students(student_code) UNIQUE
+students(user_id) UNIQUE WHERE user_id IS NOT NULL
+students(status)
+students(import_batch_id)
+```
 
 ---
 
-## 15. Quality Attribute Mapping
+## 4.5 `refresh_tokens`
 
-| Quality attribute | Design decision                                                              |
-| ----------------- | ---------------------------------------------------------------------------- |
-| Consistency       | PostgreSQL transactions, unique constraints, row-level locking               |
-| Availability      | Payment graceful degradation, async workers, isolation of external providers |
-| Scalability       | Rate limiting, optional caching, background workers, lightweight read paths  |
-| Security          | JWT, RBAC, backend endpoint enforcement                                      |
-| Resilience        | Circuit breaker, retry policy, idempotency keys, worker-based processing     |
-| Offline support   | React Native local SQLite queue and sync protocol                            |
-| Extensibility     | Adapter pattern for payment, notification, AI, and storage providers         |
-| Maintainability   | Java Spring Boot modular monolith with DDD-lite layered architecture         |
-| Testability       | Domain rules isolated from HTTP and infrastructure details                   |
+Stores hashed refresh tokens for token rotation and logout.
 
----
+| Column                 | Type         | Constraint                      | Description              |
+| ---------------------- | ------------ | ------------------------------- | ------------------------ |
+| `id`                   | UUID         | PK                              | Refresh token ID         |
+| `user_id`              | UUID         | NOT NULL, FK -> `users.id`      | Token owner              |
+| `token_hash`           | VARCHAR(255) | NOT NULL, UNIQUE                | Hash of refresh token    |
+| `expires_at`           | TIMESTAMP    | NOT NULL                        | Expiration time          |
+| `revoked_at`           | TIMESTAMP    | NULL                            | Revocation time          |
+| `created_at`           | TIMESTAMP    | NOT NULL                        | Created time             |
+| `replaced_by_token_id` | UUID         | NULL, FK -> `refresh_tokens.id` | New token after rotation |
 
-## 16. MVP Scope and Optional Enhancements
+Constraints:
 
-### 16.1 MVP Scope
+- Raw refresh tokens must not be stored.
+- `token_hash` must be unique.
+- Revoked tokens cannot be used again.
 
-The MVP focuses on the requirements that are central to the project brief:
+Indexes:
 
-- user authentication and RBAC,
-- workshop browsing and organizer management,
-- free and paid registration,
-- seat allocation correctness,
-- payment idempotency and callback handling,
-- QR ticket generation,
-- online and offline check-in synchronization,
-- nightly CSV student import,
-- AI summary generation from uploaded PDFs,
-- basic notification delivery.
-
-### 16.2 Optional Enhancements Not Required for MVP
-
-The following features are intentionally excluded from the MVP to reduce implementation scope:
-
-- full audit logging system,
-- `system_operator` role,
-- manual payment override,
-- manual check-in correction,
-- advanced admin console,
-- provider delivery dashboard,
-- complex distributed message queue setup,
-- advanced analytics.
-
-These features may be added later if time permits.
+```text
+refresh_tokens(token_hash) UNIQUE
+refresh_tokens(user_id)
+refresh_tokens(expires_at)
+refresh_tokens(revoked_at)
+```
 
 ---
 
-## 17. Summary
+## 4.6 `rooms`
 
-The UniHub Workshop system is designed as a **Java Spring Boot modular monolith** with **DDD-lite layered architecture**. The web client uses **Next.js**, the check-in mobile client uses **React Native**, and both communicate with the same backend API over HTTPS.
+Stores physical room information.
 
-PostgreSQL is used as the system of record for transactional business data, while Redis supports volatile coordination such as rate limiting, idempotency, optional caching, temporary locks, and worker coordination. Object storage stores uploaded PDFs, and SQLite supports durable offline check-in on mobile devices.
+| Column       | Type         | Constraint                     | Description                |
+| ------------ | ------------ | ------------------------------ | -------------------------- |
+| `id`         | UUID         | PK                             | Room ID                    |
+| `name`       | VARCHAR(100) | NOT NULL                       | Room name                  |
+| `building`   | VARCHAR(100) | NULL                           | Building name              |
+| `capacity`   | INT          | NOT NULL, CHECK `capacity > 0` | Room capacity              |
+| `map_url`    | TEXT         | NULL                           | Room map or floor plan URL |
+| `status`     | VARCHAR(30)  | NOT NULL                       | `ACTIVE`, `INACTIVE`       |
+| `created_at` | TIMESTAMP    | NOT NULL                       | Created time               |
+| `updated_at` | TIMESTAMP    | NOT NULL                       | Last updated time          |
 
-This architecture is suitable for the course project because it avoids the complexity of microservices while still addressing the main architectural challenges: seat contention, traffic spikes, payment instability, double-charge prevention, offline check-in, CSV import robustness, AI summary processing, notification delivery, and role-based access control.
+Constraints:
+
+- `(building, name)` should be unique.
+- `capacity` must be greater than zero.
+
+Indexes:
+
+```text
+rooms(building, name) UNIQUE
+rooms(status)
+```
+
+---
+
+## 4.7 `workshops`
+
+Stores high-level workshop information.
+
+| Column               | Type         | Constraint                 | Description                                  |
+| -------------------- | ------------ | -------------------------- | -------------------------------------------- |
+| `id`                 | UUID         | PK                         | Workshop ID                                  |
+| `title`              | VARCHAR(255) | NOT NULL                   | Workshop title                               |
+| `speaker`            | VARCHAR(255) | NOT NULL                   | Speaker name                                 |
+| `description`        | TEXT         | NOT NULL                   | Workshop description                         |
+| `status`             | VARCHAR(30)  | NOT NULL                   | `DRAFT`, `PUBLISHED`, `CANCELED`, `ARCHIVED` |
+| `created_by_user_id` | UUID         | NOT NULL, FK -> `users.id` | Organizer who created the workshop           |
+| `created_at`         | TIMESTAMP    | NOT NULL                   | Created time                                 |
+| `updated_at`         | TIMESTAMP    | NOT NULL                   | Last updated time                            |
+| `published_at`       | TIMESTAMP    | NULL                       | Published time                               |
+| `canceled_at`        | TIMESTAMP    | NULL                       | Canceled time                                |
+
+Constraints:
+
+- Public workshop list should only expose `PUBLISHED` workshops.
+- Canceled workshops should not accept new registrations.
+- Workshop deletion is not required for MVP; use status changes instead.
+
+Indexes:
+
+```text
+workshops(status)
+workshops(created_by_user_id)
+workshops(title)
+```
+
+---
+
+## 4.8 `workshop_sessions`
+
+Stores concrete time slots for workshops.
+
+| Column            | Type          | Constraint                          | Description                                    |
+| ----------------- | ------------- | ----------------------------------- | ---------------------------------------------- |
+| `id`              | UUID          | PK                                  | Session ID                                     |
+| `workshop_id`     | UUID          | NOT NULL, FK -> `workshops.id`      | Parent workshop                                |
+| `room_id`         | UUID          | NOT NULL, FK -> `rooms.id`          | Room                                           |
+| `start_at`        | TIMESTAMP     | NOT NULL                            | Session start time                             |
+| `end_at`          | TIMESTAMP     | NOT NULL                            | Session end time                               |
+| `status`          | VARCHAR(30)   | NOT NULL                            | `OPEN`, `CLOSED`, `CANCELED`, `FULL`           |
+| `seat_capacity`   | INT           | NOT NULL, CHECK `seat_capacity > 0` | Maximum seats                                  |
+| `seats_confirmed` | INT           | NOT NULL DEFAULT 0                  | Confirmed seats                                |
+| `seats_reserved`  | INT           | NOT NULL DEFAULT 0                  | Temporarily reserved seats for pending payment |
+| `fee_type`        | VARCHAR(20)   | NOT NULL                            | `FREE` or `PAID`                               |
+| `fee_amount`      | NUMERIC(12,2) | NOT NULL DEFAULT 0                  | Fee amount                                     |
+| `currency`        | VARCHAR(10)   | NOT NULL DEFAULT `VND`              | Currency                                       |
+| `created_at`      | TIMESTAMP     | NOT NULL                            | Created time                                   |
+| `updated_at`      | TIMESTAMP     | NOT NULL                            | Last updated time                              |
+| `canceled_at`     | TIMESTAMP     | NULL                                | Canceled time                                  |
+
+Constraints:
+
+- `end_at > start_at`.
+- `seat_capacity > 0`.
+- `seats_confirmed >= 0`.
+- `seats_reserved >= 0`.
+- `seats_confirmed + seats_reserved <= seat_capacity`.
+- If `fee_type = 'FREE'`, then `fee_amount = 0`.
+- If `fee_type = 'PAID'`, then `fee_amount > 0`.
+- Room conflict must be prevented:
+  - same `room_id`,
+  - overlapping `start_at` and `end_at`,
+  - active/open session only.
+- Registration flow must lock the session row before updating seat counters.
+
+Indexes:
+
+```text
+workshop_sessions(workshop_id)
+workshop_sessions(room_id)
+workshop_sessions(start_at)
+workshop_sessions(status, start_at)
+```
+
+Optional PostgreSQL exclusion constraint:
+
+```sql
+-- Optional if using PostgreSQL range types
+-- Prevent overlapping active sessions in the same room.
+EXCLUDE USING gist (
+  room_id WITH =,
+  tsrange(start_at, end_at) WITH &&
+)
+WHERE (status <> 'CANCELED');
+```
+
+---
+
+## 4.9 `registrations`
+
+Stores student workshop registration records.
+
+| Column              | Type        | Constraint                             | Description                                                             |
+| ------------------- | ----------- | -------------------------------------- | ----------------------------------------------------------------------- |
+| `id`                | UUID        | PK                                     | Registration ID                                                         |
+| `student_id`        | UUID        | NOT NULL, FK -> `students.id`          | Registered student                                                      |
+| `session_id`        | UUID        | NOT NULL, FK -> `workshop_sessions.id` | Registered session                                                      |
+| `status`            | VARCHAR(30) | NOT NULL                               | `PENDING_PAYMENT`, `CONFIRMED`, `PAYMENT_FAILED`, `EXPIRED`, `CANCELED` |
+| `registration_type` | VARCHAR(20) | NOT NULL                               | `FREE` or `PAID`                                                        |
+| `reserved_at`       | TIMESTAMP   | NULL                                   | Time seat was reserved                                                  |
+| `confirmed_at`      | TIMESTAMP   | NULL                                   | Time registration was confirmed                                         |
+| `expires_at`        | TIMESTAMP   | NULL                                   | Expiration time for pending paid registration                           |
+| `canceled_at`       | TIMESTAMP   | NULL                                   | Cancellation time                                                       |
+| `created_at`        | TIMESTAMP   | NOT NULL                               | Created time                                                            |
+| `updated_at`        | TIMESTAMP   | NOT NULL                               | Last updated time                                                       |
+
+Constraints:
+
+- A student cannot have more than one active registration for the same session.
+- QR ticket is created only when registration becomes `CONFIRMED`.
+- Paid registration starts as `PENDING_PAYMENT`.
+- Free registration is created as `CONFIRMED`.
+- Expired paid registration must release reserved seat.
+- Registration is allowed only if linked student status is `ACTIVE`.
+
+Recommended partial unique index:
+
+```sql
+CREATE UNIQUE INDEX uq_active_registration_student_session
+ON registrations(student_id, session_id)
+WHERE status IN ('PENDING_PAYMENT', 'CONFIRMED');
+```
+
+Indexes:
+
+```text
+registrations(student_id)
+registrations(session_id)
+registrations(status)
+registrations(status, expires_at)
+registrations(student_id, session_id) UNIQUE WHERE status IN ('PENDING_PAYMENT', 'CONFIRMED')
+```
+
+---
+
+## 4.10 `payment_intents`
+
+Stores local payment state for paid workshop registrations.
+
+| Column            | Type          | Constraint                                 | Description                      |
+| ----------------- | ------------- | ------------------------------------------ | -------------------------------- |
+| `id`              | UUID          | PK                                         | Payment intent ID                |
+| `registration_id` | UUID          | NOT NULL, UNIQUE, FK -> `registrations.id` | Related paid registration        |
+| `idempotency_key` | VARCHAR(255)  | NOT NULL, UNIQUE                           | Client-generated idempotency key |
+| `gateway_ref`     | VARCHAR(255)  | NULL, UNIQUE                               | Payment gateway reference        |
+| `status`          | VARCHAR(40)   | NOT NULL                                   | Payment status                   |
+| `amount`          | NUMERIC(12,2) | NOT NULL                                   | Payment amount                   |
+| `currency`        | VARCHAR(10)   | NOT NULL DEFAULT `VND`                     | Currency                         |
+| `payment_url`     | TEXT          | NULL                                       | Gateway payment URL              |
+| `expires_at`      | TIMESTAMP     | NOT NULL                                   | Payment expiration time          |
+| `paid_at`         | TIMESTAMP     | NULL                                       | Successful payment time          |
+| `failure_reason`  | TEXT          | NULL                                       | Failure reason                   |
+| `created_at`      | TIMESTAMP     | NOT NULL                                   | Created time                     |
+| `updated_at`      | TIMESTAMP     | NOT NULL                                   | Last updated time                |
+
+Constraints:
+
+- `registration_id` must reference a paid registration.
+- `idempotency_key` must be unique.
+- `gateway_ref` must be unique when present.
+- Callback amount and currency must match local payment intent.
+- Duplicate callback must not confirm registration twice.
+- External gateway call must not happen inside an open registration transaction.
+
+Indexes:
+
+```text
+payment_intents(registration_id) UNIQUE
+payment_intents(idempotency_key) UNIQUE
+payment_intents(gateway_ref) UNIQUE WHERE gateway_ref IS NOT NULL
+payment_intents(status, expires_at)
+```
+
+---
+
+## 4.11 `qr_tickets`
+
+Stores QR ticket metadata for confirmed registrations.
+
+| Column            | Type         | Constraint                                 | Description                    |
+| ----------------- | ------------ | ------------------------------------------ | ------------------------------ |
+| `id`              | UUID         | PK                                         | QR ticket ID                   |
+| `registration_id` | UUID         | NOT NULL, UNIQUE, FK -> `registrations.id` | Confirmed registration         |
+| `qr_token_hash`   | VARCHAR(255) | NOT NULL, UNIQUE                           | Hash of QR token               |
+| `status`          | VARCHAR(30)  | NOT NULL                                   | `ACTIVE`, `REVOKED`, `EXPIRED` |
+| `issued_at`       | TIMESTAMP    | NOT NULL                                   | Issue time                     |
+| `expires_at`      | TIMESTAMP    | NULL                                       | Optional expiration time       |
+| `revoked_at`      | TIMESTAMP    | NULL                                       | Revocation time                |
+| `created_at`      | TIMESTAMP    | NOT NULL                                   | Created time                   |
+
+Constraints:
+
+- One confirmed registration has one QR ticket.
+- QR ticket must not be created for `PENDING_PAYMENT`, `EXPIRED`, `CANCELED`, or `PAYMENT_FAILED` registrations.
+- Raw QR token must not be stored directly.
+- `qr_token_hash` must be unique.
+
+Indexes:
+
+```text
+qr_tickets(registration_id) UNIQUE
+qr_tickets(qr_token_hash) UNIQUE
+qr_tickets(status)
+```
+
+---
+
+## 4.12 `checkin_records`
+
+Stores final accepted check-in records.
+
+| Column               | Type         | Constraint                                 | Description                                |
+| -------------------- | ------------ | ------------------------------------------ | ------------------------------------------ |
+| `id`                 | UUID         | PK                                         | Check-in record ID                         |
+| `registration_id`    | UUID         | NOT NULL, UNIQUE, FK -> `registrations.id` | Checked-in registration                    |
+| `session_id`         | UUID         | NOT NULL, FK -> `workshop_sessions.id`     | Session context                            |
+| `scanned_by_user_id` | UUID         | NOT NULL, FK -> `users.id`                 | Check-in staff user                        |
+| `sync_event_id`      | VARCHAR(255) | NULL, UNIQUE                               | Mobile-generated event ID for offline sync |
+| `source_mode`        | VARCHAR(30)  | NOT NULL                                   | `ONLINE` or `OFFLINE_SYNC`                 |
+| `scanned_at`         | TIMESTAMP    | NOT NULL                                   | Time QR was scanned                        |
+| `server_received_at` | TIMESTAMP    | NOT NULL                                   | Time backend received the event            |
+| `created_at`         | TIMESTAMP    | NOT NULL                                   | Created time                               |
+
+Constraints:
+
+- One registration can have at most one successful check-in.
+- `registration_id` must be unique.
+- `sync_event_id` must be unique when provided.
+- Check-in is allowed only for `CONFIRMED` registrations.
+- Backend final validation overrides mobile offline validation.
+
+Indexes:
+
+```text
+checkin_records(registration_id) UNIQUE
+checkin_records(sync_event_id) UNIQUE WHERE sync_event_id IS NOT NULL
+checkin_records(session_id)
+checkin_records(scanned_by_user_id)
+checkin_records(scanned_at)
+```
+
+---
+
+## 4.13 `notifications`
+
+Stores in-app and email notification records.
+
+| Column              | Type         | Constraint                 | Description                                     |
+| ------------------- | ------------ | -------------------------- | ----------------------------------------------- |
+| `id`                | UUID         | PK                         | Notification ID                                 |
+| `recipient_user_id` | UUID         | NOT NULL, FK -> `users.id` | Recipient                                       |
+| `event_id`          | VARCHAR(255) | NULL                       | Source event ID for deduplication               |
+| `event_type`        | VARCHAR(100) | NOT NULL                   | Example: `REGISTRATION_CONFIRMED`               |
+| `channel`           | VARCHAR(30)  | NOT NULL                   | `IN_APP` or `EMAIL`                             |
+| `title`             | VARCHAR(255) | NOT NULL                   | Notification title                              |
+| `message`           | TEXT         | NOT NULL                   | Rendered message                                |
+| `status`            | VARCHAR(30)  | NOT NULL                   | `PENDING`, `SENT`, `FAILED`, `RETRYING`, `READ` |
+| `read_at`           | TIMESTAMP    | NULL                       | Read time for in-app notification               |
+| `retry_count`       | INT          | NOT NULL DEFAULT 0         | Retry count                                     |
+| `next_retry_at`     | TIMESTAMP    | NULL                       | Next retry time                                 |
+| `last_error_code`   | VARCHAR(100) | NULL                       | Last error code                                 |
+| `created_at`        | TIMESTAMP    | NOT NULL                   | Created time                                    |
+| `updated_at`        | TIMESTAMP    | NOT NULL                   | Last updated time                               |
+
+Constraints:
+
+- A notification must belong to one recipient user.
+- User can only view their own notifications.
+- Notification failure must not roll back registration, payment, or workshop update.
+- Duplicate worker execution should not create duplicate user-facing notifications.
+- If `event_id` exists, `(event_id, recipient_user_id, channel)` should be unique.
+
+Indexes:
+
+```text
+notifications(recipient_user_id)
+notifications(status, next_retry_at)
+notifications(event_type, created_at)
+notifications(event_id, recipient_user_id, channel) UNIQUE WHERE event_id IS NOT NULL
+```
+
+---
+
+## 4.14 `workshop_documents`
+
+Stores metadata for organizer-uploaded PDF files.
+
+| Column                | Type         | Constraint                     | Description                 |
+| --------------------- | ------------ | ------------------------------ | --------------------------- |
+| `id`                  | UUID         | PK                             | Document ID                 |
+| `workshop_id`         | UUID         | NOT NULL, FK -> `workshops.id` | Related workshop            |
+| `uploaded_by_user_id` | UUID         | NOT NULL, FK -> `users.id`     | Organizer                   |
+| `object_key`          | TEXT         | NOT NULL, UNIQUE               | Object storage key          |
+| `original_filename`   | VARCHAR(255) | NOT NULL                       | Uploaded filename           |
+| `content_type`        | VARCHAR(100) | NOT NULL                       | Should be `application/pdf` |
+| `file_size_bytes`     | BIGINT       | NOT NULL                       | File size                   |
+| `checksum`            | VARCHAR(255) | NULL                           | Optional file checksum      |
+| `upload_status`       | VARCHAR(30)  | NOT NULL                       | `UPLOADED` or `FAILED`      |
+| `created_at`          | TIMESTAMP    | NOT NULL                       | Uploaded time               |
+| `updated_at`          | TIMESTAMP    | NOT NULL                       | Last updated time           |
+
+Constraints:
+
+- Only PDF files are allowed.
+- PDF binary content is stored in object storage, not PostgreSQL.
+- `object_key` must be unique.
+- File size must not exceed configured limit.
+
+Indexes:
+
+```text
+workshop_documents(workshop_id)
+workshop_documents(uploaded_by_user_id)
+workshop_documents(object_key) UNIQUE
+```
+
+---
+
+## 4.15 `ai_summaries`
+
+Stores generated AI summary status and result.
+
+| Column            | Type         | Constraint                                      | Description                                    |
+| ----------------- | ------------ | ----------------------------------------------- | ---------------------------------------------- |
+| `id`              | UUID         | PK                                              | Summary ID                                     |
+| `document_id`     | UUID         | NOT NULL, UNIQUE, FK -> `workshop_documents.id` | Source PDF document                            |
+| `status`          | VARCHAR(30)  | NOT NULL                                        | `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED` |
+| `summary_text`    | TEXT         | NULL                                            | Generated summary                              |
+| `attempt_count`   | INT          | NOT NULL DEFAULT 0                              | Number of processing attempts                  |
+| `last_error_code` | VARCHAR(100) | NULL                                            | Last processing error code                     |
+| `started_at`      | TIMESTAMP    | NULL                                            | Processing start time                          |
+| `completed_at`    | TIMESTAMP    | NULL                                            | Processing completion time                     |
+| `created_at`      | TIMESTAMP    | NOT NULL                                        | Created time                                   |
+| `updated_at`      | TIMESTAMP    | NOT NULL                                        | Last updated time                              |
+
+Constraints:
+
+- One document should have one summary record.
+- Summary generation is asynchronous.
+- Workshop browsing must not fail if summary is `PENDING`, `PROCESSING`, or `FAILED`.
+- `summary_text` can be null until status is `COMPLETED`.
+
+Indexes:
+
+```text
+ai_summaries(document_id) UNIQUE
+ai_summaries(status)
+ai_summaries(status, updated_at)
+```
+
+---
+
+## 4.16 `csv_import_batches`
+
+Stores each CSV import attempt.
+
+| Column            | Type         | Constraint         | Description                                                    |
+| ----------------- | ------------ | ------------------ | -------------------------------------------------------------- |
+| `id`              | UUID         | PK                 | Import batch ID                                                |
+| `file_name`       | VARCHAR(255) | NOT NULL           | CSV file name                                                  |
+| `checksum`        | VARCHAR(255) | NULL, UNIQUE       | File checksum                                                  |
+| `status`          | VARCHAR(30)  | NOT NULL           | `PROCESSING`, `SUCCESS`, `PARTIAL_SUCCESS`, `FAILED`, `MISSED` |
+| `total_rows`      | INT          | NOT NULL DEFAULT 0 | Total rows parsed                                              |
+| `success_count`   | INT          | NOT NULL DEFAULT 0 | Valid rows imported                                            |
+| `error_count`     | INT          | NOT NULL DEFAULT 0 | Invalid rows                                                   |
+| `duplicate_count` | INT          | NOT NULL DEFAULT 0 | Duplicate rows detected                                        |
+| `failure_reason`  | TEXT         | NULL               | Failure reason                                                 |
+| `started_at`      | TIMESTAMP    | NOT NULL           | Import start time                                              |
+| `finished_at`     | TIMESTAMP    | NULL               | Import finish time                                             |
+| `created_at`      | TIMESTAMP    | NOT NULL           | Created time                                                   |
+
+Constraints:
+
+- Same checksum should not be imported twice as a new effect.
+- Invalid file must not overwrite current valid student data.
+- If file is missing, a `MISSED` batch may be created.
+
+Indexes:
+
+```text
+csv_import_batches(checksum) UNIQUE WHERE checksum IS NOT NULL
+csv_import_batches(status)
+csv_import_batches(started_at)
+```
+
+---
+
+## 4.17 `csv_import_errors`
+
+Stores row-level CSV import validation errors.
+
+| Column          | Type         | Constraint                              | Description               |
+| --------------- | ------------ | --------------------------------------- | ------------------------- |
+| `id`            | UUID         | PK                                      | Error ID                  |
+| `batch_id`      | UUID         | NOT NULL, FK -> `csv_import_batches.id` | Import batch              |
+| `row_number`    | INT          | NOT NULL                                | Row number in CSV         |
+| `student_code`  | VARCHAR(50)  | NULL                                    | Student code if available |
+| `field_name`    | VARCHAR(100) | NULL                                    | Invalid field             |
+| `error_code`    | VARCHAR(100) | NOT NULL                                | Error code                |
+| `error_message` | TEXT         | NOT NULL                                | Human-readable error      |
+| `created_at`    | TIMESTAMP    | NOT NULL                                | Created time              |
+
+Constraints:
+
+- Each import error must belong to one import batch.
+- Invalid rows should not stop the whole import if the file structure is valid.
+- Do not store unnecessary sensitive data from raw CSV rows.
+
+Indexes:
+
+```text
+csv_import_errors(batch_id)
+csv_import_errors(batch_id, row_number)
+csv_import_errors(error_code)
+```
+
+---
+
+# 5. Mobile SQLite Tables
+
+The React Native mobile app uses SQLite for offline check-in. SQLite data is provisional. PostgreSQL remains the final source of truth.
+
+---
+
+## 5.1 `cached_sessions`
+
+Stores check-in session data for offline use.
+
+| Column           | Type    | Constraint | Description           |
+| ---------------- | ------- | ---------- | --------------------- |
+| `session_id`     | TEXT    | PK         | Session ID            |
+| `workshop_title` | TEXT    | NOT NULL   | Workshop title        |
+| `room_name`      | TEXT    | NULL       | Room name             |
+| `start_at`       | TEXT    | NOT NULL   | Start time            |
+| `end_at`         | TEXT    | NOT NULL   | End time              |
+| `checkin_open`   | INTEGER | NOT NULL   | 1 if check-in is open |
+| `cached_at`      | TEXT    | NOT NULL   | Cache time            |
+
+Constraints:
+
+- `session_id` must be unique.
+- Cache should be refreshed before the event.
+
+---
+
+## 5.2 `offline_checkin_events`
+
+Stores unsynced offline check-in events.
+
+| Column          | Type | Constraint | Description                                                      |
+| --------------- | ---- | ---------- | ---------------------------------------------------------------- |
+| `sync_event_id` | TEXT | PK         | Local unique event ID                                            |
+| `session_id`    | TEXT | NOT NULL   | Selected session                                                 |
+| `qr_token`      | TEXT | NOT NULL   | Scanned QR token                                                 |
+| `scanned_at`    | TEXT | NOT NULL   | Device scan time                                                 |
+| `device_id`     | TEXT | NULL       | Device ID                                                        |
+| `local_status`  | TEXT | NOT NULL   | `PENDING_SYNC`, `SYNCED`, `REJECTED`, `DUPLICATE`, `SYNC_FAILED` |
+| `server_result` | TEXT | NULL       | Backend result after sync                                        |
+| `synced_at`     | TEXT | NULL       | Sync completion time                                             |
+| `error_code`    | TEXT | NULL       | Backend error code                                               |
+
+Constraints:
+
+- `sync_event_id` must be stable across retries.
+- Offline events must survive app restart.
+- Backend result overrides local provisional validation.
+
+Indexes:
+
+```text
+offline_checkin_events(sync_event_id) UNIQUE
+offline_checkin_events(local_status)
+offline_checkin_events(session_id)
+```
+
+---
+
+# 6. Important Cross-Table Rules
+
+## 6.1 Seat allocation
+
+- `workshop_sessions.seats_confirmed + seats_reserved <= seat_capacity`.
+- Registration transaction must lock the target session row.
+- Free registration increments `seats_confirmed`.
+- Paid registration increments `seats_reserved`.
+- Payment success converts reserved seat into confirmed seat.
+- Payment expiration releases reserved seat.
+
+## 6.2 Duplicate registration prevention
+
+```sql
+CREATE UNIQUE INDEX uq_active_registration_student_session
+ON registrations(student_id, session_id)
+WHERE status IN ('PENDING_PAYMENT', 'CONFIRMED');
+```
+
+This prevents one student from holding or confirming more than one active registration for the same session.
+
+## 6.3 Double-charge prevention
+
+- `payment_intents.idempotency_key` must be unique.
+- Reusing the same idempotency key with the same request returns the same result.
+- Reusing the same idempotency key with different request data is rejected.
+- Gateway callback must be idempotent.
+
+## 6.4 QR ticket rules
+
+- QR ticket is created only for confirmed registration.
+- `qr_tickets.registration_id` must be unique.
+- QR token should be signed, random, or otherwise tamper-resistant.
+- Raw QR token should not be stored directly.
+
+## 6.5 Check-in rules
+
+- `checkin_records.registration_id` must be unique.
+- `checkin_records.sync_event_id` must be unique when provided.
+- Only confirmed registrations can be checked in.
+- Duplicate offline sync must not create duplicate attendance.
+
+## 6.6 CSV import rules
+
+- `students.student_code` must remain unique.
+- Invalid file must not overwrite current valid student records.
+- Duplicate rows are handled deterministically.
+- Import result is stored in `csv_import_batches`.
+- Row-level errors are stored in `csv_import_errors`.
+
+---
+
+# 7. Recommended Migration Order
+
+```text
+1. users
+2. roles
+3. user_roles
+4. csv_import_batches
+5. students
+6. refresh_tokens
+7. rooms
+8. workshops
+9. workshop_sessions
+10. registrations
+11. payment_intents
+12. qr_tickets
+13. checkin_records
+14. notifications
+15. workshop_documents
+16. ai_summaries
+17. csv_import_errors
+```
+
+---
+
+# 8. Seed Data Required for Demo
+
+The project should provide seed data for:
+
+- roles:
+  - `student`
+  - `organizer`
+  - `checkin_staff`
+- sample organizer account,
+- sample check-in staff account,
+- sample student accounts linked to imported students,
+- sample rooms,
+- sample workshops and sessions,
+- sample CSV file for student import,
+- optional sample PDF for AI Summary demo.
+
+---
+
+# 9. Tables Intentionally Excluded from MVP
+
+The following tables are not included because they are not required by the project brief or MVP scope:
+
+| Table                             | Reason                                                        |
+| --------------------------------- | ------------------------------------------------------------- |
+| `audit_logs`                      | Not explicitly required by the brief; can be added later      |
+| `system_operators`                | The brief only defines student, organizer, and check-in staff |
+| `manual_corrections`              | Manual correction flow is not required for MVP                |
+| `payment_reconciliation_requests` | Manual reconciliation endpoint is not required for MVP        |
+| `telegram_notifications`          | Telegram is only an example of future extensibility           |

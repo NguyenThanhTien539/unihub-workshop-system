@@ -7,14 +7,15 @@ University A organizes an annual “Skills and Career Week”. The event lasts 5
 This process is no longer suitable because thousands of students may try to register within a few minutes after registration opens. The current approach creates several operational and technical risks:
 
 - Google Forms cannot reliably prevent seat conflicts when many students register at the same time.
-- Manual confirmation emails are slow, error-prone, and difficult to extend to new notification channels.
+- Manual confirmation emails are slow, error-prone, and difficult to track.
 - Paid workshops require a safer registration and payment flow because payment timeouts, duplicated retries, or delayed confirmations can cause disputes.
 - Check-in at room entrances is difficult without QR-based validation.
 - Some check-in areas may have unstable network connectivity, so staff need to continue check-in even when offline.
 - The university’s existing Student Management System has no API, so student identity data can only be imported from nightly CSV exports.
 - Uploaded PDF documents for workshops need to be processed automatically to generate useful summaries for students.
+- The notification mechanism should support future channels such as Telegram without requiring a large redesign.
 
-Therefore, the project needs a system that digitizes the full workshop lifecycle, from browsing and registration to payment, confirmation, notification, and check-in, while remaining realistic for a student course project.
+Therefore, the project needs a system that digitizes the workshop lifecycle, from browsing and registration to payment, confirmation, notification, and check-in, while remaining realistic for a student course project.
 
 ---
 
@@ -29,12 +30,12 @@ The UniHub Workshop system aims to:
 - Generate a QR code only after a registration is successfully confirmed.
 - Support online and offline check-in for room entrance staff.
 - Send registration and schedule notifications through email and in-app channels.
-- Keep the notification design extensible so that future channels such as Telegram can be added without major redesign.
+- Design the notification mechanism so future channels such as Telegram can be added without major redesign.
 - Allow organizers to upload PDF workshop documents and generate AI-based summaries.
 - Import student data from nightly CSV files exported by the legacy Student Management System.
 - Apply strict access control for students, organizers, and check-in staff.
 - Keep browsing and other non-payment features available even when the payment gateway is unstable.
-- Provide clear logs or reports for important operations such as registration, payment, CSV import, and check-in synchronization.
+- Provide clear status tracking and reports for important operations such as registration, payment, CSV import, notification delivery, and check-in synchronization.
 
 ---
 
@@ -55,17 +56,19 @@ The project is considered successful if:
 - Invalid or duplicated CSV rows do not interrupt the running system.
 - Students, organizers, and check-in staff can only access functions allowed by their roles.
 - Organizers can upload PDF files and view generated AI summaries or processing status.
+- Students receive confirmation notifications through in-app and email channels after successful registration.
+- The notification design allows a future channel such as Telegram to be added through a new provider adapter without changing registration or payment business logic.
 - The system includes enough seed data and documentation for evaluators to run and test the project.
 
 ---
 
 ## 4. User Groups and Needs
 
-| User Group     | Main Needs                                                                                                               | Important Quality Attributes                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Student        | Browse workshop schedule, view speaker and room details, register, pay if needed, receive QR code, check in at the event | Fast response time, fairness, accurate remaining seats, clear registration status, reliable confirmation |
-| Organizer      | Create and update workshops, cancel sessions, view registration statistics, upload PDFs for AI summary                   | Strong access control, auditability, reliable background processing, easy content management             |
-| Check-in Staff | Scan QR codes at room entrances, verify attendance, continue working when network is unstable                            | Offline capability, fast validation, duplicate detection, reliable synchronization                       |
+| User Group     | Main Needs                                                                                                                                                   | Important Quality Attributes                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Student        | Browse workshop schedule, view speaker and room details, register, pay if needed, receive QR code, receive confirmation notifications, check in at the event | Fast response time, fairness, accurate remaining seats, clear registration status, reliable confirmation |
+| Organizer      | Create and update workshops, cancel sessions, view registration statistics, upload PDFs for AI summary, view CSV import reports                              | Strong access control, clear status tracking, reliable background processing, easy content management    |
+| Check-in Staff | Scan QR codes at room entrances, verify attendance, continue working when network is unstable                                                                | Offline capability, fast validation, duplicate detection, reliable synchronization                       |
 
 ---
 
@@ -82,6 +85,7 @@ The project includes the following features:
 - Paid workshop registration.
 - QR code generation after successful registration confirmation.
 - Email and in-app notification after registration.
+- Notification design that supports adding future channels such as Telegram through a provider adapter.
 - Organizer workshop management.
 - Workshop creation, update, cancellation, and statistics viewing.
 - Role-based access control for students, organizers, and check-in staff.
@@ -90,24 +94,27 @@ The project includes the following features:
 - PDF upload by organizers.
 - AI-generated workshop summary.
 - Nightly CSV import from the legacy Student Management System.
+- CSV import reports for organizers.
 - Rate limiting or equivalent request control for spike protection.
 - Payment failure isolation so that payment problems do not affect unrelated features.
 - Idempotent handling for registration and payment-related retries.
 - Overbooking protection.
-- Audit logs for security-sensitive operations.
 
 ### 5.2 Out of Scope / Simplified for Course Project
 
 The following items are outside the scope or may be simplified:
 
+- Public student self-registration is not required for the MVP. Student accounts may be prepared through seed data or controlled setup.
 - Real production payment settlement may be replaced with a mock payment gateway or a sandbox provider.
 - Real university Single Sign-On may be replaced with email/password login and JWT-based authentication.
 - Production-grade cloud infrastructure is not required; the system may run locally using Docker services.
-- AI provider integration may use either a real AI API or a local/mock AI adapter for course demonstration, but the upload flow, background processing, status tracking, retry handling, and summary storage must be implemented as real application logic.
+- AI provider integration may use either a real AI API or a local/mock AI adapter for course demonstration, but the upload flow, background processing, status tracking, and summary storage should be implemented as real application logic.
 - Advanced analytics, recommendation, and personalization are not required.
 - Real push notification infrastructure may be simplified to in-app notification records plus email.
-- Automatic refund settlement is not a primary requirement; cancellation of paid workshops may be represented by a simplified manual or mocked refund flow.
+- Telegram notification is not implemented in the MVP, but the notification design should support adding it later through a new provider adapter.
+- Automatic refund settlement is not a primary requirement; cancellation of paid workshops may be represented by a simplified status update.
 - A fully native production mobile application is not required if the team can demonstrate offline check-in behavior through a mobile app, PWA, or equivalent prototype.
+- Full audit logging, manual payment override, manual check-in correction, and advanced admin tooling are not part of the MVP.
 
 ---
 
@@ -116,6 +123,7 @@ The following items are outside the scope or may be simplified:
 The proposal is based on the following assumptions:
 
 - Each student has a unique student ID supplied by the nightly CSV import.
+- Each student account is linked to an imported student profile for registration eligibility.
 - Each workshop session has a fixed capacity.
 - Each registration belongs to exactly one workshop session.
 - A student cannot register for the same workshop session more than once.
@@ -129,6 +137,7 @@ The proposal is based on the following assumptions:
 - The payment gateway supports callback/webhook confirmation or a mock equivalent.
 - Internet connectivity for staff devices may be unstable, but device storage remains available.
 - The system should prioritize correctness of registration and check-in data over showing perfectly real-time seat counts.
+- The MVP notification implementation uses in-app and email channels, while the design remains open for future channels such as Telegram.
 
 ---
 
@@ -148,10 +157,11 @@ The proposal is based on the following assumptions:
 | Invalid CSV file                       | A corrupt or wrong-format CSV file can break student validation if imported directly.                                 | Import through a staging process, validate rows, reject invalid files, and generate import reports.                                                                                |
 | Duplicate student records              | Legacy CSV exports may contain repeated or conflicting student rows.                                                  | Apply deterministic deduplication and update rules based on student ID.                                                                                                            |
 | AI summary timeout                     | AI summary generation may be slow or fail due to external dependency issues.                                          | Process AI summary generation asynchronously and show processing status to organizers.                                                                                             |
-| Unauthorized admin access              | Organizer functions can modify important event data.                                                                  | Apply role-based access control, route guards, token validation, and audit logs.                                                                                                   |
-| Notification delivery failure          | Email or in-app notifications may fail or be delayed.                                                                 | Store notification status and allow retry without affecting the main registration result.                                                                                          |
-| Background worker failure              | Tasks such as email sending, AI summary, and CSV import may stop temporarily.                                         | Keep source-of-truth data in the main database and allow failed jobs to be retried.                                                                                                |
-| Database unavailability                | Core features such as registration and check-in depend on persistent data.                                            | Define degraded behavior, use backups, and avoid treating temporary cache data as the source of truth.                                                                             |
+| Unauthorized admin access              | Organizer functions can modify important event data.                                                                  | Apply role-based access control, route guards, token validation, and backend permission checks.                                                                                    |
+| Notification delivery failure          | Email or in-app notifications may fail or be delayed.                                                                 | Store notification status and allow worker retry without affecting the main registration result.                                                                                   |
+| Notification channel expansion         | Future semesters may require Telegram or other channels.                                                              | Use a notification provider adapter interface so new channels can be added without changing registration, payment, or workshop business logic.                                     |
+| Background worker failure              | Tasks such as email sending, AI summary, CSV import, and reservation cleanup may stop temporarily.                    | Keep source-of-truth data in the main database and allow failed jobs to be retried or resumed.                                                                                     |
+| Database unavailability                | Core features such as registration and check-in depend on persistent data.                                            | Define degraded behavior and avoid treating temporary cache data as the source of truth.                                                                                           |
 
 ---
 
@@ -170,9 +180,11 @@ The major functional areas are expected to include:
 - Check-in and offline synchronization.
 - AI summary processing.
 - CSV student data import.
-- Audit logging and monitoring.
+- Status tracking and operation reports for key background processes.
 
-The detailed architectural style, database choice, queue mechanism, concurrency control strategy, and payment resilience design will be described in `design.md`.
+The notification module should be designed around a provider adapter interface. The MVP implements in-app and email notifications, while future channels such as Telegram can be added by introducing a new provider adapter and templates without changing registration, payment, or workshop state transitions.
+
+The detailed architectural style, database choice, worker mechanism, concurrency control strategy, notification extensibility design, and payment resilience design will be described in `design.md`.
 
 ---
 
@@ -192,12 +204,13 @@ The final project should include:
   - offline check-in and synchronization,
   - CSV import,
   - AI summary processing,
+  - notification delivery through in-app and email channels,
   - RBAC behavior for different user roles.
 
 ---
 
 ## 10. Summary
 
-UniHub Workshop aims to replace the current Google Form and manual email process with a more reliable digital system for workshop registration and check-in. The main challenge is not only implementing basic CRUD features, but also designing the system to handle seat contention, traffic spikes, payment instability, offline check-in, CSV-based integration, and strict role-based access control.
+UniHub Workshop aims to replace the current Google Form and manual email process with a more reliable digital system for workshop registration and check-in. The main challenge is not only implementing basic CRUD features, but also designing the system to handle seat contention, traffic spikes, payment instability, offline check-in, CSV-based integration, notification delivery, future notification-channel extensibility, and strict role-based access control.
 
-The project will remain realistic for a course implementation by simplifying production-only concerns such as real payment settlement, real university SSO, and production cloud deployment, while still implementing the core technical mechanisms required by the problem.
+The project will remain realistic for a course implementation by simplifying production-only concerns such as real payment settlement, real university SSO, production cloud deployment, full audit logging, and advanced admin tooling, while still implementing the core technical mechanisms required by the problem.

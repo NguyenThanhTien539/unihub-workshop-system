@@ -23,7 +23,6 @@ Actors involved:
 | SQLite Local Database   | Stores cached sessions and unsynced offline check-in events on the device                |
 | Backend API             | Validates QR tickets, checks registration state, and records attendance                  |
 | PostgreSQL              | Stores registrations, QR tickets, check-in records, and session data                     |
-| Redis                   | Optional support for rate limiting or sync throttling                                    |
 
 Data involved:
 
@@ -31,7 +30,6 @@ Data involved:
 - `qr_tickets`
 - `registrations`
 - `workshop_sessions`
-- `audit_logs`
 - local SQLite `cached_sessions`
 - local SQLite `offline_checkin_events`
 
@@ -41,10 +39,10 @@ Detailed schema, fields, constraints, and indexes are documented in [`../databas
 
 ## Main Flow
 
-### Main Flow 1: Load Assigned Sessions for Check-in
+### Main Flow 1: Load Check-in Sessions
 
 1. Check-in staff logs in to the React Native mobile app.
-2. The mobile app calls the Backend API to load assigned or available check-in sessions.
+2. The mobile app calls the Backend API to load available check-in sessions.
 3. The Backend API validates the access token and checks role `checkin_staff`.
 4. The Backend API returns session metadata needed for check-in.
 5. The mobile app stores session metadata in SQLite for offline use.
@@ -61,7 +59,7 @@ sequenceDiagram
     Staff->>App: Open check-in app
     App->>API: GET /api/checkin/sessions
     API->>API: Validate JWT and checkin_staff role
-    API->>DB: Load assigned/open sessions
+    API->>DB: Load available check-in sessions
     DB-->>API: Session metadata
     API-->>App: Session list
     App->>Local: Cache sessions for offline use
@@ -79,8 +77,7 @@ sequenceDiagram
 7. The Backend API checks that the QR ticket belongs to the selected session.
 8. The Backend API checks that the registration has not already been checked in.
 9. The Backend API creates a `checkin_records` row.
-10. The Backend API writes an audit log entry.
-11. The Backend API returns `ACCEPTED`.
+10. The Backend API returns `ACCEPTED`.
 
 ```mermaid
 sequenceDiagram
@@ -96,7 +93,6 @@ sequenceDiagram
     API->>DB: Check confirmed registration and session match
     API->>DB: Check duplicate check-in
     API->>DB: Insert checkin_record
-    API->>DB: Write CHECKIN_ACCEPTED audit log
     API-->>App: ACCEPTED
     App-->>Staff: Show accepted result
 ```
@@ -211,7 +207,7 @@ Rules:
 
 - Only check-in staff can load check-in sessions.
 - Returned data should be enough for offline session selection and basic validation.
-- Sensitive QR secrets should not be exposed in this response unless explicitly required and protected.
+- Sensitive QR secrets must not be exposed in this response.
 
 ### Online QR Validation
 
@@ -331,24 +327,20 @@ Rules:
 
 ## Authorization Rules
 
-| Capability                        | Student | Organizer       | Check-in Staff | System Operator |
-| --------------------------------- | ------- | --------------- | -------------- | --------------- |
-| Load check-in sessions            | No      | No              | Yes            | Yes, if enabled |
-| Validate QR online                | No      | No              | Yes            | No              |
-| Save offline scan locally         | No      | No              | Yes            | No              |
-| Sync offline check-ins            | No      | No              | Yes            | No              |
-| View check-in results for session | No      | Yes, if enabled | Yes, limited   | Yes, if enabled |
-| Manually correct check-in         | No      | No              | No             | Yes, if enabled |
+| Capability                | Student | Organizer | Check-in Staff |
+| ------------------------- | ------- | --------- | -------------- |
+| Load check-in sessions    | No      | No        | Yes            |
+| Validate QR online        | No      | No        | Yes            |
+| Save offline scan locally | No      | No        | Yes            |
+| Sync offline check-ins    | No      | No        | Yes            |
 
 Example endpoint policies:
 
-| Method | Endpoint                                            | Required role                    | Purpose                                |
-| ------ | --------------------------------------------------- | -------------------------------- | -------------------------------------- |
-| GET    | `/api/checkin/sessions`                             | `checkin_staff`                  | Load check-in sessions for mobile app  |
-| POST   | `/api/checkin/validate`                             | `checkin_staff`                  | Validate QR and record check-in online |
-| POST   | `/api/checkin/sync`                                 | `checkin_staff`                  | Synchronize offline check-in events    |
-| GET    | `/api/admin/sessions/{sessionId}/checkins`          | `organizer` or `system_operator` | Optional admin check-in report         |
-| POST   | `/api/admin/checkins/{checkinId}/manual-correction` | `system_operator`                | Optional internal correction flow      |
+| Method | Endpoint                | Required role   | Purpose                                |
+| ------ | ----------------------- | --------------- | -------------------------------------- |
+| GET    | `/api/checkin/sessions` | `checkin_staff` | Load check-in sessions for mobile app  |
+| POST   | `/api/checkin/validate` | `checkin_staff` | Validate QR and record check-in online |
+| POST   | `/api/checkin/sync`     | `checkin_staff` | Synchronize offline check-in events    |
 
 ---
 
@@ -409,11 +401,10 @@ Example endpoint policies:
 ### Security Constraints
 
 - QR tokens should be signed, random, or otherwise tamper-resistant.
-- Raw QR secrets must not be logged.
+- Raw QR secrets must not be exposed in API responses.
 - Check-in endpoints must require backend RBAC checks.
 - Device-local offline data should be protected using available device security where possible.
-- Lost or compromised devices should be handled operationally by revoking staff access if needed.
-- Audit logs must not contain raw QR secrets or sensitive tokens.
+- Lost or compromised devices should be handled by disabling the staff account if needed.
 
 ### Performance Constraints
 
@@ -422,21 +413,6 @@ Example endpoint policies:
 - Sync should process events in batches.
 - A large sync batch should return per-event results instead of failing the entire batch when only some events are invalid.
 - Check-in APIs should not call AI, notification, or payment providers in the request path.
-
-### Audit Constraints
-
-The system should write audit logs for:
-
-| Action                      | Notes                                                |
-| --------------------------- | ---------------------------------------------------- |
-| `CHECKIN_ACCEPTED`          | Valid check-in recorded                              |
-| `CHECKIN_DUPLICATE`         | Duplicate check-in attempt detected                  |
-| `CHECKIN_REJECTED`          | Invalid or mismatched QR rejected                    |
-| `CHECKIN_SYNC_COMPLETED`    | Offline sync batch completed                         |
-| `CHECKIN_ACCESS_DENIED`     | Non-staff attempted check-in operation               |
-| `CHECKIN_MANUAL_CORRECTION` | System operator corrected check-in state, if enabled |
-
-Audit payload must not contain raw QR secrets, plaintext tokens, or sensitive credentials.
 
 ---
 
@@ -475,99 +451,3 @@ Audit payload must not contain raw QR secrets, plaintext tokens, or sensitive cr
 - Organizer accounts cannot create check-in records through check-in staff endpoints.
 - Check-in staff accounts can only access check-in flows.
 - Backend authorization blocks forbidden check-in actions even if the user manually calls the API with Postman.
-
-### Audit
-
-- Accepted check-ins create `CHECKIN_ACCEPTED` audit logs.
-- Duplicate attempts create `CHECKIN_DUPLICATE` audit logs or equivalent trace records.
-- Rejected QR scans create `CHECKIN_REJECTED` audit logs.
-- Access denied attempts create audit logs.
-- Audit logs do not store raw QR secrets.
-
----
-
-## Implementation Notes
-
-Recommended Java package placement:
-
-```text
-src/main/java/com/unihub/
-├── presentation/
-│   └── controller/checkin/
-│       └── CheckinController.java
-├── application/
-│   └── checkin/
-│       ├── CheckinCommandService.java
-│       ├── CheckinQueryService.java
-│       ├── ValidateQrCommand.java
-│       ├── SyncCheckinEventsCommand.java
-│       ├── CheckinEventResult.java
-│       └── CheckinSessionQuery.java
-├── domain/
-│   ├── checkin/
-│   │   ├── CheckinRecord.java
-│   │   ├── CheckinResult.java
-│   │   ├── CheckinPolicy.java
-│   │   ├── CheckinRepository.java
-│   │   └── CheckinErrorCode.java
-│   ├── qrticket/
-│   │   ├── QrTicket.java
-│   │   ├── QrTicketVerifier.java
-│   │   └── QrTicketRepository.java
-│   └── registration/
-│       ├── Registration.java
-│       └── RegistrationRepository.java
-└── infrastructure/
-    ├── persistence/
-    │   ├── checkin/
-    │   │   └── CheckinJpaRepository.java
-    │   ├── qrticket/
-    │   │   └── QrTicketJpaRepository.java
-    │   └── registration/
-    │       └── RegistrationJpaRepository.java
-    └── redis/
-        └── CheckinRateLimitStore.java
-```
-
-Recommended React Native local storage structure:
-
-```text
-mobile-app/
-└── local-db/
-    ├── cached_sessions
-    └── offline_checkin_events
-```
-
-Suggested local SQLite tables:
-
-```text
-cached_sessions
-- session_id
-- workshop_title
-- room_name
-- start_at
-- end_at
-- checkin_open
-- cached_at
-
-offline_checkin_events
-- sync_event_id
-- session_id
-- qr_token
-- scanned_at
-- device_id
-- local_status
-- server_result
-- synced_at
-- error_code
-```
-
-Layering rules:
-
-- Controller receives HTTP DTOs and maps them to application commands.
-- Application service coordinates online validation, offline sync, and transaction boundaries.
-- Domain model protects check-in rules, duplicate detection, QR validity, and registration status requirements.
-- Infrastructure implements persistence, QR lookup, and optional Redis rate limiting.
-- React Native local SQLite stores provisional offline events only.
-- Backend and PostgreSQL remain the source of truth for final attendance.
-- Controllers must not contain QR validation or duplicate check-in logic directly.

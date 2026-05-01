@@ -4,34 +4,32 @@
 
 The Nightly Student CSV Import feature imports student roster data from the legacy Student Management System using nightly CSV exports.
 
-The imported student roster is used by UniHub Workshop to determine whether a student is eligible to create an account and register for workshops. The system must keep the live application stable even when a CSV file is missing, invalid, duplicated, or partially corrupted.
+The imported student roster is used by UniHub Workshop to determine whether a student is eligible to register for workshops. The system must keep the live application stable even when a CSV file is missing, invalid, duplicated, or partially corrupted.
 
-The import process must be safe and auditable:
+The import process must be safe:
 
 - Valid rows update the local `students` table.
 - Invalid rows are recorded as row-level errors.
-- Invalid files are quarantined and must not overwrite existing valid student data.
+- Invalid files must not overwrite existing valid student data.
 - The system can continue using the last successful student dataset if the latest import fails.
 - Each import attempt produces an import batch record with status, timestamps, counts, and error details.
 
 Actors involved:
 
-| Actor                 | Description                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Legacy Student System | Produces nightly CSV files containing student roster data                                                    |
-| CSV Import Worker     | Detects, validates, imports, and audits CSV files                                                            |
-| Backend API           | Exposes import history and error reports to authorized users                                                 |
-| PostgreSQL            | Stores students, import batches, row-level errors, and audit logs                                            |
-| Organizer             | May view import reports if allowed by project policy                                                         |
-| System Operator       | Reviews import reports, errors, and failed batches                                                           |
-| Student               | Indirectly affected because account registration and workshop registration depend on imported student status |
+| Actor                 | Description                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| Legacy Student System | Produces nightly CSV files containing student roster data                            |
+| CSV Import Worker     | Detects, validates, and imports CSV files                                            |
+| Backend API           | Exposes import history and error reports to organizers                               |
+| PostgreSQL            | Stores students, import batches, and row-level errors                                |
+| Organizer             | Views import reports and row-level errors                                            |
+| Student               | Indirectly affected because workshop registration depends on imported student status |
 
 Data involved:
 
 - `students`
 - `csv_import_batches`
 - `csv_import_errors`
-- `audit_logs`
 
 Detailed schema, fields, constraints, and indexes are documented in [`../database.md`](../database.md).
 
@@ -51,9 +49,8 @@ Detailed schema, fields, constraints, and indexes are documented in [`../databas
 8. The worker validates required fields for each row.
 9. The worker deduplicates rows deterministically by `student_id`.
 10. The worker upserts valid rows into the `students` table.
-11. The worker records row-level errors into `csv_import_errors`.
+11. The worker records row-level errors into `csv_import_errors` if any.
 12. The worker marks the batch as `SUCCESS` if all rows are valid.
-13. The worker writes audit log `CSV_IMPORT_COMPLETED`.
 
 ```mermaid
 sequenceDiagram
@@ -71,7 +68,6 @@ sequenceDiagram
     W->>DB: Upsert valid students
     W->>DB: Save row-level errors if any
     W->>DB: Mark batch=SUCCESS
-    W->>DB: Write CSV_IMPORT_COMPLETED audit log
 ```
 
 ### Main Flow 2: Partial Success Import
@@ -83,23 +79,23 @@ sequenceDiagram
 5. The worker upserts valid rows into `students`.
 6. The worker stores invalid row details in `csv_import_errors`.
 7. The worker marks the batch as `PARTIAL_SUCCESS`.
-8. Authorized users can view row-level errors from the admin report.
+8. Organizer can view row-level errors from the admin report.
 
 ```mermaid
 sequenceDiagram
     participant W as CSV Import Worker
     participant DB as PostgreSQL
-    participant Admin as Admin User
+    participant O as Organizer
 
     W->>DB: Create csv_import_batch=PROCESSING
     W->>W: Validate rows
     W->>DB: Upsert valid rows
     W->>DB: Insert csv_import_errors for invalid rows
     W->>DB: Mark batch=PARTIAL_SUCCESS
-    Admin->>DB: View import report and row errors
+    O->>DB: View import report and row errors
 ```
 
-### Main Flow 3: Invalid File Quarantine
+### Main Flow 3: Invalid File Handling
 
 1. The worker detects a new file.
 2. The worker creates a `csv_import_batches` record with status `PROCESSING`.
@@ -108,8 +104,7 @@ sequenceDiagram
 5. The worker does not import any row into `students`.
 6. The worker marks the batch as `FAILED`.
 7. The worker stores the failure reason.
-8. The worker moves or marks the file as quarantined if quarantine storage is implemented.
-9. The system continues using the previous valid student data.
+8. The system continues using the previous valid student data.
 
 ```mermaid
 sequenceDiagram
@@ -118,59 +113,36 @@ sequenceDiagram
 
     W->>DB: Create csv_import_batch=PROCESSING
     W->>W: Validate file structure
-    W->>W: Detect invalid headers or unreadable file
+    W->>W: Detect invalid file structure
     W->>DB: Mark batch=FAILED with reason
-    W->>DB: Write CSV_IMPORT_FAILED audit log
-    W->>W: Quarantine file if configured
 ```
 
-### Main Flow 4: View Import History and Errors
+### Main Flow 4: Organizer Views Import History and Errors
 
-1. Organizer or system operator opens the import report page.
+1. Organizer opens the import report page.
 2. Client calls the Backend API.
-3. Backend API validates access token and role.
+3. Backend API validates access token and role `organizer`.
 4. Backend API loads import batch history from PostgreSQL.
-5. User selects a batch.
+5. Organizer selects a batch.
 6. Backend API loads row-level errors for that batch.
 7. Client displays batch status, row counts, error counts, and error details.
 
 ```mermaid
 sequenceDiagram
-    participant Admin as Organizer/System Operator
+    participant O as Organizer
     participant API as Backend API
     participant DB as PostgreSQL
 
-    Admin->>API: GET /api/admin/csv-imports
-    API->>API: Validate JWT and role
+    O->>API: GET /api/admin/csv-imports
+    API->>API: Validate JWT and organizer role
     API->>DB: Load import batches
     DB-->>API: Batch list
-    API-->>Admin: Import batch history
+    API-->>O: Import batch history
 
-    Admin->>API: GET /api/admin/csv-imports/{batchId}/errors
+    O->>API: GET /api/admin/csv-imports/{batchId}/errors
     API->>DB: Load row-level errors
     DB-->>API: Error list
-    API-->>Admin: Import errors
-```
-
-### Main Flow 5: Manual Import Run
-
-1. System operator requests a manual import run.
-2. Backend API validates role `system_operator`.
-3. Backend API validates the target file or import source.
-4. Backend API queues or triggers the CSV Import Worker.
-5. Worker processes the file using the same validation and import rules as nightly import.
-6. Backend API returns an accepted response.
-
-```mermaid
-sequenceDiagram
-    participant Op as System Operator
-    participant API as Backend API
-    participant W as CSV Import Worker
-
-    Op->>API: POST /api/admin/csv-imports/manual-run
-    API->>API: Validate system_operator role
-    API->>W: Queue manual import job
-    API-->>Op: Manual import accepted
+    API-->>O: Import errors
 ```
 
 ---
@@ -183,7 +155,7 @@ sequenceDiagram
 GET /api/admin/csv-imports
 ```
 
-Required role: `organizer` or `system_operator`.
+Required role: `organizer`.
 
 Success response:
 
@@ -208,8 +180,7 @@ Success response:
 
 Rules:
 
-- Organizer may view import reports if project policy allows it.
-- System operator can view import reports.
+- Organizer can view import reports.
 - Student and check-in staff cannot view import reports.
 
 ### Get Import Batch Detail
@@ -218,7 +189,7 @@ Rules:
 GET /api/admin/csv-imports/{batchId}
 ```
 
-Required role: `organizer` or `system_operator`.
+Required role: `organizer`.
 
 Success response:
 
@@ -240,13 +211,18 @@ Success response:
 }
 ```
 
+Rules:
+
+- Organizer can view batch detail.
+- Batch detail should show enough information to understand import result.
+
 ### Get Import Batch Errors
 
 ```http
 GET /api/admin/csv-imports/{batchId}/errors
 ```
 
-Required role: `organizer` or `system_operator`.
+Required role: `organizer`.
 
 Success response:
 
@@ -277,60 +253,23 @@ Rules:
 - Row-level errors must be tied to an import batch.
 - Error reports should not expose unnecessary sensitive data.
 
-### Trigger Manual Import
-
-```http
-POST /api/admin/csv-imports/manual-run
-```
-
-Required role: `system_operator`.
-
-Request body:
-
-```json
-{
-  "fileName": "students_2026_05_01.csv"
-}
-```
-
-Success response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "status": "ACCEPTED",
-    "message": "Manual CSV import has been queued."
-  }
-}
-```
-
-Rules:
-
-- Manual import is optional.
-- If implemented, only `system_operator` can trigger it.
-- Manual import must follow the same validation, deduplication, and audit rules as nightly import.
-
 ---
 
 ## Authorization Rules
 
-| Capability                            | Student | Organizer       | Check-in Staff | System Operator                                    |
-| ------------------------------------- | ------- | --------------- | -------------- | -------------------------------------------------- |
-| View import batch list                | No      | Yes, if enabled | No             | Yes                                                |
-| View import batch detail              | No      | Yes, if enabled | No             | Yes                                                |
-| View row-level import errors          | No      | Yes, if enabled | No             | Yes                                                |
-| Trigger manual import                 | No      | No              | No             | Yes                                                |
-| Modify imported student data directly | No      | No              | No             | No, unless manual correction is explicitly enabled |
+| Capability                   | Student | Organizer | Check-in Staff |
+| ---------------------------- | ------- | --------- | -------------- |
+| View import batch list       | No      | Yes       | No             |
+| View import batch detail     | No      | Yes       | No             |
+| View row-level import errors | No      | Yes       | No             |
 
 Example endpoint policies:
 
-| Method | Endpoint                                  | Required role                    | Purpose                        |
-| ------ | ----------------------------------------- | -------------------------------- | ------------------------------ |
-| GET    | `/api/admin/csv-imports`                  | `organizer` or `system_operator` | List import batches            |
-| GET    | `/api/admin/csv-imports/{batchId}`        | `organizer` or `system_operator` | View import batch detail       |
-| GET    | `/api/admin/csv-imports/{batchId}/errors` | `organizer` or `system_operator` | View row-level import errors   |
-| POST   | `/api/admin/csv-imports/manual-run`       | `system_operator`                | Trigger optional manual import |
+| Method | Endpoint                                  | Required role | Purpose                      |
+| ------ | ----------------------------------------- | ------------- | ---------------------------- |
+| GET    | `/api/admin/csv-imports`                  | `organizer`   | List import batches          |
+| GET    | `/api/admin/csv-imports/{batchId}`        | `organizer`   | View import batch detail     |
+| GET    | `/api/admin/csv-imports/{batchId}/errors` | `organizer`   | View row-level import errors |
 
 ---
 
@@ -338,9 +277,9 @@ Example endpoint policies:
 
 | Scenario                                   | System Behavior                                            | HTTP Status          | Error Code                           |
 | ------------------------------------------ | ---------------------------------------------------------- | -------------------- | ------------------------------------ |
-| Nightly file missing on schedule           | Create missed/failed batch or alert operator               | `200` for report API | `CSV_IMPORT_MISSED`                  |
-| File already processed by checksum         | Skip duplicate import and return existing batch reference  | `200`                | `CSV_IMPORT_ALREADY_PROCESSED`       |
-| File unreadable                            | Mark batch `FAILED` and quarantine file                    | `422`                | `CSV_IMPORT_FILE_UNREADABLE`         |
+| Nightly file missing on schedule           | Mark batch as `MISSED` or create failure record            | `200` for report API | `CSV_IMPORT_MISSED`                  |
+| File already processed by checksum         | Skip duplicate import and keep existing result             | `200`                | `CSV_IMPORT_ALREADY_PROCESSED`       |
+| File unreadable                            | Mark batch `FAILED`                                        | `422`                | `CSV_IMPORT_FILE_UNREADABLE`         |
 | Unsupported encoding                       | Mark batch `FAILED`                                        | `422`                | `CSV_IMPORT_INVALID_ENCODING`        |
 | Header mismatch                            | Reject file before row import                              | `422`                | `CSV_IMPORT_INVALID_HEADER`          |
 | Required column missing                    | Reject file before row import                              | `422`                | `CSV_IMPORT_REQUIRED_COLUMN_MISSING` |
@@ -381,7 +320,7 @@ Example endpoint policies:
 - Rows missing required fields are invalid.
 - Rows with invalid status values are invalid.
 - Duplicate `student_id` rows in the same file must be resolved deterministically.
-- The selected deduplication rule must be documented; recommended rule: keep the last valid row for the same `student_id` within the file and record a warning.
+- The selected deduplication rule should be: keep the last valid row for the same `student_id` within the file and record a warning.
 - Valid rows are upserted into `students`.
 - Invalid rows are written to `csv_import_errors`.
 
@@ -403,25 +342,9 @@ Example endpoint policies:
 
 ### Authorization Constraints
 
-- Only authorized roles can view import reports.
-- Only `system_operator` can trigger manual import if the feature is implemented.
-- No frontend user should directly edit the `students` table unless a protected manual correction workflow is explicitly implemented.
+- Only organizers can view import reports.
+- Student and check-in staff accounts cannot access import reports.
 - Backend authorization is mandatory for all import report APIs.
-
-### Audit Constraints
-
-The system should write audit logs for:
-
-| Action                        | Notes                                      |
-| ----------------------------- | ------------------------------------------ |
-| `CSV_IMPORT_STARTED`          | Import batch started                       |
-| `CSV_IMPORT_COMPLETED`        | Import batch completed successfully        |
-| `CSV_IMPORT_PARTIAL_SUCCESS`  | Import completed with row-level errors     |
-| `CSV_IMPORT_FAILED`           | Import failed due to file or system error  |
-| `CSV_IMPORT_MISSED`           | Expected nightly file missing              |
-| `CSV_IMPORT_MANUAL_TRIGGERED` | Manual import triggered by system operator |
-
-Audit payload should include batch ID, file name, checksum, counts, and status, but should not include unnecessary sensitive student data.
 
 ---
 
@@ -433,7 +356,6 @@ Audit payload should include batch ID, file name, checksum, counts, and status, 
 - Valid rows are upserted into `students`.
 - Batch status becomes `SUCCESS` when all rows are valid.
 - Import batch stores file name, checksum, start time, finish time, and row counts.
-- Audit log `CSV_IMPORT_COMPLETED` is created.
 
 ### Partial Success
 
@@ -441,13 +363,12 @@ Audit payload should include batch ID, file name, checksum, counts, and status, 
 - Invalid rows are written to `csv_import_errors`.
 - Batch status becomes `PARTIAL_SUCCESS`.
 - Import report shows total row count, success count, and error count.
-- Invalid row details can be viewed by authorized users.
+- Invalid row details can be viewed by organizers.
 
 ### Invalid File Handling
 
 - File with invalid headers is rejected before modifying `students`.
 - Unreadable or unsupported file is marked `FAILED`.
-- Invalid files are quarantined or marked for review.
 - Existing student data remains usable when import fails.
 - Registration can still use the latest successful student dataset.
 
@@ -460,10 +381,8 @@ Audit payload should include batch ID, file name, checksum, counts, and status, 
 
 ### Authorization and Reporting
 
-- Organizer can view import reports only if enabled by project policy.
-- System operator can view import reports and row-level errors.
+- Organizer can view import reports and row-level errors.
 - Student and check-in staff accounts cannot access import reports.
-- Only system operator can trigger manual import if implemented.
 - Unauthorized report access returns `403 Forbidden`.
 
 ### Stability
@@ -473,78 +392,3 @@ Audit payload should include batch ID, file name, checksum, counts, and status, 
 - CSV import does not block user-facing APIs.
 - Database failure during import rolls back partial changes for that transaction.
 - Every import attempt has a batch history entry with final status.
-
----
-
-## Implementation Notes
-
-Recommended Java package placement:
-
-```text
-src/main/java/com/unihub/
-├── presentation/
-│   └── controller/csvimport/
-│       └── CsvImportController.java
-├── application/
-│   └── csvimport/
-│       ├── CsvImportCommandService.java
-│       ├── CsvImportQueryService.java
-│       ├── RunCsvImportCommand.java
-│       ├── GetImportBatchesQuery.java
-│       ├── GetImportErrorsQuery.java
-│       ├── CsvImportJob.java
-│       └── CsvImportJobPublisher.java
-├── domain/
-│   ├── csvimport/
-│   │   ├── CsvImportBatch.java
-│   │   ├── CsvImportStatus.java
-│   │   ├── CsvImportError.java
-│   │   ├── CsvImportRepository.java
-│   │   ├── CsvImportPolicy.java
-│   │   └── CsvImportErrorCode.java
-│   └── student/
-│       ├── Student.java
-│       ├── StudentRepository.java
-│       └── StudentStatus.java
-└── infrastructure/
-    ├── csv/
-    │   ├── CsvFileDetector.java
-    │   ├── CsvParser.java
-    │   └── CsvImportWorker.java
-    └── persistence/
-        ├── csvimport/
-        │   └── CsvImportJpaRepository.java
-        └── student/
-            └── StudentJpaRepository.java
-```
-
-Recommended import statuses:
-
-```text
-PROCESSING
-SUCCESS
-PARTIAL_SUCCESS
-FAILED
-MISSED
-```
-
-Recommended row-level validation errors:
-
-```text
-CSV_REQUIRED_FIELD_MISSING
-CSV_INVALID_STUDENT_ID
-CSV_INVALID_EMAIL
-CSV_INVALID_STATUS
-CSV_DUPLICATE_STUDENT_ID
-CSV_INVALID_ROW_FORMAT
-```
-
-Layering rules:
-
-- CSV Import Worker detects and parses files outside the request path.
-- Application service coordinates import use cases, batch records, and transaction boundaries.
-- Domain model protects import status transitions and validation policies.
-- Infrastructure implements file detection, CSV parsing, and persistence.
-- API controller only exposes import reports and optional manual import trigger.
-- Controllers must not contain CSV parsing or row validation logic directly.
-- Failed import must not corrupt the current `students` data.

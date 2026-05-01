@@ -21,21 +21,20 @@ Actors involved:
 | Student             | Registers for free or paid workshop sessions and receives QR tickets after confirmation |
 | Backend API         | Validates authentication, student eligibility, session state, and seat availability     |
 | PostgreSQL          | Stores sessions, registrations, payment intents, QR tickets, and seat counters          |
-| Redis               | Supports rate limiting and short-lived idempotency checks                               |
+| Redis               | Supports rate limiting and short-lived idempotency checks if implemented                |
 | Payment Module      | Creates and confirms payment intents for paid registrations                             |
 | Notification Worker | Sends confirmation or payment-related notifications asynchronously                      |
 | Background Worker   | Cleans up expired reservations and releases seats                                       |
-| System Operator     | Optional role for viewing registration state or performing manual correction if enabled |
 
 Data involved:
 
 - `students`
+- `workshops`
 - `workshop_sessions`
 - `registrations`
 - `payment_intents`
 - `qr_tickets`
 - `notifications`
-- `audit_logs`
 
 Detailed schema, fields, constraints, and indexes are documented in [`../database.md`](../database.md).
 
@@ -46,7 +45,7 @@ Detailed schema, fields, constraints, and indexes are documented in [`../databas
 ### Main Flow 1: Free Registration
 
 1. The student clicks register for a free workshop session.
-2. The client sends the selected `sessionId` and an optional `idempotencyKey` to the Backend API.
+2. The client sends the selected `sessionId` to the Backend API.
 3. The Backend API validates the access token and checks that the user has role `student`.
 4. The Backend API checks that the user is linked to an active student profile.
 5. The Backend API starts a database transaction.
@@ -70,7 +69,7 @@ sequenceDiagram
 
     S->>API: POST /api/registrations/free
     API->>API: Validate JWT and student role
-    API->>Redis: Check rate limit and idempotency
+    API->>Redis: Check rate limit if enabled
     API->>DB: Begin transaction
     API->>DB: Lock workshop_session row
     API->>DB: Check session state and remaining seats
@@ -89,7 +88,7 @@ sequenceDiagram
 2. The client sends the selected `sessionId` and a required `idempotencyKey` to the Backend API.
 3. The Backend API validates the access token and checks that the user has role `student`.
 4. The Backend API checks that the user is linked to an active student profile.
-5. The Backend API checks rate limiting and short-lived idempotency state.
+5. The Backend API checks rate limiting and short-lived idempotency state if Redis is available.
 6. The Backend API starts a database transaction.
 7. The Backend API locks the target `workshop_sessions` row.
 8. The Backend API checks that the session exists, is open for registration, is not canceled, and has remaining seats.
@@ -114,7 +113,7 @@ sequenceDiagram
 
     S->>API: POST /api/registrations/paid + idempotencyKey
     API->>API: Validate JWT and student role
-    API->>Redis: Check rate limit and idempotency
+    API->>Redis: Check rate limit and idempotency if enabled
     API->>DB: Begin transaction
     API->>DB: Lock workshop_session row
     API->>DB: Check session state and remaining seats
@@ -226,8 +225,7 @@ Request body:
 
 ```json
 {
-  "sessionId": "s-101",
-  "idempotencyKey": "free-reg-req-123"
+  "sessionId": "s-101"
 }
 ```
 
@@ -333,7 +331,7 @@ Success response:
 Rules:
 
 - A student can only view their own registrations.
-- Organizer and check-in staff cannot use this endpoint as a substitute for admin reporting.
+- Organizer and check-in staff cannot use this endpoint.
 
 ### Get Registration Detail
 
@@ -362,7 +360,6 @@ Success response:
 Rules:
 
 - Student can only access their own registration.
-- System operator may access registration detail only if internal admin flow is enabled.
 
 ### Get QR Ticket for Registration
 
@@ -396,25 +393,23 @@ Rules:
 
 ## Authorization Rules
 
-| Capability                            | Student | Organizer | Check-in Staff | System Operator |
-| ------------------------------------- | ------- | --------- | -------------- | --------------- |
-| Register for free session             | Yes     | No        | No             | No              |
-| Register for paid session             | Yes     | No        | No             | No              |
-| View own registrations                | Yes     | No        | No             | Yes, if enabled |
-| View own QR ticket                    | Yes     | No        | No             | Yes, if enabled |
-| Access another student's registration | No      | No        | No             | Yes, if enabled |
-| Manually correct registration         | No      | No        | No             | Yes, if enabled |
+| Capability                            | Student | Organizer | Check-in Staff |
+| ------------------------------------- | ------- | --------- | -------------- |
+| Register for free session             | Yes     | No        | No             |
+| Register for paid session             | Yes     | No        | No             |
+| View own registrations                | Yes     | No        | No             |
+| View own QR ticket                    | Yes     | No        | No             |
+| Access another student's registration | No      | No        | No             |
 
 Example endpoint policies:
 
-| Method | Endpoint                                                      | Required role     | Purpose                                    |
-| ------ | ------------------------------------------------------------- | ----------------- | ------------------------------------------ |
-| POST   | `/api/registrations/free`                                     | `student`         | Register for a free session                |
-| POST   | `/api/registrations/paid`                                     | `student`         | Start paid registration and payment intent |
-| GET    | `/api/registrations/me`                                       | `student`         | List current student's registrations       |
-| GET    | `/api/registrations/{registrationId}`                         | `student`         | Get own registration detail                |
-| GET    | `/api/registrations/{registrationId}/qr`                      | `student`         | Get QR ticket for confirmed registration   |
-| POST   | `/api/admin/registrations/{registrationId}/manual-correction` | `system_operator` | Optional internal correction flow          |
+| Method | Endpoint                                 | Required role | Purpose                                    |
+| ------ | ---------------------------------------- | ------------- | ------------------------------------------ |
+| POST   | `/api/registrations/free`                | `student`     | Register for a free session                |
+| POST   | `/api/registrations/paid`                | `student`     | Start paid registration and payment intent |
+| GET    | `/api/registrations/me`                  | `student`     | List current student's registrations       |
+| GET    | `/api/registrations/{registrationId}`    | `student`     | Get own registration detail                |
+| GET    | `/api/registrations/{registrationId}/qr` | `student`     | Get QR ticket for confirmed registration   |
 
 ---
 
@@ -434,7 +429,7 @@ Example endpoint policies:
 | Paid endpoint used for free session                | Reject request                                                | `400`          | `REG_PAYMENT_NOT_REQUIRED`     |
 | Missing idempotency key for paid registration      | Reject request                                                | `400`          | `REG_IDEMPOTENCY_KEY_REQUIRED` |
 | Idempotency key reused with different request data | Reject request                                                | `409`          | `REG_IDEMPOTENCY_KEY_CONFLICT` |
-| Payment gateway intent creation failed             | Keep local pending record for reconciliation or mark failed   | `502`          | `PAYMENT_GATEWAY_UNAVAILABLE`  |
+| Payment gateway intent creation failed             | Keep local pending record or mark failed                      | `502`          | `PAYMENT_GATEWAY_UNAVAILABLE`  |
 | Reservation expired before payment                 | Mark registration `EXPIRED` and release seat                  | `409`          | `REG_RESERVATION_EXPIRED`      |
 | QR requested for unconfirmed registration          | Reject request                                                | `409`          | `REG_QR_NOT_AVAILABLE`         |
 | Registration belongs to another student            | Reject request                                                | `403`          | `REG_ACCESS_DENIED`            |
@@ -476,7 +471,6 @@ Example endpoint policies:
 - `qr_tickets.registration_id` must be unique.
 - `payment_intents.idempotency_key` must be unique.
 - `payment_intents.gateway_ref` should be unique when available.
-- `checkin_records.registration_id` must be unique for successful check-ins.
 - Detailed schema and database constraints are documented in [`../database.md`](../database.md).
 
 ### Authorization Constraints
@@ -485,30 +479,14 @@ Example endpoint policies:
 - Student route guards in the frontend are only for user experience.
 - A student can only view their own registrations and QR tickets.
 - Organizer and check-in staff accounts cannot register for workshops.
-- System operator access to registration data is optional and must be explicitly protected.
 
 ### Performance and Concurrency Constraints
 
-- Registration endpoints should be protected by rate limiting.
+- Registration endpoints may be protected by rate limiting.
 - The system must remain correct under concurrent registration attempts.
 - High contention on one session may reduce throughput, but correctness is more important than accepting every request quickly.
 - Read-heavy workshop browsing should not block registration transactions.
 - Notification, email, and AI workers must not block registration completion.
-
-### Audit Constraints
-
-The system should write audit logs for:
-
-| Action                           | Notes                                                    |
-| -------------------------------- | -------------------------------------------------------- |
-| `REGISTRATION_CONFIRMED`         | Free registration or paid registration confirmed         |
-| `REGISTRATION_PENDING_PAYMENT`   | Paid registration created and waiting for payment        |
-| `REGISTRATION_EXPIRED`           | Pending paid registration expired                        |
-| `REGISTRATION_CANCELED`          | Registration canceled if cancellation is implemented     |
-| `REGISTRATION_ACCESS_DENIED`     | User attempted to access another student's registration  |
-| `REGISTRATION_MANUAL_CORRECTION` | System operator corrected registration state, if enabled |
-
-Audit payload must not contain payment secrets, raw QR secrets, or sensitive token values.
 
 ---
 
@@ -559,59 +537,3 @@ Audit payload must not contain payment secrets, raw QR secrets, or sensitive tok
 - A student cannot access another student's QR ticket.
 - Organizer and check-in staff accounts cannot register for workshops.
 - Backend authorization blocks forbidden registration actions even if the user manually calls the API with Postman.
-
----
-
-## Implementation Notes
-
-Recommended Java package placement:
-
-```text
-src/main/java/com/unihub/
-├── presentation/
-│   └── controller/registration/
-│       └── RegistrationController.java
-├── application/
-│   └── registration/
-│       ├── RegistrationCommandService.java
-│       ├── RegistrationQueryService.java
-│       ├── RegisterFreeSessionCommand.java
-│       ├── RegisterPaidSessionCommand.java
-│       ├── GetMyRegistrationsQuery.java
-│       └── RegistrationEventPublisher.java
-├── domain/
-│   ├── registration/
-│   │   ├── Registration.java
-│   │   ├── RegistrationStatus.java
-│   │   ├── RegistrationRepository.java
-│   │   ├── RegistrationPolicy.java
-│   │   └── RegistrationErrorCode.java
-│   ├── workshop/
-│   │   ├── WorkshopSession.java
-│   │   ├── WorkshopSessionRepository.java
-│   │   └── SeatAllocationPolicy.java
-│   └── qrticket/
-│       ├── QrTicket.java
-│       ├── QrTicketRepository.java
-│       └── QrTicketGenerator.java
-└── infrastructure/
-    ├── persistence/
-    │   ├── registration/
-    │   │   └── RegistrationJpaRepository.java
-    │   ├── workshop/
-    │   │   └── WorkshopSessionJpaRepository.java
-    │   └── qrticket/
-    │       └── QrTicketJpaRepository.java
-    └── redis/
-        └── RegistrationRateLimitStore.java
-```
-
-Layering rules:
-
-- Controller receives HTTP DTOs and maps them to application commands.
-- Application service coordinates registration use cases and transaction boundaries.
-- Domain model protects seat allocation, registration state transitions, and QR issuance rules.
-- Infrastructure implements persistence, Redis idempotency/rate-limiting, and worker integration.
-- Controllers must not contain seat allocation logic directly.
-- Redis must not be the source of truth for final seat state.
-- PostgreSQL constraints and transactions must protect final correctness.

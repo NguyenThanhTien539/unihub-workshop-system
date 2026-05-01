@@ -9,20 +9,18 @@ This feature supports two main usage groups:
 - Students browse workshops, view details, check schedules, see remaining seats, and decide whether to register.
 - Organizers create, update, reschedule, cancel workshops and sessions, and manage workshop information.
 
-Workshop browsing must remain available even if payment, notification, or AI summary providers are unavailable. Organizer write actions must be protected by backend RBAC and must write audit logs.
+Workshop browsing must remain available even if payment, notification, or AI summary providers are unavailable. Organizer write actions must be protected by backend RBAC.
 
 Actors involved:
 
-| Actor               | Description                                                                            |
-| ------------------- | -------------------------------------------------------------------------------------- |
-| Student             | Browses workshops, views details, checks remaining seats, and sees workshop status     |
-| Organizer           | Creates, updates, reschedules, cancels workshops and sessions                          |
-| Check-in Staff      | May view limited session information for check-in context                              |
-| Backend API         | Validates workshop data, exposes browsing APIs, and enforces authorization             |
-| PostgreSQL          | Stores workshops, sessions, rooms, registrations, documents, summaries, and audit logs |
-| Notification Worker | Sends notifications when changes affect registered students                            |
-| AI Summary Worker   | Provides summary status and generated summary for workshop detail pages                |
-| System Operator     | Optional internal role for viewing reports or audit logs                               |
+| Actor               | Description                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| Student             | Browses workshops, views details, checks remaining seats, and sees workshop status |
+| Organizer           | Creates, updates, reschedules, cancels workshops and sessions                      |
+| Backend API         | Validates workshop data, exposes browsing APIs, and enforces authorization         |
+| PostgreSQL          | Stores workshops, sessions, rooms, registrations, documents, and summaries         |
+| Notification Worker | Sends notifications when changes affect registered students                        |
+| AI Summary Worker   | Provides summary status and generated summary for workshop detail pages            |
 
 Data involved:
 
@@ -33,7 +31,6 @@ Data involved:
 - `ai_summaries`
 - `registrations`
 - `notifications`
-- `audit_logs`
 
 Detailed schema, fields, constraints, and indexes are documented in [`../database.md`](../database.md).
 
@@ -94,8 +91,7 @@ sequenceDiagram
 4. Backend API validates title, speaker, description, fee type, schedule, room assignment, and capacity.
 5. Backend API checks that sessions do not conflict with existing sessions in the same room.
 6. Backend API creates the workshop and session records in PostgreSQL.
-7. Backend API writes audit log `WORKSHOP_CREATED`.
-8. Backend API returns the created workshop and session information.
+7. Backend API returns the created workshop and session information.
 
 ```mermaid
 sequenceDiagram
@@ -108,7 +104,6 @@ sequenceDiagram
     API->>API: Validate workshop and session data
     API->>DB: Check room availability
     API->>DB: Insert workshop and sessions
-    API->>DB: Write WORKSHOP_CREATED audit log
     API-->>O: Workshop created
 ```
 
@@ -121,9 +116,8 @@ sequenceDiagram
 5. If schedule or room changes are requested, Backend API checks room conflicts.
 6. If capacity is changed, Backend API ensures new capacity is not below confirmed registrations.
 7. Backend API updates the workshop/session.
-8. Backend API writes audit log `WORKSHOP_UPDATED` or `SESSION_UPDATED`.
-9. If the change affects registered students, Backend API queues notification jobs.
-10. Backend API returns updated data.
+8. If the change affects registered students, Backend API queues notification jobs.
+9. Backend API returns updated data.
 
 ```mermaid
 sequenceDiagram
@@ -137,7 +131,6 @@ sequenceDiagram
     API->>DB: Load existing workshop/session
     API->>DB: Check room conflict and capacity rules
     API->>DB: Update workshop/session
-    API->>DB: Write WORKSHOP_UPDATED audit log
     API->>N: Queue notifications if registered students are affected
     API-->>O: Updated workshop data
 ```
@@ -148,10 +141,9 @@ sequenceDiagram
 2. Backend API validates role `organizer`.
 3. Backend API checks that the workshop/session exists.
 4. Backend API marks the workshop/session as `CANCELED`.
-5. Backend API keeps registration and history records for auditability.
+5. Backend API keeps registration records so affected students can still see their registration history.
 6. Backend API queues cancellation notifications to affected students.
-7. Backend API writes audit log `WORKSHOP_CANCELED` or `SESSION_CANCELED`.
-8. Backend API returns cancellation success.
+7. Backend API returns cancellation success.
 
 ```mermaid
 sequenceDiagram
@@ -166,7 +158,6 @@ sequenceDiagram
     API->>DB: Mark session=CANCELED
     API->>DB: Find affected registrations
     API->>N: Queue cancellation notifications
-    API->>DB: Write SESSION_CANCELED audit log
     API-->>O: Cancellation success
 ```
 
@@ -379,7 +370,7 @@ Rules:
 
 - Organizer can update workshop metadata.
 - Publishing a workshop requires at least one valid session.
-- Sensitive changes must be audited.
+- If the update affects registered students, notification jobs should be queued.
 
 ### Create Session
 
@@ -489,25 +480,24 @@ Success response:
 Rules:
 
 - Canceled sessions must not accept new registrations.
-- Existing registrations remain visible for audit and communication.
+- Existing registrations remain visible in registration history.
 - Cancellation should queue notifications for affected students.
 
 ---
 
 ## Authorization Rules
 
-| Capability                             | Student | Organizer | Check-in Staff | System Operator |
-| -------------------------------------- | ------- | --------- | -------------- | --------------- |
-| Browse workshop list/detail            | Yes     | Yes       | Limited        | Yes             |
-| View remaining seats                   | Yes     | Yes       | Limited        | Yes             |
-| View own registration status on detail | Yes     | No        | No             | No              |
-| Create workshop                        | No      | Yes       | No             | No              |
-| Update workshop                        | No      | Yes       | No             | No              |
-| Publish workshop                       | No      | Yes       | No             | No              |
-| Create/update/cancel session           | No      | Yes       | No             | No              |
-| Upload PDF for workshop                | No      | Yes       | No             | No              |
-| View registration statistics           | No      | Yes       | No             | Yes             |
-| View audit logs                        | No      | No        | No             | Yes             |
+| Capability                             | Student | Organizer |
+| -------------------------------------- | ------- | --------- |
+| Browse workshop list/detail            | Yes     | Yes       |
+| View remaining seats                   | Yes     | Yes       |
+| View own registration status on detail | Yes     | No        |
+| Create workshop                        | No      | Yes       |
+| Update workshop                        | No      | Yes       |
+| Publish workshop                       | No      | Yes       |
+| Create/update/cancel session           | No      | Yes       |
+| Upload PDF for workshop                | No      | Yes       |
+| View registration statistics           | No      | Yes       |
 
 Example endpoint policies:
 
@@ -583,8 +573,7 @@ Example endpoint policies:
 - Backend authorization is mandatory for all admin workshop APIs.
 - UI route guards are only for user experience.
 - Only organizers can create, update, publish, or cancel workshops.
-- Students and check-in staff cannot call organizer admin APIs.
-- System operator may view reports or audit logs only if explicitly enabled.
+- Students cannot call organizer admin APIs.
 
 ### Availability Constraints
 
@@ -593,23 +582,6 @@ Example endpoint policies:
 - Workshop browsing must remain available if notification provider is down.
 - Workshop list and detail APIs should avoid calling external providers directly.
 - Notification jobs should run asynchronously after workshop changes.
-
-### Audit Constraints
-
-The system should write audit logs for:
-
-| Action                   | Notes                                                      |
-| ------------------------ | ---------------------------------------------------------- |
-| `WORKSHOP_CREATED`       | Organizer created a workshop                               |
-| `WORKSHOP_UPDATED`       | Organizer updated workshop metadata                        |
-| `WORKSHOP_PUBLISHED`     | Organizer published a workshop                             |
-| `WORKSHOP_CANCELED`      | Organizer canceled a workshop                              |
-| `SESSION_CREATED`        | Organizer created a session                                |
-| `SESSION_UPDATED`        | Organizer updated session schedule, room, fee, or capacity |
-| `SESSION_CANCELED`       | Organizer canceled a session                               |
-| `WORKSHOP_ACCESS_DENIED` | User attempted unauthorized admin operation                |
-
-Audit payload must not contain secrets, raw tokens, or sensitive credentials.
 
 ---
 
@@ -632,7 +604,6 @@ Audit payload must not contain secrets, raw tokens, or sensitive credentials.
 - Organizer cannot create a session with invalid time range.
 - Organizer cannot create overlapping sessions in the same room.
 - Organizer cannot lower capacity below confirmed registrations.
-- Organizer actions write audit logs.
 
 ### Cancellation and Updates
 
@@ -645,7 +616,6 @@ Audit payload must not contain secrets, raw tokens, or sensitive credentials.
 ### Authorization
 
 - Student accounts cannot access workshop admin APIs.
-- Check-in staff accounts cannot create, update, or cancel workshops.
 - Organizer APIs reject unauthenticated access.
 - Backend authorization blocks forbidden actions even if the user manually calls the API with Postman.
 
@@ -655,80 +625,3 @@ Audit payload must not contain secrets, raw tokens, or sensitive credentials.
 - Session capacity remains consistent with confirmed and reserved seats.
 - Published workshops have valid required data.
 - Workshop detail returns current summary status and session registration state when applicable.
-
----
-
-## Implementation Notes
-
-Recommended Java package placement:
-
-```text
-src/main/java/com/unihub/
-├── presentation/
-│   └── controller/workshop/
-│       ├── WorkshopController.java
-│       └── AdminWorkshopController.java
-├── application/
-│   └── workshop/
-│       ├── WorkshopCommandService.java
-│       ├── WorkshopQueryService.java
-│       ├── CreateWorkshopCommand.java
-│       ├── UpdateWorkshopCommand.java
-│       ├── CreateSessionCommand.java
-│       ├── UpdateSessionCommand.java
-│       ├── CancelSessionCommand.java
-│       └── WorkshopEventPublisher.java
-├── domain/
-│   ├── workshop/
-│   │   ├── Workshop.java
-│   │   ├── WorkshopStatus.java
-│   │   ├── WorkshopRepository.java
-│   │   ├── WorkshopPolicy.java
-│   │   └── WorkshopErrorCode.java
-│   ├── session/
-│   │   ├── WorkshopSession.java
-│   │   ├── SessionStatus.java
-│   │   ├── WorkshopSessionRepository.java
-│   │   ├── SchedulePolicy.java
-│   │   └── SeatCapacityPolicy.java
-│   └── room/
-│       ├── Room.java
-│       ├── RoomRepository.java
-│       └── RoomAvailabilityPolicy.java
-└── infrastructure/
-    └── persistence/
-        ├── workshop/
-        │   └── WorkshopJpaRepository.java
-        ├── session/
-        │   └── WorkshopSessionJpaRepository.java
-        └── room/
-            └── RoomJpaRepository.java
-```
-
-Recommended workshop statuses:
-
-```text
-DRAFT
-PUBLISHED
-CANCELED
-ARCHIVED
-```
-
-Recommended session statuses:
-
-```text
-OPEN
-CLOSED
-CANCELED
-FULL
-```
-
-Layering rules:
-
-- Controller receives HTTP DTOs and maps them to application commands.
-- Application service coordinates workshop use cases and transaction boundaries.
-- Domain model protects schedule, room, capacity, and status transition rules.
-- Infrastructure implements persistence and query optimization.
-- Controllers must not contain schedule conflict or capacity validation logic directly.
-- Workshop browsing APIs must not call payment, notification, or AI providers directly.
-- Notification jobs should be triggered after successful transaction commit when changes affect registered students.

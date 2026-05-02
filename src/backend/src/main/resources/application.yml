@@ -2,23 +2,19 @@ spring:
   application:
     name: unihub
 
-  # Temporarily disable DB/JPA auto-configuration for scaffold-only mode.
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
 
-  # datasource:
-  #   url: ${DB_URL:jdbc:postgresql://localhost:5432/unihub}
-  #   username: ${DB_USER:unihub}
-  #   password: ${DB_PASSWORD:unihub_password}
-  #   driver-class-name: org.postgresql.Driver
-
-  # jpa:
-  #   hibernate:
-  #     ddl-auto: none
-  #   open-in-view: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 server:
   port: ${PORT:8080}

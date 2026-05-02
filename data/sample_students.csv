@@ -1,0 +1,19 @@
+student_code,full_name,email,faculty,major,class_name,status
+UH20260001,An Nguyen,an.nguyen1@student.unihub.edu,Engineering,Software Engineering,K26-01,ACTIVE
+UH20260002,Binh Tran,binh.tran2@student.unihub.edu,Business,Marketing,K26-02,ACTIVE
+UH20260003,Chi Le,chi.le3@student.unihub.edu,Information Technology,Information Systems,K26-03,ACTIVE
+UH20260004,Duc Pham,duc.pham4@student.unihub.edu,Design,Digital Media,K26-04,ACTIVE
+UH20260005,Giang Hoang,giang.hoang5@student.unihub.edu,Languages,Business English,K26-05,ACTIVE
+UH20260006,Ha Vo,ha.vo6@student.unihub.edu,Engineering,Software Engineering,K26-06,ACTIVE
+UH20260007,Hieu Dang,hieu.dang7@student.unihub.edu,Business,Marketing,K26-07,ACTIVE
+UH20260008,Khanh Bui,khanh.bui8@student.unihub.edu,Information Technology,Information Systems,K26-08,ACTIVE
+UH20260009,Linh Do,linh.do9@student.unihub.edu,Design,Digital Media,K26-09,ACTIVE
+UH20260010,Minh Ngo,minh.ngo10@student.unihub.edu,Languages,Business English,K26-10,ACTIVE
+UH20260003,Chi Le Updated,chi.updated@student.unihub.edu,Information Technology,Information Systems,K26-03,ACTIVE
+UH20260011,Nam Nguyen,nam.nguyen11@student.unihub.edu,Engineering,Software Engineering,K26-01,ACTIVE
+UH20260012,Ngan Tran,ngan.tran12@student.unihub.edu,Business,Marketing,K26-02,ACTIVE
+,Missing Student Code,missing.code@student.unihub.edu,Engineering,Software Engineering,K26-03,ACTIVE
+UH20269999,Invalid Email,not-an-email,Engineering,Software Engineering,K26-04,ACTIVE
+UH20260013,Invalid Status,invalid.status@student.unihub.edu,Design,Digital Media,K26-05,UNKNOWN
+UH20260007,Hieu Dang Duplicate,hieu.duplicate@student.unihub.edu,Business,Marketing,K26-07,ACTIVE
+UH20260014,Graduated Student,graduated.student@student.unihub.edu,Engineering,Software Engineering,K26-08,GRADUATED

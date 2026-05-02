@@ -9,3 +9,4 @@ public class UnihubApplication {
     SpringApplication.run(UnihubApplication.class, args);
   }
 }
+

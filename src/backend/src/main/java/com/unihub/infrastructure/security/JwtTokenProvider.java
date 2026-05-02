@@ -28,8 +28,7 @@ public class JwtTokenProvider implements TokenProvider {
   public JwtTokenProvider(
       JwtEncoder jwtEncoder,
       Clock clock,
-      @Value("${app.auth.jwt.access-token-ttl-minutes:15}") long accessTokenTtlMinutes
-  ) {
+      @Value("${app.auth.jwt.access-token-ttl-minutes:15}") long accessTokenTtlMinutes) {
     this.jwtEncoder = jwtEncoder;
     this.clock = clock;
     this.accessTokenTtlMinutes = accessTokenTtlMinutes;
@@ -64,4 +63,3 @@ public class JwtTokenProvider implements TokenProvider {
     return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
   }
 }
-

@@ -1,7 +1,8 @@
 package com.unihub.domain.user;
 
 public enum UserErrorCode {
-  AUTH_INVALID_CREDENTIALS("AUTH_INVALID_CREDENTIALS", "Invalid email or password"),
+  AUTH_EMAIL_NOT_FOUND("AUTH_EMAIL_NOT_FOUND", "Email does not exist"),
+  AUTH_PASSWORD_INCORRECT("AUTH_PASSWORD_INCORRECT", "Password is incorrect"),
   AUTH_ACCOUNT_DISABLED("AUTH_ACCOUNT_DISABLED", "Account is disabled"),
   AUTH_ACCOUNT_LOCKED("AUTH_ACCOUNT_LOCKED", "Account is locked"),
   AUTH_TOKEN_MISSING("AUTH_TOKEN_MISSING", "Access token is required"),

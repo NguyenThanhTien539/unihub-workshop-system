@@ -58,7 +58,7 @@ public class AuthCommandService {
     String normalizedEmail = normalizeEmail(command.email());
 
     User user = userRepository.findByEmail(normalizedEmail)
-        .orElseThrow(() -> new AuthException(UserErrorCode.AUTH_INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED));
+        .orElseThrow(() -> new AuthException(UserErrorCode.AUTH_EMAIL_NOT_FOUND, HttpStatus.UNAUTHORIZED));
 
     if (user.accountStatus() == UserStatus.DISABLED) {
       throw new AuthException(UserErrorCode.AUTH_ACCOUNT_DISABLED, HttpStatus.FORBIDDEN);
@@ -68,7 +68,7 @@ public class AuthCommandService {
     }
 
     if (!passwordEncoder.matches(command.password(), user.passwordHash())) {
-      throw new AuthException(UserErrorCode.AUTH_INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+      throw new AuthException(UserErrorCode.AUTH_PASSWORD_INCORRECT, HttpStatus.UNAUTHORIZED);
     }
 
     CurrentUser currentUser = authQueryService.buildCurrentUser(user);

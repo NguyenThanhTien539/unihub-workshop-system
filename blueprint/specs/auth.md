@@ -183,9 +183,6 @@ Success response:
     "refreshToken": "refresh-token",
     "expiresIn": 900,
     "user": {
-      "id": "user-id",
-      "email": "student1@university.edu.vn",
-      "fullName": "Student One",
       "roles": ["student"]
     }
   }

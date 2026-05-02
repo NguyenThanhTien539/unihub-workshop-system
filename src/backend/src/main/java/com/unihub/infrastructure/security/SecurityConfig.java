@@ -32,8 +32,7 @@ public class SecurityConfig {
       HttpSecurity http,
       UserPrincipalConverter userPrincipalConverter,
       JsonAuthenticationEntryPoint authenticationEntryPoint,
-      JsonAccessDeniedHandler accessDeniedHandler
-  ) throws Exception {
+      JsonAccessDeniedHandler accessDeniedHandler) throws Exception {
     http
         .csrf(csrf -> csrf.disable())
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -101,4 +100,3 @@ public class SecurityConfig {
   }
 
 }
-

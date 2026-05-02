@@ -1,6 +1,14 @@
 version: "3.9"
 
 services:
+  unihub-web:
+    build:
+      context: ./src/web
+      dockerfile: Dockerfile
+    container_name: unihub-web
+    ports:
+      - "3000:3000"
+
   redis:
     image: redis:7
     container_name: unihub-redis

@@ -38,7 +38,7 @@ Why this fits the course project:
 
 - A modular monolith is easier for a student team to build, test, deploy, and explain than a distributed microservice system.
 - DDD-lite keeps important business rules inside the correct domain modules instead of spreading them across controllers or database scripts.
-- Background workers isolate long-running or failure-prone tasks such as email sending, AI summarization, CSV import, payment reconciliation, and expired reservation cleanup.
+- Background workers isolate long-running or failure-prone tasks such as email sending, AI summarization, CSV import, payment callback processing, and expired reservation cleanup.
 - PostgreSQL transactions are appropriate because the hardest correctness problem is seat allocation, which requires strong consistency.
 - Payment, AI summary, notification, and CSV import are isolated so failures in those integrations do not break workshop browsing.
 
@@ -82,26 +82,26 @@ Detailed architecture decisions are documented separately in the `blueprint/adr/
 
 ## 4. Main Components
 
-| Component                        | Responsibility                                                                               | Technology                                | Communication method                                 | Failure impact                                  |
-| -------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------- | ----------------------------------------------- |
-| Student/Organizer Web App        | Student browsing and registration; organizer admin UI                                        | Next.js + TypeScript                      | HTTPS to Backend API                                 | UI unavailable, but core data remains intact    |
-| Check-in Mobile App              | QR scanning, offline check-in, and sync                                                      | React Native + TypeScript                 | HTTPS when online; local SQLite when offline         | Staff can continue offline if sync path is down |
-| Backend API                      | Main request handling and business orchestration                                             | Java Spring Boot                          | REST/JSON                                            | Core application unavailable                    |
-| Auth/RBAC Module                 | Login, JWT issuance, role loading, permission enforcement                                    | Java Spring Boot module                   | In-process                                           | Blocks protected operations if faulty           |
-| Workshop Module                  | Workshop/session CRUD, schedules, room assignment, cancellation                              | Java Spring Boot module                   | In-process                                           | Workshop browsing/admin impacted                |
-| Registration Module              | Seat allocation, free registration, reservation lifecycle, QR issuance trigger               | Java Spring Boot module                   | In-process + PostgreSQL transaction                  | Overbooking risk if incorrect                   |
-| Payment Module                   | Payment intent creation, callback handling, reconciliation, idempotency                      | Java Spring Boot module                   | HTTPS to gateway; worker for callback/reconciliation | Paid registration degraded only                 |
-| Notification Module              | Notification composition and dispatch                                                        | Java Spring Boot worker + adapter pattern | Worker + provider API                                | Messages delayed, core registration still works |
-| AI Summary Worker                | PDF text extraction and summary generation                                                   | Java Spring Boot worker                   | Worker + object storage + AI API/adapter             | Summary delayed only                            |
-| CSV Import Worker                | Nightly student import from legacy CSV files                                                 | Java Spring Boot worker                   | File polling + PostgreSQL                            | Student data freshness delayed                  |
-| PostgreSQL Database              | Source of truth for users, workshops, registrations, payments, and check-ins                 | PostgreSQL                                | SQL                                                  | Critical system dependency                      |
-| Redis / Worker Coordination      | Rate limiting, idempotency cache, optional caching, temporary locks, and worker coordination | Redis                                     | TCP                                                  | Degraded protection/async coordination          |
-| Object Storage                   | PDF file storage                                                                             | MinIO or S3-compatible storage            | HTTP/S3 API                                          | PDF uploads and summary jobs blocked            |
-| Mobile Offline Storage           | Local check-in persistence and sync queue                                                    | SQLite                                    | Local file IO                                        | Offline mode impaired on that device            |
-| Payment Gateway                  | External payment processing                                                                  | Sandbox payment gateway or mock adapter   | HTTPS/webhook                                        | Paid registration degraded                      |
-| Notification Provider            | Email and in-app notification delivery                                                       | SMTP/service API or mock adapter          | HTTPS/SMTP                                           | Messages delayed                                |
-| AI Model Provider                | Summary generation                                                                           | External LLM API or mock adapter          | HTTPS                                                | Summary delayed                                 |
-| Legacy Student System CSV Export | Nightly student roster source                                                                | Existing system                           | File drop / shared storage                           | Student eligibility freshness delayed           |
+| Component                        | Responsibility                                                                               | Technology                                | Communication method                                   | Failure impact                                  |
+| -------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------ | ----------------------------------------------- |
+| Student/Organizer Web App        | Student browsing and registration; organizer admin UI                                        | Next.js + TypeScript                      | HTTPS to Backend API                                   | UI unavailable, but core data remains intact    |
+| Check-in Mobile App              | QR scanning, offline check-in, and sync                                                      | React Native + TypeScript                 | HTTPS when online; local SQLite when offline           | Staff can continue offline if sync path is down |
+| Backend API                      | Main request handling and business orchestration                                             | Java Spring Boot                          | REST/JSON                                              | Core application unavailable                    |
+| Auth/RBAC Module                 | Login, JWT issuance, role loading, permission enforcement                                    | Java Spring Boot module                   | In-process                                             | Blocks protected operations if faulty           |
+| Workshop Module                  | Workshop/session CRUD, schedules, room assignment, cancellation                              | Java Spring Boot module                   | In-process                                             | Workshop browsing/admin impacted                |
+| Registration Module              | Seat allocation, free registration, reservation lifecycle, QR issuance trigger               | Java Spring Boot module                   | In-process + PostgreSQL transaction                    | Overbooking risk if incorrect                   |
+| Payment Module                   | Payment intent creation, callback handling, timeout handling, idempotency                    | Java Spring Boot module                   | HTTPS to gateway; worker for callback/timeout handling | Paid registration degraded only                 |
+| Notification Module              | Notification composition and dispatch                                                        | Java Spring Boot worker + adapter pattern | Worker + provider API                                  | Messages delayed, core registration still works |
+| AI Summary Worker                | PDF text extraction and summary generation                                                   | Java Spring Boot worker                   | Worker + object storage + AI API/adapter               | Summary delayed only                            |
+| CSV Import Worker                | Nightly student import from legacy CSV files                                                 | Java Spring Boot worker                   | File polling + PostgreSQL                              | Student data freshness delayed                  |
+| PostgreSQL Database              | Source of truth for users, workshops, registrations, payments, and check-ins                 | PostgreSQL                                | SQL                                                    | Critical system dependency                      |
+| Redis / Worker Coordination      | Rate limiting, idempotency cache, optional caching, temporary locks, and worker coordination | Redis                                     | TCP                                                    | Degraded protection/async coordination          |
+| Object Storage                   | PDF file storage                                                                             | MinIO or S3-compatible storage            | HTTP/S3 API                                            | PDF uploads and summary jobs blocked            |
+| Mobile Offline Storage           | Local check-in persistence and sync queue                                                    | SQLite                                    | Local file IO                                          | Offline mode impaired on that device            |
+| Payment Gateway                  | External payment processing                                                                  | Sandbox payment gateway or mock adapter   | HTTPS/webhook                                          | Paid registration degraded                      |
+| Notification Provider            | Email and in-app notification delivery                                                       | SMTP/service API or mock adapter          | HTTPS/SMTP                                             | Messages delayed                                |
+| AI Model Provider                | Summary generation                                                                           | External LLM API or mock adapter          | HTTPS                                                  | Summary delayed                                 |
+| Legacy Student System CSV Export | Nightly student roster source                                                                | Existing system                           | File drop / shared storage                             | Student eligibility freshness delayed           |
 
 ---
 
@@ -204,7 +204,7 @@ The mobile app is not intended to replace the student web app or organizer admin
 Synchronous operations return immediate user-facing results and stay in the request path:
 
 - login,
-- student self-registration,
+- current user lookup,
 - workshop browsing,
 - registration request,
 - payment initiation,
@@ -220,7 +220,7 @@ Asynchronous operations are handled by background workers:
 - AI Summary generation,
 - nightly CSV import,
 - expired seat reservation cleanup,
-- payment callback processing or reconciliation,
+- payment callback processing or timeout cleanup,
 - offline check-in sync retry.
 
 Asynchronous processing improves resilience because slow external providers do not hold user requests open. It also allows retries and workload smoothing during spikes.
@@ -298,7 +298,7 @@ flowchart LR
 
     Worker -->|Read nightly CSV file| Legacy
     API -->|Create payment intent| Pay
-    Worker -->|Reconcile/retry payment| Pay
+    Worker -->|Callback and timeout handling| Pay
     Worker -->|Send messages| Notify
     Worker -->|Generate summary| AI
 ```
@@ -336,7 +336,7 @@ Key dependency rules:
 - Browsing depends only on the web app, Backend API, and PostgreSQL, so it remains available if payment or AI is unavailable.
 - Paid registration depends on the payment module, but free registration does not.
 - Offline check-in depends on local SQLite storage first and remote sync second.
-- CSV import, AI summary, notifications, payment reconciliation, and cleanup jobs are worker-driven so they cannot directly block browsing.
+- CSV import, AI summary, notifications, payment callback handling, and cleanup jobs are worker-driven so they cannot directly block browsing.
 
 ---
 
@@ -387,10 +387,10 @@ sequenceDiagram
 
 Failure handling:
 
-- If payment intent creation times out before a gateway reference is returned, the registration stays `PENDING_PAYMENT` until reconciliation or expiration.
+- If payment intent creation times out before a gateway reference is returned, the registration stays `PENDING_PAYMENT` until a verified callback arrives or the reservation expires.
 - Expired reservations are cleaned by a background worker and seats are released.
 - Duplicate client retries reuse the same idempotency key and return the same payment intent instead of creating a new charge.
-- The database transaction must not stay open while calling the external payment gateway. The system creates the short-lived reservation and local payment intent record first, commits the transaction, then calls the gateway. If gateway creation fails, the payment intent is marked as failed or pending reconciliation.
+- The database transaction must not stay open while calling the external payment gateway. The system creates the short-lived reservation and local payment intent record first, commits the transaction, then calls the gateway. If gateway creation fails, the payment intent is marked as failed or kept pending until expiration.
 
 ### 12.2 Offline Check-in and Later Sync
 
@@ -538,6 +538,8 @@ Failure handling:
 - **How it works:** Application code depends on provider interfaces; infrastructure implements concrete adapters.
 - **Trade-offs / risks:** Adds abstraction code.
 - **Alternatives not chosen:** Direct provider calls inside controllers or domain logic were rejected because they increase coupling and make testing harder.
+
+The notification module uses a provider adapter interface. The MVP implements in-app and email notifications, while future channels such as Telegram can be added by introducing a new provider adapter without changing registration, payment, or workshop business logic.
 
 ---
 

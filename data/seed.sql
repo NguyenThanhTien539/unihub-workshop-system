@@ -1,5 +1,38 @@
 -- UniHub Workshop seed data. Run after schema.sql.
 
+DO $$
+DECLARE
+  missing_tables text;
+BEGIN
+  SELECT string_agg(table_name, ', ' ORDER BY table_name)
+  INTO missing_tables
+  FROM (
+    VALUES
+      ('roles'),
+      ('users'),
+      ('user_roles'),
+      ('student_imports'),
+      ('students'),
+      ('student_import_errors'),
+      ('refresh_tokens'),
+      ('rooms'),
+      ('workshops'),
+      ('workshop_sessions'),
+      ('registrations'),
+      ('payments'),
+      ('qr_tickets'),
+      ('checkins'),
+      ('notifications'),
+      ('workshop_materials')
+  ) AS required(table_name)
+  WHERE to_regclass('public.' || required.table_name) IS NULL;
+
+  IF missing_tables IS NOT NULL THEN
+    RAISE EXCEPTION 'Run schema.sql before seed.sql. Missing tables: %', missing_tables;
+  END IF;
+END;
+$$;
+
 TRUNCATE TABLE
   workshop_materials,
   notifications,
@@ -141,16 +174,17 @@ WITH workshop_seed AS (
     (20, 'Responsible AI and Ethics', 'Dr. Phuong Dang', 'AI Ethics Researcher', 'Discuss privacy, fairness, and accountability in AI.')
   ) AS v(n, title, speaker_name, speaker_title, description)
 )
-INSERT INTO workshops (id, title, speaker_name, speaker_title, description, status, created_by_user_id, published_at)
+INSERT INTO workshops (id, title, speaker_name, speaker_title, description, status, created_by_user_id, published_at, canceled_at)
 SELECT
   ('00000000-0000-0000-0000-' || lpad((500 + n)::text, 12, '0'))::uuid,
   title,
   speaker_name,
   speaker_title,
   description,
-  'PUBLISHED',
+  CASE WHEN n = 19 THEN 'CANCELED' WHEN n = 20 THEN 'DRAFT' ELSE 'PUBLISHED' END,
   ('00000000-0000-0000-0000-' || lpad((200 + ((n - 1) % 5) + 1)::text, 12, '0'))::uuid,
-  '2026-05-02 02:00:00+00'
+  CASE WHEN n = 20 THEN NULL ELSE '2026-05-02 02:00:00+00'::timestamptz END,
+  CASE WHEN n = 19 THEN '2026-05-04 04:00:00+00'::timestamptz END
 FROM workshop_seed;
 
 INSERT INTO workshop_sessions (
@@ -167,7 +201,7 @@ SELECT
   ('2026-05-11 09:45:00+00'::timestamptz
     + (((n - 1) / 4) * interval '1 day')
     + (((n - 1) % 4) * interval '2 hours 30 minutes')),
-  'OPEN',
+  CASE WHEN n = 19 THEN 'CANCELED' ELSE 'OPEN' END,
   CASE WHEN n = 1 THEN 12 WHEN n = 2 THEN 20 ELSE 24 + ((n % 5) * 6) END,
   0,
   0,
@@ -184,7 +218,7 @@ WITH desired AS (
   UNION ALL SELECT 3, generate_series(16, 17), 'PAYMENT_FAILED'
   UNION ALL
   SELECT session_n, student_n, 'CONFIRMED'
-  FROM generate_series(4, 20) AS session_n
+  FROM generate_series(4, 18) AS session_n
   CROSS JOIN LATERAL generate_series(1, 4 + (session_n % 9)) AS student_n
 )
 INSERT INTO registrations (
@@ -340,3 +374,29 @@ INSERT INTO workshop_materials (
    'workshops/00000000-0000-0000-0000-000000000512/documents/security-handout.pdf',
    'security-handout.pdf', 'application/pdf', 902311, 'material-checksum-003', 'UPLOADED',
    'FAILED', NULL, 'mock-ai-summary-v1', 2, now() - interval '1 day', NULL);
+
+-- Useful validation queries:
+-- SELECT count(*) FROM users;
+-- SELECT count(*) FROM students;
+-- SELECT count(*) FROM workshops;
+-- SELECT count(*) FROM workshop_sessions;
+-- SELECT count(*) FROM registrations;
+-- SELECT count(*) FROM payments;
+-- SELECT count(*) FROM qr_tickets;
+-- SELECT count(*) FROM checkins;
+-- SELECT count(*) FROM notifications;
+-- SELECT count(*) FROM workshop_materials;
+-- SELECT * FROM roles;
+-- SELECT * FROM users;
+-- SELECT * FROM rooms;
+-- SELECT * FROM workshops;
+-- SELECT * FROM workshop_sessions;
+-- SELECT * FROM registrations;
+-- SELECT * FROM payments;
+-- SELECT * FROM qr_tickets;
+-- SELECT * FROM checkins;
+-- SELECT * FROM notifications;
+-- SELECT * FROM workshop_materials;
+-- SELECT * FROM student_imports;
+-- SELECT id, title, status FROM workshops ORDER BY title LIMIT 10;
+-- SELECT session_id, count(*) FROM registrations GROUP BY session_id ORDER BY session_id;

@@ -1,8 +1,39 @@
 -- UniHub Workshop PostgreSQL schema.
 -- PostgreSQL is the durable source of truth. Redis and mobile SQLite are coordination/cache layers only.
 
+DROP TABLE IF EXISTS workshop_materials CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS checkins CASCADE;
+DROP TABLE IF EXISTS qr_tickets CASCADE;
+DROP TABLE IF EXISTS payments CASCADE;
+DROP TABLE IF EXISTS registrations CASCADE;
+DROP TABLE IF EXISTS workshop_sessions CASCADE;
+DROP TABLE IF EXISTS workshops CASCADE;
+DROP TABLE IF EXISTS rooms CASCADE;
+DROP TABLE IF EXISTS refresh_tokens CASCADE;
+DROP TABLE IF EXISTS student_import_errors CASCADE;
+DROP TABLE IF EXISTS students CASCADE;
+DROP TABLE IF EXISTS student_imports CASCADE;
+DROP TABLE IF EXISTS user_roles CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;
+
+DO $$
+BEGIN
+  IF to_regprocedure('public.gen_random_uuid()') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+       FROM pg_depend d
+       JOIN pg_extension e ON e.oid = d.refobjid
+       WHERE d.objid = to_regprocedure('public.gen_random_uuid()')
+         AND e.extname = 'pgcrypto'
+     ) THEN
+    DROP FUNCTION public.gen_random_uuid();
+  END IF;
+END;
+$$;
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS trigger AS $$
@@ -188,11 +219,33 @@ CREATE INDEX idx_workshop_sessions_room_id ON workshop_sessions(room_id);
 CREATE INDEX idx_workshop_sessions_start_at ON workshop_sessions(start_at);
 CREATE INDEX idx_workshop_sessions_status_start ON workshop_sessions(status, start_at);
 
-ALTER TABLE workshop_sessions ADD CONSTRAINT ex_workshop_sessions_room_overlap
-EXCLUDE USING gist (
-  room_id WITH =,
-  tstzrange(start_at, end_at, '[)') WITH &&
-) WHERE (status <> 'CANCELED');
+CREATE OR REPLACE FUNCTION prevent_workshop_session_room_overlap()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.status = 'CANCELED' THEN
+    RETURN NEW;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM workshop_sessions existing
+    WHERE existing.room_id = NEW.room_id
+      AND existing.status <> 'CANCELED'
+      AND existing.id <> NEW.id
+      AND tstzrange(existing.start_at, existing.end_at, '[)') &&
+          tstzrange(NEW.start_at, NEW.end_at, '[)')
+  ) THEN
+    RAISE EXCEPTION 'workshop session overlaps an existing session in the same room'
+      USING ERRCODE = '23P01';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_workshop_sessions_room_overlap
+BEFORE INSERT OR UPDATE OF room_id, start_at, end_at, status ON workshop_sessions
+FOR EACH ROW EXECUTE FUNCTION prevent_workshop_session_room_overlap();
 
 CREATE TABLE registrations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -242,7 +295,7 @@ CREATE TABLE payments (
   request_hash VARCHAR(255) NOT NULL,
   amount NUMERIC(12,2) NOT NULL CHECK (amount >= 0),
   currency VARCHAR(10) NOT NULL DEFAULT 'VND',
-  status VARCHAR(30) NOT NULL CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED', 'EXPIRED', 'CANCELED')),
+  status VARCHAR(30) NOT NULL CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED', 'EXPIRED', 'TIMEOUT', 'CANCELED', 'REFUNDED')),
   failure_code VARCHAR(100),
   failure_message TEXT,
   expires_at TIMESTAMPTZ,

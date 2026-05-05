@@ -208,23 +208,22 @@ Success response:
   "success": true,
   "data": [
     {
-      "workshopId": "w-001",
+      "id": "w-001",
       "title": "System Design 101",
       "speaker": "Dr. A",
-      "descriptionPreview": "An introduction to practical system design.",
+      "description": "An introduction to practical system design.",
       "status": "PUBLISHED",
       "sessions": [
         {
-          "sessionId": "s-101",
+          "id": "s-101",
           "startAt": "2026-05-01T08:00:00Z",
           "endAt": "2026-05-01T10:00:00Z",
-          "roomId": "room-1",
           "roomName": "H1-201",
+          "building": "H1",
           "feeType": "FREE",
           "feeAmount": 0,
-          "seatCapacity": 100,
           "remainingSeats": 12,
-          "registerable": true
+          "currency": "VND"
         }
       ]
     }

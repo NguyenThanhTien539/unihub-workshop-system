@@ -27,6 +27,7 @@ export default function WorkshopsAdminPage() {
       try {
         const r = await fetchWithAuth('/api/workshops?size=100');
         const json = await r.json();
+        console.log(json);
         const data = json?.data ?? [];
         setWorkshops(data);
       } catch (e) {

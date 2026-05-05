@@ -107,10 +107,26 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
   async function createSession(form: any) {
     setSaving(true); setError(null);
     try {
+      function normalizeLocal(v: string) {
+        if (!v) return v;
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return v + ':00';
+        return v.replace(/\.\d+Z$/, '').replace(/Z$/, '');
+      }
+
+      const payload = {
+        roomId: form.roomId,
+        startAt: normalizeLocal(form.startAt),
+        endAt: normalizeLocal(form.endAt),
+        seatCapacity: form.seatCapacity,
+        feeType: form.feeType,
+        feeAmount: form.feeAmount,
+        currency: form.currency ?? 'VND'
+      };
+
       const res = await fetchWithAuth(`/api/admin/workshops/${id}/sessions`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Create session failed");
@@ -211,18 +227,38 @@ function CreateSessionForm({onCreate, disabled}:{onCreate:(f:any)=>void, disable
   const [feeType, setFeeType] = useState("FREE");
   const [feeAmount, setFeeAmount] = useState(0);
   const [currency, setCurrency] = useState("VND");
+  const [rooms, setRooms] = useState<Array<{id:string,name:string,building:string,capacity:number,status:string}>>([]);
 
   function submit(e: React.FormEvent){
     e.preventDefault();
     onCreate({roomId, startAt, endAt, seatCapacity, feeType, feeAmount, currency});
   }
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetchWithAuth('/api/admin/rooms');
+        if (r.ok) {
+          const j = await r.json();
+          setRooms(j?.data ?? []);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
+
   return (
     <form onSubmit={submit} className="rounded-md border p-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm">Room ID</label>
-          <input value={roomId} onChange={e=>setRoomId(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
+          <label className="block text-sm">Room</label>
+          <select value={roomId} onChange={e=>setRoomId(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1">
+            <option value="">-- Chọn phòng --</option>
+            {rooms.map(r => (
+              <option key={r.id} value={r.id}>{r.name} — {r.building} (cap: {r.capacity})</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-sm">Seats</label>

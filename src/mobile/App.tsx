@@ -7,6 +7,7 @@ import { AuthScreens } from "./src/screens/auth/AuthScreens";
 import { CheckinStaffApp } from "./src/screens/checkin/CheckinStaffApp";
 import { OrganizerApp } from "./src/screens/organizer/OrganizerApp";
 import { StudentApp } from "./src/screens/student/StudentApp";
+import { logout } from "./src/services/authService";
 import { colors, spacing } from "./src/theme/theme";
 
 export default function App() {
@@ -25,6 +26,16 @@ export default function App() {
     return "Student Workshops";
   }, [account]);
 
+  const signOut = async () => {
+    const token = account?.refreshToken;
+    setAccount(null);
+    try {
+      await logout(token);
+    } catch {
+      await logout(null);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -32,10 +43,6 @@ export default function App() {
         <View style={styles.header}>
           <Text style={styles.kicker}>UniHub Workshop</Text>
           <Text style={styles.title}>{roleTitle}</Text>
-          <Text style={styles.subtitle}>
-            Demo-ready React Native UI with local mock data and explicit backend
-            TODOs for auth, registration, payment, admin, and offline check-in.
-          </Text>
         </View>
 
         {!account ? (
@@ -50,7 +57,7 @@ export default function App() {
               </View>
               <Button
                 label="Logout"
-                onPress={() => setAccount(null)}
+                onPress={signOut}
                 variant="secondary"
               />
             </View>
@@ -92,12 +99,6 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: "900",
     marginTop: spacing.xs,
-  },
-  subtitle: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: spacing.sm,
   },
   stack: {
     gap: spacing.md,

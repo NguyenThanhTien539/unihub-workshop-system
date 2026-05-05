@@ -53,11 +53,13 @@ export function WorkshopFormScreen({
   workshop,
   onCancel,
   onSubmit,
+  submitting = false,
 }: {
   mode: "create" | "edit";
   workshop?: ManagedWorkshop | null;
   onCancel: () => void;
   onSubmit: (values: WorkshopFormValues) => void;
+  submitting?: boolean;
 }) {
   const initialValues = useMemo(() => toWorkshopFormValues(workshop), [workshop]);
   const [values, setValues] = useState<WorkshopFormValues>(initialValues);
@@ -72,6 +74,9 @@ export function WorkshopFormScreen({
     const nextErrors = validateWorkshopForm(values, workshop);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+    if (submitting) {
       return;
     }
     onSubmit(values);
@@ -153,7 +158,7 @@ export function WorkshopFormScreen({
             error={errors.room}
           />
           <Field
-            label="Room note / map placeholder"
+            label="Room note"
             value={values.roomHint}
             onChangeText={(text) => update("roomHint", text)}
           />
@@ -210,8 +215,15 @@ export function WorkshopFormScreen({
           <View style={styles.actions}>
             <Button label="Cancel" onPress={cancel} variant="secondary" />
             <Button
-              label={mode === "create" ? "Create Workshop" : "Save Changes"}
+              label={
+                submitting
+                  ? "Saving..."
+                  : mode === "create"
+                    ? "Create Workshop"
+                    : "Save Changes"
+              }
               onPress={submit}
+              disabled={submitting}
             />
           </View>
         </View>

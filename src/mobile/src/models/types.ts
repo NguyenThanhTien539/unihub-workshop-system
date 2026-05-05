@@ -6,6 +6,8 @@ export type WorkshopStatus = "DRAFT" | "PUBLISHED" | "FULL" | "CANCELLED";
 
 export type Workshop = {
   id: string;
+  sessionId?: string;
+  roomId?: string;
   title: string;
   speaker: string;
   speakerTitle: string;
@@ -66,6 +68,8 @@ export type Account = {
   role: Role;
   label: string;
   studentId?: string;
+  accessToken?: string;
+  refreshToken?: string;
 };
 
 export type CheckinHistoryItem = {
@@ -106,4 +110,13 @@ export type WorkshopFormValues = {
   summary: string;
   status: "DRAFT" | "PUBLISHED";
   roomHint: string;
+};
+
+export type Room = {
+  id: string;
+  name: string;
+  building: string;
+  capacity: number;
+  mapUrl?: string | null;
+  status: "ACTIVE" | "INACTIVE" | string;
 };

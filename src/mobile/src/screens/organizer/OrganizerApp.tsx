@@ -15,7 +15,7 @@ import {
   createWorkshop,
   getOrganizerDashboard,
   updateWorkshop,
-} from "../../services/mockWorkshopService";
+} from "../../services/workshopService";
 import { colors, spacing } from "../../theme/theme";
 import { WorkshopFormScreen } from "./WorkshopFormScreen";
 
@@ -29,7 +29,9 @@ export function OrganizerApp({ account }: { account: Account }) {
   const [stats, setStats] = useState<OrganizerStats | null>(null);
   const [workshops, setWorkshops] = useState<ManagedWorkshop[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [workshopView, setWorkshopView] = useState<WorkshopView>("list");
   const [selectedWorkshop, setSelectedWorkshop] = useState<ManagedWorkshop | null>(
     null,
@@ -39,12 +41,22 @@ export function OrganizerApp({ account }: { account: Account }) {
   );
 
   useEffect(() => {
-    getOrganizerDashboard().then((result) => {
+    refreshDashboard();
+  }, []);
+
+  const refreshDashboard = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await getOrganizerDashboard();
       setStats(result.stats);
       setWorkshops(result.workshops);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load workshops.");
+    } finally {
       setLoading(false);
-    });
-  }, []);
+    }
+  };
 
   const derivedStats = useMemo(() => buildStats(workshops, stats), [workshops, stats]);
 
@@ -55,44 +67,60 @@ export function OrganizerApp({ account }: { account: Account }) {
   };
 
   const handleCreate = async (values: WorkshopFormValues) => {
-    const created = await createWorkshop(values);
-    setWorkshops((current) => [created, ...current]);
-    setMessage(`${created.title} created as ${created.status.toLowerCase()}.`);
-    setWorkshopView("list");
+    if (actionLoading) {
+      return;
+    }
+    setActionLoading(true);
+    setError(null);
+    try {
+      const created = await createWorkshop(values);
+      setMessage(`${created.title} created as ${created.status.toLowerCase()}.`);
+      await refreshDashboard();
+      setWorkshopView("list");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Create workshop failed.");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleUpdate = async (values: WorkshopFormValues) => {
-    if (!selectedWorkshop) {
+    if (!selectedWorkshop || actionLoading) {
       return;
     }
-    const updated = await updateWorkshop(selectedWorkshop, values);
-    setWorkshops((current) =>
-      current.map((item) => (item.id === updated.id ? updated : item)),
-    );
-    setSelectedWorkshop(updated);
-    setMessage(`${updated.title} updated.`);
-    setWorkshopView("detail");
+    setActionLoading(true);
+    setError(null);
+    try {
+      const updated = await updateWorkshop(selectedWorkshop, values);
+      setSelectedWorkshop(updated);
+      setMessage(`${updated.title} updated.`);
+      await refreshDashboard();
+      setWorkshopView("detail");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Update workshop failed.");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleConfirmCancel = async () => {
-    if (!confirmWorkshop) {
+    if (!confirmWorkshop || actionLoading) {
       return;
     }
-    const result = await cancelWorkshop(confirmWorkshop, "Cancelled from mobile admin demo.");
-    if (result === null) {
-      setWorkshops((current) =>
-        current.filter((item) => item.id !== confirmWorkshop.id),
-      );
-      setMessage(`${confirmWorkshop.title} draft deleted.`);
-    } else {
-      setWorkshops((current) =>
-        current.map((item) => (item.id === result.id ? result : item)),
-      );
+    setActionLoading(true);
+    setError(null);
+    try {
+      const result = await cancelWorkshop(confirmWorkshop);
       setSelectedWorkshop(result);
-      setMessage(`${result.title} cancelled. Registered students would be notified.`);
+      setMessage(`${result.title} cancelled.`);
+      await refreshDashboard();
+      setConfirmWorkshop(null);
+      setWorkshopView("list");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cancel workshop failed.");
+    } finally {
+      setActionLoading(false);
     }
-    setConfirmWorkshop(null);
-    setWorkshopView("list");
   };
 
   return (
@@ -123,7 +151,10 @@ export function OrganizerApp({ account }: { account: Account }) {
           workshops={workshops}
           selectedWorkshop={selectedWorkshop}
           message={message}
+          error={error}
+          actionLoading={actionLoading}
           onClearMessage={() => setMessage(null)}
+          onClearError={() => setError(null)}
           onCreate={() => {
             setSelectedWorkshop(null);
             setWorkshopView("create");
@@ -171,8 +202,7 @@ function Dashboard({
       <Card>
         <Text style={styles.title}>Organizer Dashboard</Text>
         <Text style={styles.body}>
-          Mobile admin demo for workshop readiness, registrations, payment
-          coverage, and check-in progress.
+          Manage workshop publication, room capacity, and session readiness.
         </Text>
         <Button label="Create or manage workshops" onPress={onOpenWorkshops} />
       </Card>
@@ -193,7 +223,10 @@ function WorkshopWorkspace({
   workshops,
   selectedWorkshop,
   message,
+  error,
+  actionLoading,
   onClearMessage,
+  onClearError,
   onCreate,
   onBack,
   onView,
@@ -207,7 +240,10 @@ function WorkshopWorkspace({
   workshops: ManagedWorkshop[];
   selectedWorkshop: ManagedWorkshop | null;
   message: string | null;
+  error: string | null;
+  actionLoading: boolean;
   onClearMessage: () => void;
+  onClearError: () => void;
   onCreate: () => void;
   onBack: () => void;
   onView: (workshop: ManagedWorkshop) => void;
@@ -222,6 +258,7 @@ function WorkshopWorkspace({
         mode="create"
         onCancel={onBack}
         onSubmit={onCreateSubmit}
+        submitting={actionLoading}
       />
     );
   }
@@ -233,6 +270,7 @@ function WorkshopWorkspace({
         workshop={selectedWorkshop}
         onCancel={() => onView(selectedWorkshop)}
         onSubmit={onEditSubmit}
+        submitting={actionLoading}
       />
     );
   }
@@ -244,6 +282,7 @@ function WorkshopWorkspace({
         onBack={onBack}
         onEdit={() => onEdit(selectedWorkshop)}
         onCancel={() => onCancelRequest(selectedWorkshop)}
+        actionLoading={actionLoading}
       />
     );
   }
@@ -253,7 +292,9 @@ function WorkshopWorkspace({
       loading={loading}
       workshops={workshops}
       message={message}
+      error={error}
       onClearMessage={onClearMessage}
+      onClearError={onClearError}
       onCreate={onCreate}
       onView={onView}
       onEdit={onEdit}
@@ -266,7 +307,9 @@ function OrganizerWorkshopList({
   loading,
   workshops,
   message,
+  error,
   onClearMessage,
+  onClearError,
   onCreate,
   onView,
   onEdit,
@@ -275,7 +318,9 @@ function OrganizerWorkshopList({
   loading: boolean;
   workshops: ManagedWorkshop[];
   message: string | null;
+  error: string | null;
   onClearMessage: () => void;
+  onClearError: () => void;
   onCreate: () => void;
   onView: (workshop: ManagedWorkshop) => void;
   onEdit: (workshop: ManagedWorkshop) => void;
@@ -314,20 +359,21 @@ function OrganizerWorkshopList({
           <View style={styles.flex}>
             <Text style={styles.title}>Workshop Management</Text>
             <Text style={styles.body}>
-              Create, edit, publish, and cancel workshop sessions for the
-              UniHub demo.
+              Create, edit, publish, and cancel workshop sessions.
             </Text>
           </View>
           <Button label="Create Workshop" onPress={onCreate} />
         </View>
-        <Text style={styles.todo}>
-          UI role guards only improve user experience. Real authorization must
-          be enforced by backend RBAC middleware using JWT role claims.
-        </Text>
         {message ? (
           <View style={styles.messageRow}>
             <Text style={styles.success}>{message}</Text>
             <Button label="OK" onPress={onClearMessage} variant="secondary" />
+          </View>
+        ) : null}
+        {error ? (
+          <View style={styles.messageRow}>
+            <Text style={styles.error}>{error}</Text>
+            <Button label="OK" onPress={onClearError} variant="secondary" />
           </View>
         ) : null}
       </Card>
@@ -416,7 +462,7 @@ function OrganizerWorkshopCard({
         <Button label="View Detail" onPress={onView} variant="secondary" />
         <Button label="Edit" onPress={onEdit} variant="secondary" />
         <Button
-          label={workshop.registrations > 0 ? "Cancel" : "Cancel/Delete"}
+          label="Cancel"
           onPress={onCancel}
           variant="danger"
         />
@@ -430,11 +476,13 @@ function OrganizerWorkshopDetail({
   onBack,
   onEdit,
   onCancel,
+  actionLoading,
 }: {
   workshop: ManagedWorkshop;
   onBack: () => void;
   onEdit: () => void;
   onCancel: () => void;
+  actionLoading: boolean;
 }) {
   const revenue = workshop.feeType === "PAID" ? workshop.revenue : 0;
 
@@ -469,8 +517,13 @@ function OrganizerWorkshopDetail({
           Revenue estimate: {revenue.toLocaleString("vi-VN")} VND
         </Text>
         <View style={styles.actions}>
-          <Button label="Edit" onPress={onEdit} />
-          <Button label="Cancel/Delete" onPress={onCancel} variant="danger" />
+          <Button label="Edit" onPress={onEdit} disabled={actionLoading} />
+          <Button
+            label={actionLoading ? "Cancelling..." : "Cancel"}
+            onPress={onCancel}
+            variant="danger"
+            disabled={actionLoading}
+          />
         </View>
       </Card>
     </View>
@@ -529,9 +582,7 @@ function OrganizerProfile({ account }: { account: Account }) {
       <Text style={styles.title}>{account.name}</Text>
       <Text style={styles.meta}>{account.email}</Text>
       <Text style={styles.todo}>
-        UI role guards only improve user experience. Real access control must
-        be enforced by backend middleware/security filters using JWT role
-        claims.
+        Organizer access is verified by the backend using your signed-in role.
       </Text>
     </Card>
   );
@@ -656,6 +707,12 @@ const styles = StyleSheet.create({
   },
   success: {
     color: colors.success,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  error: {
+    color: colors.danger,
     flex: 1,
     fontSize: 13,
     fontWeight: "800",

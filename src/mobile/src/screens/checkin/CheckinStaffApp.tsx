@@ -11,7 +11,7 @@ import {
   getOfflineQueue,
   syncOfflineQueue,
   verifyCheckin,
-} from "../../services/mockCheckinService";
+} from "../../services/checkinService";
 import { colors, spacing } from "../../theme/theme";
 import { Badge, Button, Card, EmptyState, TabBar } from "../../components/ui";
 
@@ -41,14 +41,22 @@ export function CheckinStaffApp({ account }: { account: Account }) {
 }
 
 function ScannerScreen() {
-  const [token, setToken] = useState("valid-demo-ticket");
+  const [token, setToken] = useState("");
   const [result, setResult] = useState<CheckinResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const scan = async (nextToken = token) => {
+  const scan = async () => {
     setLoading(true);
-    setResult(await verifyCheckin(nextToken));
-    setLoading(false);
+    setResult(null);
+    setError(null);
+    try {
+      setResult(await verifyCheckin());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Check-in failed.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,9 +65,8 @@ function ScannerScreen() {
         <View style={styles.rowBetween}>
           <View>
             <Text style={styles.title}>QR Scanner</Text>
-            <Text style={styles.body}>AI Tools for Career Readiness - A101</Text>
+            <Text style={styles.body}>Enter a QR token to verify check-in.</Text>
           </View>
-          <Badge label="Online" tone="success" />
         </View>
         <View style={styles.scannerFrame}>
           <Text style={styles.scannerText}>QR scan area</Text>
@@ -68,22 +75,17 @@ function ScannerScreen() {
           value={token}
           onChangeText={setToken}
           autoCapitalize="none"
-          placeholder="valid-demo-ticket"
+          placeholder="QR token"
           placeholderTextColor="#94a3b8"
           style={styles.input}
         />
         <Button
-          label={loading ? "Verifying..." : "Mock scan"}
-          onPress={() => scan()}
-          disabled={loading}
+          label={loading ? "Verifying..." : "Verify"}
+          onPress={scan}
+          disabled={loading || !token.trim()}
         />
       </Card>
-      <View style={styles.quickGrid}>
-        <Button label="Valid" onPress={() => scan("valid-demo-ticket")} />
-        <Button label="Used" onPress={() => scan("used-demo-ticket")} variant="secondary" />
-        <Button label="Invalid" onPress={() => scan("invalid-demo-ticket")} variant="secondary" />
-        <Button label="Offline" onPress={() => scan("offline-demo-ticket")} variant="secondary" />
-      </View>
+      {error ? <Card><Text style={styles.error}>{error}</Text></Card> : null}
       {result ? <CheckinResultCard result={result} /> : null}
     </View>
   );
@@ -107,11 +109,6 @@ function CheckinResultCard({ result }: { result: CheckinResult }) {
         </Text>
       ) : null}
       <Text style={styles.body}>{result.detail}</Text>
-      <Text style={styles.todo}>
-        TODO: Replace mock scan verification with POST /api/checkins/verify.
-        Body: {"{ qrToken, staffId, deviceId, checkedInAt }"}. Expected:
-        VALID, ALREADY_USED, or INVALID ticket result.
-      </Text>
     </Card>
   );
 }
@@ -122,7 +119,7 @@ function OfflineQueueScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    getOfflineQueue().then(setQueue);
+    getOfflineQueue().then(setQueue).catch(() => setQueue([]));
   }, []);
 
   const pendingCount = queue.filter((item) => item.status === "PENDING_SYNC").length;
@@ -130,9 +127,9 @@ function OfflineQueueScreen() {
   const sync = async () => {
     setSyncing(true);
     setMessage(null);
-    const synced = await syncOfflineQueue(queue);
+    const synced = await syncOfflineQueue();
     setQueue(synced);
-    setMessage(`Synced ${synced.length} offline check-ins.`);
+    setMessage("Offline queue synced.");
     setSyncing(false);
   };
 
@@ -146,13 +143,6 @@ function OfflineQueueScreen() {
           </View>
           <Badge label={pendingCount > 0 ? "Pending" : "Synced"} tone={pendingCount > 0 ? "warning" : "success"} />
         </View>
-        <Text style={styles.todo}>
-          TODO: Replace mock offline sync with POST /api/checkins/offline-sync.
-          Body: {"{ deviceId, staffId, checkins: [...] }"}. Expected:
-          syncedCount and failedItems. Offline check-ins should later be
-          persisted using AsyncStorage, SQLite, SecureStore, or Room depending
-          on the stack.
-        </Text>
         <Button
           label={syncing ? "Syncing..." : "Sync now"}
           onPress={sync}
@@ -184,12 +174,14 @@ function HistoryScreen() {
   const [history, setHistory] = useState<CheckinHistoryItem[]>([]);
 
   useEffect(() => {
-    getCheckinHistory().then(setHistory);
+    getCheckinHistory().then(setHistory).catch(() => setHistory([]));
   }, []);
 
   return (
     <View style={styles.stack}>
-      {history.map((item) => (
+      {history.length === 0 ? (
+        <EmptyState title="No check-in records available" body="Completed check-ins will appear here." />
+      ) : history.map((item) => (
         <Card key={item.id}>
           <Badge label={item.status.replace("_", " ")} tone={item.status === "VALID" ? "success" : "warning"} />
           <Text style={styles.itemTitle}>{item.studentName}</Text>
@@ -208,11 +200,6 @@ function StaffProfile({ account }: { account: Account }) {
       <Badge label="CHECKIN_STAFF" tone="success" />
       <Text style={styles.resultTitle}>{account.name}</Text>
       <Text style={styles.meta}>{account.email}</Text>
-      <Text style={styles.todo}>
-        UI role guards only improve user experience. Real access control must
-        be enforced by backend middleware/security filters using JWT role
-        claims.
-      </Text>
     </Card>
   );
 }
@@ -264,11 +251,6 @@ const styles = StyleSheet.create({
     marginVertical: spacing.md,
     padding: spacing.md,
   },
-  quickGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
   resultTitle: {
     color: colors.ink,
     fontSize: 22,
@@ -285,11 +267,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: spacing.xs,
   },
-  todo: {
-    color: colors.warning,
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: spacing.md,
+  error: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: "800",
   },
   success: {
     color: colors.success,

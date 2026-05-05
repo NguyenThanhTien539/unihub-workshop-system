@@ -3,9 +3,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Account, Registration, Workshop } from "../../models/types";
 import {
   getMyRegistrations,
+  getWorkshopDetail,
   getWorkshops,
-  registerForWorkshop,
-} from "../../services/mockWorkshopService";
+} from "../../services/workshopService";
 import { colors, spacing } from "../../theme/theme";
 import { Badge, Button, Card, EmptyState, TabBar } from "../../components/ui";
 
@@ -19,7 +19,7 @@ export function StudentApp({ account }: { account: Account }) {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
 
   useEffect(() => {
-    getMyRegistrations().then(setRegistrations);
+    getMyRegistrations().then(setRegistrations).catch(() => setRegistrations([]));
   }, []);
 
   const confirmedRegistration = registrations.find(
@@ -48,10 +48,6 @@ export function StudentApp({ account }: { account: Account }) {
             workshop={selectedWorkshop}
             registrations={registrations}
             onBack={() => setSelectedWorkshop(null)}
-            onRegistered={(registration) => {
-              setRegistrations((current) => [registration, ...current]);
-              setTab(registration.status === "CONFIRMED" ? "ticket" : "registrations");
-            }}
           />
         ) : (
           <WorkshopList
@@ -69,7 +65,7 @@ export function StudentApp({ account }: { account: Account }) {
         ) : (
           <EmptyState
             title="No QR ticket yet"
-            body="Register for a free workshop or complete payment for a paid workshop to receive a QR ticket."
+            body="Confirmed registration tickets will appear here when registration data is available."
           />
         )
       ) : null}
@@ -89,10 +85,10 @@ function WorkshopList({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getWorkshops().then((items) => {
-      setWorkshops(items);
-      setLoading(false);
-    });
+    getWorkshops()
+      .then(setWorkshops)
+      .catch(() => setWorkshops([]))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -108,11 +104,10 @@ function WorkshopList({
     <View style={styles.stack}>
       <Card>
         <Text style={styles.title}>Workshop List</Text>
-        <Text style={styles.body}>
-          Browse career week sessions. Payment failures never block this list.
-        </Text>
       </Card>
-      {workshops.map((workshop) => {
+      {workshops.length === 0 ? (
+        <EmptyState title="No workshops found" body="No published workshops are available." />
+      ) : workshops.map((workshop) => {
         const registration = registrations.find(
           (item) => item.workshopId === workshop.id,
         );
@@ -161,69 +156,60 @@ function WorkshopDetail({
   workshop,
   registrations,
   onBack,
-  onRegistered,
 }: {
   account: Account;
   workshop: Workshop;
   registrations: Registration[];
   onBack: () => void;
-  onRegistered: (registration: Registration) => void;
 }) {
   const existing = useMemo(
     () => registrations.find((item) => item.workshopId === workshop.id),
     [registrations, workshop.id],
   );
-  const [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState(workshop);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const register = async () => {
-    setLoading(true);
+  useEffect(() => {
+    setLoadingDetail(true);
     setError(null);
-    try {
-      onRegistered(
-        await registerForWorkshop(workshop, account.studentId ?? account.id),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    getWorkshopDetail(workshop.id)
+      .then(setDetail)
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Unable to load workshop detail.");
+      })
+      .finally(() => setLoadingDetail(false));
+  }, [workshop.id]);
 
   return (
     <View style={styles.stack}>
       <Button label="Back to workshops" onPress={onBack} variant="secondary" />
       <Card>
+        {loadingDetail ? <Text style={styles.body}>Loading workshop detail...</Text> : null}
         <View style={styles.rowBetween}>
-          <Badge label={workshop.feeType} tone={workshop.feeType === "FREE" ? "success" : "warning"} />
-          <Badge label={`${workshop.remainingSeats} seats left`} />
+          <Badge label={detail.feeType} tone={detail.feeType === "FREE" ? "success" : "warning"} />
+          <Badge label={`${detail.remainingSeats} seats left`} />
         </View>
-        <Text style={styles.detailTitle}>{workshop.title}</Text>
-        <Text style={styles.meta}>{workshop.speaker}</Text>
-        <Text style={styles.meta}>{workshop.speakerTitle}</Text>
+        <Text style={styles.detailTitle}>{detail.title}</Text>
+        <Text style={styles.meta}>{detail.speaker}</Text>
+        <Text style={styles.meta}>{detail.speakerTitle}</Text>
         <Text style={styles.meta}>
-          {workshop.date}, {workshop.time}
+          {detail.date}, {detail.time}
         </Text>
-        <Text style={styles.meta}>Room {workshop.room}</Text>
+        <Text style={styles.meta}>Room {detail.room}</Text>
         <View style={styles.mapBox}>
           <Text style={styles.sectionTitle}>Room / Map</Text>
-          <Text style={styles.body}>{workshop.roomHint}</Text>
+          <Text style={styles.body}>{detail.roomHint || "No room note available."}</Text>
         </View>
-        <Text style={styles.sectionTitle}>AI Summary</Text>
-        <Text style={styles.body}>{workshop.summary}</Text>
+        <Text style={styles.sectionTitle}>Description</Text>
+        <Text style={styles.body}>{detail.summary}</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {existing ? (
           <RegistrationNotice registration={existing} />
         ) : (
-          <Button
-            label={loading ? "Registering..." : "Register for workshop"}
-            onPress={register}
-            disabled={
-              loading ||
-              workshop.status === "FULL" ||
-              workshop.status === "CANCELLED"
-            }
-          />
+          <Text style={styles.unavailable}>
+            Registration is not available from the current backend API.
+          </Text>
         )}
       </Card>
     </View>
@@ -291,7 +277,7 @@ function RegistrationNotice({ registration }: { registration: Registration }) {
       >
         {registration.status === "CONFIRMED"
           ? "Registration confirmed"
-          : "Payment temporarily unavailable"}
+          : "Payment pending"}
       </Text>
       <Text style={styles.body}>{registration.message}</Text>
     </View>
@@ -305,11 +291,6 @@ function StudentProfile({ account }: { account: Account }) {
       <Text style={styles.detailTitle}>{account.name}</Text>
       <Text style={styles.meta}>{account.email}</Text>
       <Text style={styles.meta}>Student ID: {account.studentId}</Text>
-      <Text style={styles.todo}>
-        UI role guards only improve user experience. Real access control must
-        be enforced by backend middleware/security filters using JWT role
-        claims.
-      </Text>
     </Card>
   );
 }
@@ -427,8 +408,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: spacing.md,
   },
-  todo: {
-    color: colors.warning,
+  unavailable: {
+    color: colors.muted,
     fontSize: 12,
     lineHeight: 18,
     marginTop: spacing.md,

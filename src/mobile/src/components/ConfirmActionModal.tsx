@@ -18,15 +18,11 @@ export function ConfirmActionModal({
     return null;
   }
 
-  const hardDelete = workshop.registrations === 0 && workshop.status === "DRAFT";
-
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
         <Card>
-          <Text style={styles.title}>
-            {hardDelete ? "Delete draft workshop?" : "Cancel workshop?"}
-          </Text>
+          <Text style={styles.title}>Cancel workshop?</Text>
           <Text style={styles.workshopTitle}>{workshop.title}</Text>
           <Text style={styles.meta}>
             {workshop.date}, {workshop.time} - {workshop.room}
@@ -39,7 +35,7 @@ export function ConfirmActionModal({
           <View style={styles.actions}>
             <Button label="Keep Workshop" onPress={onCancel} variant="secondary" />
             <Button
-              label={hardDelete ? "Confirm Delete" : "Confirm Cancel"}
+              label="Confirm Cancel"
               onPress={onConfirm}
               variant="danger"
             />

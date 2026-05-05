@@ -8,6 +8,19 @@ services:
     container_name: unihub-web
     ports:
       - "3000:3000"
+    depends_on:
+      - unihub-backend
+
+  unihub-backend:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: unihub-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./src/backend/.env
+    restart: unless-stopped
 
   # redis:
   #   image: redis:7

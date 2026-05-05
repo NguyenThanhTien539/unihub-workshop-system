@@ -41,6 +41,7 @@ public class AuthController {
 
   @PostMapping("/login")
   public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    System.out.println("Login attempt: " + request.email() + " / " + request.password());
     LoginResult result = authCommandService.login(new LoginCommand(request.email(), request.password()));
     AuthResponse response = new AuthResponse(
         result.token().accessToken(),

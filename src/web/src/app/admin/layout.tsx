@@ -32,5 +32,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-gradient-to-r from-purple-600 to-indigo-500 text-white">
+        <div className="mx-auto max-w-7xl px-6 py-8">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold">Quản trị Workshop</h1>
+              <p className="mt-1 text-sm text-purple-100">Quản lý và theo dõi hoạt động workshop</p>
+            </div>
+            <div>
+              <button className="rounded-md bg-white/20 px-3 py-1 text-sm font-medium text-white hover:bg-white/30">Đổi vai trò</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+    </div>
+  );
 }

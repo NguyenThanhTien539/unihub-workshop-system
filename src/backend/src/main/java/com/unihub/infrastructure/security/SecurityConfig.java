@@ -43,6 +43,7 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.GET, "/api/health/**").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/workshops/**").permitAll()
             .requestMatchers("/api/admin/**").hasRole("ORGANIZER")
             .requestMatchers("/api/checkin/**").hasRole("CHECKIN_STAFF")
             .requestMatchers("/api/registrations/**").hasRole("STUDENT")

@@ -1,29 +1,69 @@
 import { StatusBar } from "expo-status-bar";
+import { useMemo, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
-import { CheckinSessionsScreen } from "./src/screens/CheckinSessionsScreen";
-import { LoginScreen } from "./src/screens/LoginScreen";
-import { OfflineSyncScreen } from "./src/screens/OfflineSyncScreen";
-import { QrScannerPlaceholderScreen } from "./src/screens/QrScannerPlaceholderScreen";
+import { Button } from "./src/components/ui";
+import { Account } from "./src/models/types";
+import { AuthScreens } from "./src/screens/auth/AuthScreens";
+import { CheckinStaffApp } from "./src/screens/checkin/CheckinStaffApp";
+import { OrganizerApp } from "./src/screens/organizer/OrganizerApp";
+import { StudentApp } from "./src/screens/student/StudentApp";
+import { colors, spacing } from "./src/theme/theme";
 
 export default function App() {
+  const [account, setAccount] = useState<Account | null>(null);
+
+  const roleTitle = useMemo(() => {
+    if (!account) {
+      return "Mobile Demo";
+    }
+    if (account.role === "CHECKIN_STAFF") {
+      return "Door Check-in";
+    }
+    if (account.role === "ORGANIZER") {
+      return "Organizer Console";
+    }
+    return "Student Workshops";
+  }, [account]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <Text style={styles.kicker}>UniHub Workshop</Text>
-          <Text style={styles.title}>Mobile Scaffold</Text>
+          <Text style={styles.title}>{roleTitle}</Text>
           <Text style={styles.subtitle}>
-            Placeholder screens for the check-in experience. Wire these to the
-            backend when APIs are ready.
+            Demo-ready React Native UI with local mock data and explicit backend
+            TODOs for auth, registration, payment, admin, and offline check-in.
           </Text>
         </View>
-        <View style={styles.stack}>
-          <LoginScreen />
-          <CheckinSessionsScreen />
-          <QrScannerPlaceholderScreen />
-          <OfflineSyncScreen />
-        </View>
+
+        {!account ? (
+          <AuthScreens onAuthenticated={setAccount} />
+        ) : (
+          <View style={styles.stack}>
+            <View style={styles.accountBar}>
+              <View style={styles.accountCopy}>
+                <Text style={styles.accountLabel}>{account.label}</Text>
+                <Text style={styles.accountName}>{account.name}</Text>
+                <Text style={styles.accountEmail}>{account.email}</Text>
+              </View>
+              <Button
+                label="Logout"
+                onPress={() => setAccount(null)}
+                variant="secondary"
+              />
+            </View>
+
+            {account.role === "STUDENT" ? <StudentApp account={account} /> : null}
+            {account.role === "CHECKIN_STAFF" ? (
+              <CheckinStaffApp account={account} />
+            ) : null}
+            {account.role === "ORGANIZER" ? (
+              <OrganizerApp account={account} />
+            ) : null}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -32,33 +72,65 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f6f1e6",
+    backgroundColor: colors.background,
   },
   container: {
-    padding: 20,
+    padding: spacing.lg,
+    paddingBottom: 40,
   },
   header: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   kicker: {
-    color: "#b45309",
+    color: colors.primaryDark,
     fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 2,
+    fontWeight: "900",
     textTransform: "uppercase",
   },
   title: {
-    color: "#1f2933",
-    fontSize: 28,
-    fontWeight: "700",
-    marginTop: 6,
+    color: colors.ink,
+    fontSize: 30,
+    fontWeight: "900",
+    marginTop: spacing.xs,
   },
   subtitle: {
-    color: "#5b6770",
+    color: colors.muted,
     fontSize: 14,
-    marginTop: 8,
+    lineHeight: 20,
+    marginTop: spacing.sm,
   },
   stack: {
-    gap: 12,
+    gap: spacing.md,
+  },
+  accountBar: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between",
+    padding: spacing.md,
+  },
+  accountCopy: {
+    flex: 1,
+  },
+  accountLabel: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  accountName: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  accountEmail: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 2,
   },
 });

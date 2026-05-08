@@ -43,10 +43,12 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.GET, "/api/health/**").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/payments/zalopay/callback").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/workshops/**").permitAll()
             .requestMatchers("/api/admin/**").hasRole("ORGANIZER")
             .requestMatchers("/api/checkin/**").hasRole("CHECKIN_STAFF")
             .requestMatchers("/api/registrations/**").hasRole("STUDENT")
+            .requestMatchers("/api/payments/**").hasRole("STUDENT")
             .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
             .anyRequest().authenticated())

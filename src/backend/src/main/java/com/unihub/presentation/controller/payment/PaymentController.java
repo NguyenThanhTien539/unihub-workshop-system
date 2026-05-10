@@ -4,7 +4,6 @@ import com.unihub.application.auth.exception.AuthException;
 import com.unihub.application.payment.CreatePaymentUrlCommand;
 import com.unihub.application.payment.PaymentCommandService;
 import com.unihub.application.payment.PaymentQueryService;
-import com.unihub.application.payment.PaymentStatusResult;
 import com.unihub.application.payment.exception.PaymentException;
 import com.unihub.application.payment.ZaloPayCallbackResult;
 import com.unihub.application.payment.ZaloPayCreateOrderResult;
@@ -14,9 +13,11 @@ import com.unihub.presentation.ApiResponse;
 import com.unihub.presentation.dto.request.payment.ZaloPayCallbackRequest;
 import com.unihub.presentation.dto.response.payment.PaymentStatusResponse;
 import com.unihub.presentation.dto.response.payment.PaymentUrlResponse;
+import com.unihub.presentation.mapper.payment.PaymentResponseMapper;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,28 +31,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentController {
   private final PaymentCommandService paymentCommandService;
   private final PaymentQueryService paymentQueryService;
+  private final PaymentResponseMapper paymentResponseMapper;
 
   public PaymentController(
       PaymentCommandService paymentCommandService,
-      PaymentQueryService paymentQueryService) {
+      PaymentQueryService paymentQueryService,
+      PaymentResponseMapper paymentResponseMapper) {
     this.paymentCommandService = paymentCommandService;
     this.paymentQueryService = paymentQueryService;
+    this.paymentResponseMapper = paymentResponseMapper;
   }
 
   @PostMapping("/intents/{paymentIntentId}/zalopay")
-  public ApiResponse<PaymentUrlResponse> createZaloPayUrl(
+  public ResponseEntity<ApiResponse<PaymentUrlResponse>> createZaloPayUrl(
       Authentication authentication,
       @PathVariable UUID paymentIntentId) {
     ZaloPayCreateOrderResult result = paymentCommandService.createZaloPayPaymentUrl(
         new CreatePaymentUrlCommand(requireUserId(authentication), paymentIntentId));
-    PaymentStatusResult paymentStatus = paymentQueryService.getPaymentStatus(requireUserId(authentication), paymentIntentId);
-    return ApiResponse.success(new PaymentUrlResponse(
-        paymentIntentId,
-        result.paymentUrl(),
-        result.provider(),
-        paymentStatus.amount(),
-        paymentStatus.currency(),
-        paymentStatus.expiresAt()));
+    var paymentStatus = paymentQueryService.getPaymentStatus(requireUserId(authentication), paymentIntentId);
+    return ResponseEntity.ok(ApiResponse.success(
+        paymentResponseMapper.toPaymentUrlResponse(paymentIntentId, result, paymentStatus)));
   }
 
   @PostMapping("/zalopay/callback")
@@ -67,21 +66,11 @@ public class PaymentController {
   }
 
   @GetMapping("/{paymentIntentId}/status")
-  public ApiResponse<PaymentStatusResponse> paymentStatus(
+  public ResponseEntity<ApiResponse<PaymentStatusResponse>> paymentStatus(
       Authentication authentication,
       @PathVariable UUID paymentIntentId) {
-    PaymentStatusResult result = paymentQueryService.getPaymentStatus(requireUserId(authentication), paymentIntentId);
-    return ApiResponse.success(new PaymentStatusResponse(
-        result.paymentIntentId(),
-        result.registrationId(),
-        result.paymentStatus(),
-        result.registrationStatus(),
-        result.amount(),
-        result.currency(),
-        result.provider(),
-        result.providerTransactionId(),
-        result.expiresAt(),
-        result.qrAvailable()));
+    var result = paymentQueryService.getPaymentStatus(requireUserId(authentication), paymentIntentId);
+    return ResponseEntity.ok(ApiResponse.success(paymentResponseMapper.toPaymentStatusResponse(result)));
   }
 
   private UUID requireUserId(Authentication authentication) {

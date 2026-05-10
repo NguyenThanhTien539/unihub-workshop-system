@@ -2,9 +2,6 @@ package com.unihub.presentation.controller.admin;
 
 import com.unihub.application.auth.exception.AuthException;
 import com.unihub.application.workshop.CreateSessionCommand;
-import com.unihub.application.workshop.CreateWorkshopCommand;
-import com.unihub.application.workshop.UpdateSessionCommand;
-import com.unihub.application.workshop.UpdateWorkshopCommand;
 import com.unihub.application.workshop.WorkshopCommandService;
 import com.unihub.application.workshop.WorkshopQueryService;
 import com.unihub.domain.user.UserErrorCode;
@@ -18,11 +15,12 @@ import com.unihub.presentation.dto.request.workshop.UpdateWorkshopRequest;
 import com.unihub.presentation.dto.request.workshop.UpdateWorkshopSessionRequest;
 import com.unihub.presentation.dto.response.workshop.WorkshopDetailResponse;
 import com.unihub.presentation.dto.response.workshop.WorkshopSessionResponse;
+import com.unihub.presentation.mapper.admin.AdminWorkshopRequestMapper;
 import jakarta.validation.Valid;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,101 +34,83 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminWorkshopController {
   private final WorkshopCommandService workshopCommandService;
   private final WorkshopQueryService workshopQueryService;
+  private final AdminWorkshopRequestMapper adminWorkshopRequestMapper;
 
   public AdminWorkshopController(
       WorkshopCommandService workshopCommandService,
-      WorkshopQueryService workshopQueryService) {
+      WorkshopQueryService workshopQueryService,
+      AdminWorkshopRequestMapper adminWorkshopRequestMapper) {
     this.workshopCommandService = workshopCommandService;
     this.workshopQueryService = workshopQueryService;
+    this.adminWorkshopRequestMapper = adminWorkshopRequestMapper;
   }
 
   @PostMapping("/workshops")
-  public ApiResponse<WorkshopDetailResponse> createWorkshop(
+  public ResponseEntity<ApiResponse<WorkshopDetailResponse>> createWorkshop(
       Authentication authentication,
       @Valid @RequestBody CreateWorkshopRequest request) {
     UUID userId = requireUserId(authentication);
-    List<CreateSessionCommand> sessions = toSessionCommands(request.sessions(), null);
+    List<CreateSessionCommand> sessions = adminWorkshopRequestMapper.toCreateSessionCommands(request.sessions(), null);
 
-    Workshop workshop = workshopCommandService.createWorkshop(new CreateWorkshopCommand(
-        request.title(),
-        request.speaker(),
-        request.description(),
-        userId,
-        sessions));
+    Workshop workshop = workshopCommandService.createWorkshop(
+        adminWorkshopRequestMapper.toCreateWorkshopCommand(request, userId, sessions));
 
     WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshop.id());
-    return ApiResponse.success(response);
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 
   @PatchMapping("/workshops/{workshopId}")
-  public ApiResponse<WorkshopDetailResponse> updateWorkshop(
+  public ResponseEntity<ApiResponse<WorkshopDetailResponse>> updateWorkshop(
       @PathVariable UUID workshopId,
       @RequestBody UpdateWorkshopRequest request) {
-    workshopCommandService.updateWorkshop(new UpdateWorkshopCommand(
-        workshopId,
-        request.title(),
-        request.speaker(),
-        request.description()));
+    workshopCommandService.updateWorkshop(
+        adminWorkshopRequestMapper.toUpdateWorkshopCommand(workshopId, request));
 
     WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshopId);
-    return ApiResponse.success(response);
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 
   @PostMapping("/workshops/{workshopId}/publish")
-  public ApiResponse<WorkshopDetailResponse> publishWorkshop(@PathVariable UUID workshopId) {
+  public ResponseEntity<ApiResponse<WorkshopDetailResponse>> publishWorkshop(@PathVariable UUID workshopId) {
     workshopCommandService.publishWorkshop(workshopId);
     WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshopId);
-    return ApiResponse.success(response);
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 
   @PostMapping("/workshops/{workshopId}/cancel")
-  public ApiResponse<WorkshopDetailResponse> cancelWorkshop(@PathVariable UUID workshopId) {
+  public ResponseEntity<ApiResponse<WorkshopDetailResponse>> cancelWorkshop(@PathVariable UUID workshopId) {
     workshopCommandService.cancelWorkshop(workshopId);
     WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshopId);
-    return ApiResponse.success(response);
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 
   @PostMapping("/workshops/{workshopId}/sessions")
-  public ApiResponse<WorkshopSessionResponse> createSession(
+  public ResponseEntity<ApiResponse<WorkshopSessionResponse>> createSession(
       @PathVariable UUID workshopId,
       @Valid @RequestBody CreateWorkshopSessionRequest request) {
-    WorkshopSession session = workshopCommandService.createSession(new CreateSessionCommand(
-        workshopId,
-        request.roomId(),
-        request.startAt(),
-        request.endAt(),
-        request.seatCapacity(),
-        request.feeType(),
-        request.feeAmount(),
-        request.currency()));
+    WorkshopSession session = workshopCommandService.createSession(
+        adminWorkshopRequestMapper.toCreateSessionCommand(workshopId, request));
 
     WorkshopSessionResponse response = workshopQueryService.getSessionResponse(session.id());
-    return ApiResponse.success(response);
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 
   @PatchMapping("/sessions/{sessionId}")
-  public ApiResponse<WorkshopSessionResponse> updateSession(
+  public ResponseEntity<ApiResponse<WorkshopSessionResponse>> updateSession(
       @PathVariable UUID sessionId,
       @RequestBody UpdateWorkshopSessionRequest request) {
-    workshopCommandService.updateSession(new UpdateSessionCommand(
-        sessionId,
-        request.roomId(),
-        request.startAt(),
-        request.endAt(),
-        request.seatCapacity(),
-        request.feeType(),
-        request.feeAmount(),
-        request.currency()));
+    workshopCommandService.updateSession(
+        adminWorkshopRequestMapper.toUpdateSessionCommand(sessionId, request));
 
     WorkshopSessionResponse response = workshopQueryService.getSessionResponse(sessionId);
-    return ApiResponse.success(response);
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 
   @PostMapping("/sessions/{sessionId}/cancel")
-  public ApiResponse<WorkshopSessionResponse> cancelSession(@PathVariable UUID sessionId) {
+  public ResponseEntity<ApiResponse<WorkshopSessionResponse>> cancelSession(@PathVariable UUID sessionId) {
     workshopCommandService.cancelSession(sessionId);
     WorkshopSessionResponse response = workshopQueryService.getSessionResponse(sessionId);
-    return ApiResponse.success(response);
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 
   private UUID requireUserId(Authentication authentication) {
@@ -140,24 +120,4 @@ public class AdminWorkshopController {
     return principal.id();
   }
 
-  private List<CreateSessionCommand> toSessionCommands(List<CreateWorkshopSessionRequest> requests, UUID workshopId) {
-    if (requests == null || requests.isEmpty()) {
-      return List.of();
-    }
-
-    List<CreateSessionCommand> sessions = new ArrayList<>();
-    for (CreateWorkshopSessionRequest request : requests) {
-      sessions.add(new CreateSessionCommand(
-          workshopId,
-          request.roomId(),
-          request.startAt(),
-          request.endAt(),
-          request.seatCapacity(),
-          request.feeType(),
-          request.feeAmount(),
-          request.currency()));
-    }
-
-    return sessions;
-  }
 }

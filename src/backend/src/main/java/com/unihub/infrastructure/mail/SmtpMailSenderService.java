@@ -35,8 +35,8 @@ public class SmtpMailSenderService implements MailSenderService {
       helper.setTo(content.to());
       helper.setFrom(mailProperties.from());
       helper.setSubject(content.subject());
-      helper.setText(content.body(), false);
-      helper.addAttachment(content.qrFileName(), new ByteArrayResource(content.qrPngBytes()));
+      helper.setText(content.body(), true);
+      helper.addInline(content.qrContentId(), new ByteArrayResource(content.qrPngBytes()), "image/png");
       javaMailSender.send(mimeMessage);
     } catch (Exception ex) {
       throw new IllegalStateException("Failed to send registration confirmation email", ex);

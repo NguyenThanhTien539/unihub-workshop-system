@@ -3,9 +3,9 @@ spring:
     name: unihub
 
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://localhost:55432/unihub}
+    username: ${DB_USERNAME:unihub}
+    password: ${DB_PASSWORD:unihub}
     driver-class-name: org.postgresql.Driver
 
   flyway:
@@ -15,7 +15,7 @@ spring:
 app:
   auth:
     jwt:
-      secret: ${JWT_SECRET}
+      secret: ${JWT_SECRET:dev-only-jwt-secret-change-before-production}
       access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:15}
       refresh-token-ttl-days: ${JWT_REFRESH_TOKEN_TTL_DAYS:7}
 

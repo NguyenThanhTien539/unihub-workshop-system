@@ -1,8 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
-import { ManagedWorkshop, WorkshopFormValues } from "../../models/types";
+import { DateInput, TimeInput } from "../../components/DateTimeInputs";
+import { SelectField, SelectOption } from "../../components/SelectField";
+import { ManagedWorkshop, Room, WorkshopFormValues } from "../../models/types";
+import { getRooms } from "../../services/workshopService";
 import { colors, spacing } from "../../theme/theme";
 import { Button, Card, Field, TabBar } from "../../components/ui";
+import {
+  compareDateTimes,
+  isValidDateText,
+  isValidTimeText,
+} from "../../utils/dateTime";
 
 type FormErrors = Partial<Record<keyof WorkshopFormValues, string>>;
 
@@ -10,11 +18,12 @@ const defaultValues: WorkshopFormValues = {
   title: "",
   speaker: "",
   speakerBio: "",
-  date: "May 17, 2026",
-  startTime: "09:00",
-  endTime: "11:00",
-  room: "A101",
-  capacity: "50",
+  date: "",
+  startTime: "",
+  endTime: "",
+  roomId: "",
+  room: "",
+  capacity: "",
   feeType: "FREE",
   feeAmount: "0",
   description: "",
@@ -37,6 +46,7 @@ export function toWorkshopFormValues(
     date: workshop.date,
     startTime: workshop.startTime,
     endTime: workshop.endTime,
+    roomId: workshop.roomId || "",
     room: workshop.room,
     capacity: String(workshop.capacity),
     feeType: workshop.feeType,
@@ -64,14 +74,69 @@ export function WorkshopFormScreen({
   const initialValues = useMemo(() => toWorkshopFormValues(workshop), [workshop]);
   const [values, setValues] = useState<WorkshopFormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [roomsError, setRoomsError] = useState<string | null>(null);
+
+  const roomOptions = useMemo(() => rooms.map(toRoomOption), [rooms]);
+  const selectedRoom = rooms.find((room) => room.id === values.roomId);
+
+  const refreshRooms = async () => {
+    setRoomsLoading(true);
+    setRoomsError(null);
+    try {
+      const activeRooms = (await getRooms()).filter(
+        (room) => room.status === "ACTIVE",
+      );
+      setRooms(activeRooms);
+      setValues((current) => {
+        if (current.roomId || !current.room.trim()) {
+          return current;
+        }
+        const matchedRoom = findRoomByDisplayText(activeRooms, current.room);
+        return matchedRoom
+          ? { ...current, roomId: matchedRoom.id, room: toRoomLabel(matchedRoom) }
+          : current;
+      });
+    } catch (err) {
+      setRooms([]);
+      setRoomsError(err instanceof Error ? err.message : "Unable to load rooms.");
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshRooms();
+  }, []);
 
   const update = (field: keyof WorkshopFormValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
   };
 
+  const updateRoom = (roomId: string) => {
+    const room = rooms.find((item) => item.id === roomId);
+    setValues((current) => ({
+      ...current,
+      roomId,
+      room: room ? toRoomLabel(room) : "",
+      capacity:
+        room && (!current.capacity || Number(current.capacity) > room.capacity)
+          ? String(room.capacity)
+          : current.capacity,
+      roomHint: room?.building || current.roomHint,
+    }));
+    setErrors((current) => ({
+      ...current,
+      room: undefined,
+      roomId: undefined,
+      capacity: undefined,
+    }));
+  };
+
   const submit = () => {
-    const nextErrors = validateWorkshopForm(values, workshop);
+    const nextErrors = validateWorkshopForm(values, workshop, selectedRoom);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       return;
@@ -100,8 +165,7 @@ export function WorkshopFormScreen({
           {mode === "create" ? "Create Workshop" : "Edit Workshop"}
         </Text>
         <Text style={styles.body}>
-          Configure workshop details, room, seats, price, AI summary preview,
-          and publish state.
+          Configure workshop details, room, seats, price, and publish state.
         </Text>
       </Card>
       <Card>
@@ -124,18 +188,15 @@ export function WorkshopFormScreen({
             onChangeText={(text) => update("speakerBio", text)}
             multiline
           />
+          <DateInput
+            label="Date"
+            value={values.date}
+            onChangeText={(text) => update("date", text)}
+            error={errors.date}
+          />
           <View style={styles.row}>
             <View style={styles.flex}>
-              <Field
-                label="Date"
-                value={values.date}
-                onChangeText={(text) => update("date", text)}
-              />
-            </View>
-          </View>
-          <View style={styles.row}>
-            <View style={styles.flex}>
-              <Field
+              <TimeInput
                 label="Start time"
                 value={values.startTime}
                 onChangeText={(text) => update("startTime", text)}
@@ -143,7 +204,7 @@ export function WorkshopFormScreen({
               />
             </View>
             <View style={styles.flex}>
-              <Field
+              <TimeInput
                 label="End time"
                 value={values.endTime}
                 onChangeText={(text) => update("endTime", text)}
@@ -151,11 +212,17 @@ export function WorkshopFormScreen({
               />
             </View>
           </View>
-          <Field
+          <SelectField
             label="Room"
-            value={values.room}
-            onChangeText={(text) => update("room", text)}
-            error={errors.room}
+            value={values.roomId}
+            options={roomOptions}
+            placeholder="Select an active room"
+            loading={roomsLoading}
+            loadError={roomsError}
+            emptyText="No active rooms available"
+            onChange={updateRoom}
+            onRetry={refreshRooms}
+            error={errors.roomId || errors.room}
           />
           <Field
             label="Room note"
@@ -198,7 +265,7 @@ export function WorkshopFormScreen({
             multiline
           />
           <Field
-            label="AI summary / preview"
+            label="Summary"
             value={values.summary}
             onChangeText={(text) => update("summary", text)}
             multiline
@@ -235,6 +302,7 @@ export function WorkshopFormScreen({
 function validateWorkshopForm(
   values: WorkshopFormValues,
   workshop?: ManagedWorkshop | null,
+  selectedRoom?: Room,
 ): FormErrors {
   const errors: FormErrors = {};
   const capacity = Number(values.capacity);
@@ -246,8 +314,8 @@ function validateWorkshopForm(
   if (!values.speaker.trim()) {
     errors.speaker = "Speaker is required.";
   }
-  if (!values.room.trim()) {
-    errors.room = "Room is required.";
+  if (!values.roomId.trim()) {
+    errors.roomId = "Select a room.";
   }
   if (!Number.isFinite(capacity) || capacity <= 0) {
     errors.capacity = "Capacity must be a positive number.";
@@ -255,7 +323,34 @@ function validateWorkshopForm(
   if (workshop && Number.isFinite(capacity) && capacity < workshop.registrations) {
     errors.capacity = "Capacity cannot be lower than current registrations.";
   }
-  if (values.startTime && values.endTime && values.endTime <= values.startTime) {
+  if (
+    selectedRoom &&
+    Number.isFinite(capacity) &&
+    capacity > selectedRoom.capacity
+  ) {
+    errors.capacity = `Capacity cannot exceed ${selectedRoom.capacity} seats in ${selectedRoom.name}.`;
+  }
+  if (!values.date.trim()) {
+    errors.date = "Date is required.";
+  } else if (!isValidDateText(values.date)) {
+    errors.date = "Enter date as YYYY-MM-DD.";
+  }
+  if (!values.startTime.trim()) {
+    errors.startTime = "Start time is required.";
+  } else if (!isValidTimeText(values.startTime)) {
+    errors.startTime = "Enter time as HH:mm.";
+  }
+  if (!values.endTime.trim()) {
+    errors.endTime = "End time is required.";
+  } else if (!isValidTimeText(values.endTime)) {
+    errors.endTime = "Enter time as HH:mm.";
+  }
+  if (
+    !errors.date &&
+    !errors.startTime &&
+    !errors.endTime &&
+    compareDateTimes(values.date, values.endTime, values.date, values.startTime) <= 0
+  ) {
     errors.endTime = "End time must be after start time.";
   }
   if (values.feeType === "FREE" && price !== 0) {
@@ -266,6 +361,32 @@ function validateWorkshopForm(
   }
 
   return errors;
+}
+
+function toRoomOption(room: Room): SelectOption {
+  return {
+    label: toRoomLabel(room),
+    value: room.id,
+    description: room.mapUrl ? `Map: ${room.mapUrl}` : undefined,
+  };
+}
+
+function toRoomLabel(room: Room) {
+  return `${room.name} - ${room.building} - ${room.capacity} seats`;
+}
+
+function findRoomByDisplayText(rooms: Room[], value: string) {
+  const normalized = value.trim().toLowerCase();
+  return rooms.find((room) => {
+    const names = [
+      room.id,
+      room.name,
+      `${room.building} ${room.name}`,
+      `${room.name} - ${room.building}`,
+      toRoomLabel(room),
+    ];
+    return names.some((name) => name.trim().toLowerCase() === normalized);
+  });
 }
 
 const styles = StyleSheet.create({

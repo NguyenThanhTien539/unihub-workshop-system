@@ -12,6 +12,8 @@ type RequestOptions = {
   body?: unknown;
   token?: string;
   query?: Record<string, string | number | boolean | undefined | null>;
+  skipAuthRefresh?: boolean;
+  authenticated?: boolean;
 };
 
 const API_BASE_URL =
@@ -53,6 +55,14 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
+  return sendRequest<T>(path, options, false);
+}
+
+async function sendRequest<T>(
+  path: string,
+  options: RequestOptions,
+  didRefresh: boolean,
+): Promise<T> {
   const url = new URL(`${API_BASE_URL}${path}`);
   Object.entries(options.query || {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
@@ -61,15 +71,15 @@ export async function apiRequest<T>(
   });
 
   let response: Response;
+  const requestToken =
+    options.authenticated === false ? null : options.token || accessToken;
   try {
     response = await fetch(url.toString(), {
       method: options.method || "GET",
       headers: {
         Accept: "application/json",
         ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(options.token || accessToken
-          ? { Authorization: `Bearer ${options.token || accessToken}` }
-          : {}),
+        ...(requestToken ? { Authorization: `Bearer ${requestToken}` } : {}),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
@@ -86,6 +96,18 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok || payload?.success === false) {
+    if (
+      response.status === 401 &&
+      refreshToken &&
+      !options.skipAuthRefresh &&
+      !didRefresh
+    ) {
+      const refreshed = await refreshAuthToken();
+      if (refreshed) {
+        return sendRequest<T>(path, options, true);
+      }
+    }
+
     if (response.status === 401) {
       setAuthTokens({});
     }
@@ -97,6 +119,34 @@ export async function apiRequest<T>(
   }
 
   return payload ? payload.data : (undefined as T);
+}
+
+async function refreshAuthToken() {
+  if (!refreshToken) {
+    return false;
+  }
+
+  try {
+    const tokens = await sendRequest<{
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }>(
+      "/api/auth/refresh",
+      {
+        method: "POST",
+        body: { refreshToken },
+        skipAuthRefresh: true,
+        authenticated: false,
+      },
+      true,
+    );
+    setAuthTokens(tokens);
+    return true;
+  } catch {
+    setAuthTokens({});
+    return false;
+  }
 }
 
 export function friendlyErrorMessage(status: number, fallback?: string) {

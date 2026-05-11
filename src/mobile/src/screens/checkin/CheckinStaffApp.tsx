@@ -51,7 +51,7 @@ function ScannerScreen() {
     setResult(null);
     setError(null);
     try {
-      setResult(await verifyCheckin());
+      setResult(await verifyCheckin(token));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Check-in failed.");
     } finally {
@@ -115,11 +115,26 @@ function CheckinResultCard({ result }: { result: CheckinResult }) {
 
 function OfflineQueueScreen() {
   const [queue, setQueue] = useState<OfflineQueueItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshQueue = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setQueue(await getOfflineQueue());
+    } catch (err) {
+      setQueue([]);
+      setError(err instanceof Error ? err.message : "Unable to load offline queue.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getOfflineQueue().then(setQueue).catch(() => setQueue([]));
+    refreshQueue();
   }, []);
 
   const pendingCount = queue.filter((item) => item.status === "PENDING_SYNC").length;
@@ -127,11 +142,26 @@ function OfflineQueueScreen() {
   const sync = async () => {
     setSyncing(true);
     setMessage(null);
-    const synced = await syncOfflineQueue();
-    setQueue(synced);
-    setMessage("Offline queue synced.");
-    setSyncing(false);
+    setError(null);
+    try {
+      const synced = await syncOfflineQueue();
+      setQueue(synced);
+      setMessage("Offline queue synced.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to sync offline queue.");
+    } finally {
+      setSyncing(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <Card>
+        <Text style={styles.title}>Loading offline queue...</Text>
+        <Text style={styles.body}>Checking queued check-ins.</Text>
+      </Card>
+    );
+  }
 
   return (
     <View style={styles.stack}>
@@ -149,6 +179,10 @@ function OfflineQueueScreen() {
           disabled={syncing || queue.length === 0}
         />
         {message ? <Text style={styles.success}>{message}</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <Button label="Retry" onPress={refreshQueue} variant="secondary" />
+        ) : null}
       </Card>
       {queue.length === 0 ? (
         <EmptyState title="No offline check-ins" body="Offline scans will appear here when network is unavailable." />
@@ -172,10 +206,43 @@ function OfflineQueueScreen() {
 
 function HistoryScreen() {
   const [history, setHistory] = useState<CheckinHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshHistory = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setHistory(await getCheckinHistory());
+    } catch (err) {
+      setHistory([]);
+      setError(err instanceof Error ? err.message : "Unable to load check-in history.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getCheckinHistory().then(setHistory).catch(() => setHistory([]));
+    refreshHistory();
   }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <Text style={styles.title}>Loading history...</Text>
+        <Text style={styles.body}>Fetching completed check-ins.</Text>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <Text style={styles.error}>{error}</Text>
+        <Button label="Retry" onPress={refreshHistory} variant="secondary" />
+      </Card>
+    );
+  }
 
   return (
     <View style={styles.stack}>

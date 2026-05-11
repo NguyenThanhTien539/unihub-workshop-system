@@ -1,6 +1,21 @@
-version: "3.9"
-
 services:
+  unihub-postgres:
+    image: postgres:16
+    container_name: unihub-postgres
+    environment:
+      POSTGRES_DB: unihub
+      POSTGRES_USER: unihub
+      POSTGRES_PASSWORD: unihub
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unihub -d unihub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   unihub-web:
     build:
       context: ./src/web
@@ -18,8 +33,16 @@ services:
     container_name: unihub-backend
     ports:
       - "8080:8080"
-    env_file:
-      - ./src/backend/.env
+    environment:
+      DB_URL: ${DB_URL:-jdbc:postgresql://unihub-postgres:5432/unihub}
+      DB_USERNAME: ${DB_USERNAME:-unihub}
+      DB_PASSWORD: ${DB_PASSWORD:-unihub}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-before-production}
+      JWT_ACCESS_TOKEN_TTL_MINUTES: ${JWT_ACCESS_TOKEN_TTL_MINUTES:-15}
+      JWT_REFRESH_TOKEN_TTL_DAYS: ${JWT_REFRESH_TOKEN_TTL_DAYS:-7}
+    depends_on:
+      unihub-postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # redis:
@@ -42,4 +65,5 @@ services:
   #     - minio_data:/data
 
 volumes:
+  postgres_data:
   minio_data:

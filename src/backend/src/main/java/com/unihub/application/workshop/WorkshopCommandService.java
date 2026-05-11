@@ -137,7 +137,12 @@ public class WorkshopCommandService {
   public Workshop cancelWorkshop(UUID workshopId) {
     Workshop workshop = requireWorkshop(workshopId);
     if (workshop.status() == WorkshopStatus.CANCELED) {
-      return workshop;
+      throw new WorkshopException(WorkshopErrorCode.WORKSHOP_VALIDATION_ERROR, HttpStatus.CONFLICT,
+          "Workshop has already been cancelled");
+    }
+    if (workshop.status() == WorkshopStatus.ARCHIVED) {
+      throw new WorkshopException(WorkshopErrorCode.WORKSHOP_VALIDATION_ERROR, HttpStatus.CONFLICT,
+          "Archived workshop cannot be cancelled");
     }
 
     LocalDateTime now = LocalDateTime.now(clock);

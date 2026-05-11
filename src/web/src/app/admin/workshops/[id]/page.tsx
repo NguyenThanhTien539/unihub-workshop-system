@@ -94,13 +94,18 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
   }
 
   async function cancelWorkshop() {
+    if (workshop?.status === "CANCELED" || workshop?.status === "CANCELLED") {
+      setError("This workshop has already been cancelled.");
+      return;
+    }
     if (!confirm("Confirm cancel this workshop?")) return;
     setSaving(true); setError(null);
     try {
       const res = await fetchWithAuth(`/api/admin/workshops/${id}/cancel`, {method: "POST"});
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Cancel failed");
+      if (!res.ok) throw new Error(json?.error?.message || json?.message || "Cancel failed");
       setWorkshop(json.data);
+      try { sessionStorage.setItem(`admin:workshop:${id}`, JSON.stringify(json.data)); } catch {}
     } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
   }
 
@@ -159,6 +164,8 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
 
   if (loading) return <p>Loading...</p>;
 
+  const isCancelled = workshop?.status === "CANCELED" || workshop?.status === "CANCELLED";
+
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
@@ -169,9 +176,19 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
         <div className="flex gap-2">
           <a href="/admin/workshops" className="rounded-md border px-3 py-1 text-sm">Back</a>
           <button onClick={publish} className="rounded-md bg-emerald-600 px-3 py-1 text-sm text-white">Publish</button>
-          <button onClick={cancelWorkshop} className="rounded-md bg-red-600 px-3 py-1 text-sm text-white">Cancel</button>
+          {isCancelled ? (
+            <span className="rounded-md bg-red-50 px-3 py-1 text-sm font-medium text-red-700">Already cancelled</span>
+          ) : (
+            <button onClick={cancelWorkshop} className="rounded-md bg-red-600 px-3 py-1 text-sm text-white">Cancel</button>
+          )}
         </div>
       </div>
+
+      {isCancelled && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          This workshop has already been cancelled.
+        </div>
+      )}
 
       {error && <div className="text-red-600">{error}</div>}
 

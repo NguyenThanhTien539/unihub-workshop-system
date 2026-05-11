@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { ConfirmActionModal } from "../../components/ConfirmActionModal";
+import { DateInput, TimeInput } from "../../components/DateTimeInputs";
 import { FeeBadge, WorkshopStatusBadge } from "../../components/StatusBadge";
 import { Badge, Button, Card, EmptyState, TabBar } from "../../components/ui";
 import {
@@ -17,12 +18,29 @@ import {
   updateWorkshop,
 } from "../../services/workshopService";
 import { colors, spacing } from "../../theme/theme";
+import { isValidDateText, isValidTimeText } from "../../utils/dateTime";
 import { WorkshopFormScreen } from "./WorkshopFormScreen";
 
 type OrganizerTab = "dashboard" | "workshops" | "stats" | "profile";
 type WorkshopView = "list" | "detail" | "create" | "edit";
 type StatusFilter = "ALL" | WorkshopStatus;
 type FeeFilter = "ALL" | "FREE" | "PAID";
+type ScheduleQuickFilter = "ALL" | "TODAY" | "UPCOMING" | "PAST";
+type ScheduleFilters = {
+  dateFrom: string;
+  dateTo: string;
+  timeFrom: string;
+  timeTo: string;
+  quick: ScheduleQuickFilter;
+};
+
+const emptyScheduleFilters: ScheduleFilters = {
+  dateFrom: "",
+  dateTo: "",
+  timeFrom: "",
+  timeTo: "",
+  quick: "ALL",
+};
 
 export function OrganizerApp({ account }: { account: Account }) {
   const [tab, setTab] = useState<OrganizerTab>("dashboard");
@@ -105,6 +123,11 @@ export function OrganizerApp({ account }: { account: Account }) {
 
   const handleConfirmCancel = async () => {
     if (!confirmWorkshop || actionLoading) {
+      return;
+    }
+    if (confirmWorkshop.status === "CANCELLED") {
+      setError("This workshop has already been cancelled.");
+      setConfirmWorkshop(null);
       return;
     }
     setActionLoading(true);
@@ -329,6 +352,13 @@ function OrganizerWorkshopList({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [feeFilter, setFeeFilter] = useState<FeeFilter>("ALL");
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleFilters>(
+    emptyScheduleFilters,
+  );
+  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilters>(
+    emptyScheduleFilters,
+  );
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const filteredWorkshops = workshops.filter((workshop) => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -339,9 +369,39 @@ function OrganizerWorkshopList({
     const matchesStatus =
       statusFilter === "ALL" || workshop.status === statusFilter;
     const matchesFee = feeFilter === "ALL" || workshop.feeType === feeFilter;
+    const matchesSchedule = matchesScheduleFilter(workshop, scheduleFilter);
 
-    return matchesQuery && matchesStatus && matchesFee;
+    return matchesQuery && matchesStatus && matchesFee && matchesSchedule;
   });
+
+  const activeScheduleLabel = describeScheduleFilter(scheduleFilter);
+
+  const updateScheduleDraft = (
+    field: keyof ScheduleFilters,
+    value: string,
+  ) => {
+    setScheduleDraft((current) => ({
+      ...current,
+      [field]: value,
+      quick: field === "quick" ? (value as ScheduleQuickFilter) : current.quick,
+    }));
+  };
+
+  const applyScheduleFilter = () => {
+    const validationError = validateScheduleFilter(scheduleDraft);
+    if (validationError) {
+      setScheduleError(validationError);
+      return;
+    }
+    setScheduleFilter({ ...scheduleDraft });
+    setScheduleError(null);
+  };
+
+  const clearScheduleFilter = () => {
+    setScheduleDraft(emptyScheduleFilters);
+    setScheduleFilter(emptyScheduleFilters);
+    setScheduleError(null);
+  };
 
   if (loading) {
     return (
@@ -409,6 +469,49 @@ function OrganizerWorkshopList({
             { key: "PAID", label: "Paid" },
           ]}
         />
+        <Text style={styles.filterLabel}>Schedule</Text>
+        <TabBar
+          active={scheduleDraft.quick}
+          onChange={(quick) => updateScheduleDraft("quick", quick)}
+          tabs={[
+            { key: "ALL", label: "All" },
+            { key: "TODAY", label: "Today" },
+            { key: "UPCOMING", label: "Upcoming" },
+            { key: "PAST", label: "Past" },
+          ]}
+        />
+        <View style={styles.filterGrid}>
+          <DateInput
+            label="Date from"
+            value={scheduleDraft.dateFrom}
+            onChangeText={(value) => updateScheduleDraft("dateFrom", value)}
+          />
+          <DateInput
+            label="Date to"
+            value={scheduleDraft.dateTo}
+            onChangeText={(value) => updateScheduleDraft("dateTo", value)}
+          />
+          <TimeInput
+            label="Time from"
+            value={scheduleDraft.timeFrom}
+            onChangeText={(value) => updateScheduleDraft("timeFrom", value)}
+          />
+          <TimeInput
+            label="Time to"
+            value={scheduleDraft.timeTo}
+            onChangeText={(value) => updateScheduleDraft("timeTo", value)}
+          />
+        </View>
+        {scheduleError ? (
+          <Text style={styles.errorInline}>{scheduleError}</Text>
+        ) : null}
+        {activeScheduleLabel ? (
+          <Text style={styles.activeFilter}>{activeScheduleLabel}</Text>
+        ) : null}
+        <View style={styles.actions}>
+          <Button label="Apply filter" onPress={applyScheduleFilter} />
+          <Button label="Clear filter" onPress={clearScheduleFilter} variant="secondary" />
+        </View>
       </Card>
 
       {filteredWorkshops.length === 0 ? (
@@ -461,11 +564,17 @@ function OrganizerWorkshopCard({
       <View style={styles.actions}>
         <Button label="View Detail" onPress={onView} variant="secondary" />
         <Button label="Edit" onPress={onEdit} variant="secondary" />
-        <Button
-          label="Cancel"
-          onPress={onCancel}
-          variant="danger"
-        />
+        {workshop.status === "CANCELLED" ? (
+          <View style={styles.cancelledPill}>
+            <Text style={styles.cancelledPillText}>Already cancelled</Text>
+          </View>
+        ) : (
+          <Button
+            label="Cancel"
+            onPress={onCancel}
+            variant="danger"
+          />
+        )}
       </View>
     </Card>
   );
@@ -505,7 +614,7 @@ function OrganizerWorkshopDetail({
           <Text style={styles.sectionTitle}>Room / map note</Text>
           <Text style={styles.body}>{workshop.roomHint || "No room note yet."}</Text>
         </View>
-        <Text style={styles.sectionTitle}>AI summary preview</Text>
+        <Text style={styles.sectionTitle}>Summary</Text>
         <Text style={styles.body}>{workshop.summary}</Text>
         <View style={styles.metricGrid}>
           <Metric label="Capacity" value={workshop.capacity} />
@@ -518,12 +627,21 @@ function OrganizerWorkshopDetail({
         </Text>
         <View style={styles.actions}>
           <Button label="Edit" onPress={onEdit} disabled={actionLoading} />
-          <Button
-            label={actionLoading ? "Cancelling..." : "Cancel"}
-            onPress={onCancel}
-            variant="danger"
-            disabled={actionLoading}
-          />
+          {workshop.status === "CANCELLED" ? (
+            <View style={styles.cancelledPanel}>
+              <Text style={styles.cancelledPanelTitle}>Already cancelled</Text>
+              <Text style={styles.cancelledPanelBody}>
+                This workshop can no longer be cancelled.
+              </Text>
+            </View>
+          ) : (
+            <Button
+              label={actionLoading ? "Cancelling..." : "Cancel"}
+              onPress={onCancel}
+              variant="danger"
+              disabled={actionLoading}
+            />
+          )}
         </View>
       </Card>
     </View>
@@ -635,6 +753,139 @@ function buildStats(
     cancelledWorkshops: workshops.filter((item) => item.status === "CANCELLED")
       .length,
   };
+}
+
+function validateScheduleFilter(filters: ScheduleFilters) {
+  const dateFrom = filters.dateFrom.trim();
+  const dateTo = filters.dateTo.trim();
+  const timeFrom = filters.timeFrom.trim();
+  const timeTo = filters.timeTo.trim();
+
+  if (dateFrom && !isValidDateText(dateFrom)) {
+    return "Enter Date from as YYYY-MM-DD.";
+  }
+  if (dateTo && !isValidDateText(dateTo)) {
+    return "Enter Date to as YYYY-MM-DD.";
+  }
+  if (timeFrom && !isValidTimeText(timeFrom)) {
+    return "Enter Time from as HH:mm.";
+  }
+  if (timeTo && !isValidTimeText(timeTo)) {
+    return "Enter Time to as HH:mm.";
+  }
+  if (dateFrom && dateTo && dateTo < dateFrom) {
+    return "Date to cannot be earlier than Date from.";
+  }
+  if (timeFrom && timeTo && timeTo < timeFrom) {
+    return "Time to cannot be earlier than Time from.";
+  }
+
+  return null;
+}
+
+function matchesScheduleFilter(
+  workshop: ManagedWorkshop,
+  filters: ScheduleFilters,
+) {
+  if (!hasActiveScheduleFilter(filters)) {
+    return true;
+  }
+
+  const schedules = workshop.scheduleSessions.length
+    ? workshop.scheduleSessions
+    : [{ date: workshop.date, startTime: workshop.startTime, endTime: workshop.endTime }];
+
+  return schedules.some((schedule) => matchesScheduleSession(schedule, filters));
+}
+
+function hasActiveScheduleFilter(filters: ScheduleFilters) {
+  return Boolean(
+    filters.dateFrom ||
+      filters.dateTo ||
+      filters.timeFrom ||
+      filters.timeTo ||
+      filters.quick !== "ALL",
+  );
+}
+
+function matchesScheduleSession(
+  schedule: { date: string; startTime: string; endTime: string },
+  filters: ScheduleFilters,
+) {
+  if (!schedule.date || !isValidDateText(schedule.date)) {
+    return false;
+  }
+
+  const startTime = schedule.startTime;
+  const endTime = schedule.endTime;
+  if ((filters.timeFrom || filters.timeTo) && !isValidTimeText(startTime)) {
+    return false;
+  }
+
+  const normalizedStartTime = isValidTimeText(startTime) ? startTime : "00:00";
+  const normalizedEndTime = isValidTimeText(endTime)
+    ? endTime
+    : normalizedStartTime;
+  const workshopStart = toComparableDateTime(schedule.date, normalizedStartTime);
+  const workshopEnd = toComparableDateTime(schedule.date, normalizedEndTime);
+  const now = new Date();
+  const today = formatLocalDate(now);
+
+  if (filters.quick === "TODAY" && schedule.date !== today) {
+    return false;
+  }
+  if (filters.quick === "UPCOMING" && workshopStart < now.getTime()) {
+    return false;
+  }
+  if (filters.quick === "PAST" && workshopEnd >= now.getTime()) {
+    return false;
+  }
+  if (filters.dateFrom && schedule.date < filters.dateFrom) {
+    return false;
+  }
+  if (filters.dateTo && schedule.date > filters.dateTo) {
+    return false;
+  }
+  if (filters.timeFrom && normalizedStartTime < filters.timeFrom) {
+    return false;
+  }
+  if (filters.timeTo && normalizedStartTime > filters.timeTo) {
+    return false;
+  }
+
+  return true;
+}
+
+function describeScheduleFilter(filters: ScheduleFilters) {
+  const parts: string[] = [];
+  if (filters.quick !== "ALL") {
+    parts.push(filters.quick.toLowerCase());
+  }
+  if (filters.dateFrom) {
+    parts.push(`from ${filters.dateFrom}`);
+  }
+  if (filters.dateTo) {
+    parts.push(`to ${filters.dateTo}`);
+  }
+  if (filters.timeFrom) {
+    parts.push(`after ${filters.timeFrom}`);
+  }
+  if (filters.timeTo) {
+    parts.push(`before ${filters.timeTo}`);
+  }
+
+  return parts.length ? `Active schedule filter: ${parts.join(", ")}` : "";
+}
+
+function toComparableDateTime(dateText: string, timeText: string) {
+  return new Date(`${dateText}T${timeText}:00`).getTime();
+}
+
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 const styles = StyleSheet.create({
@@ -765,6 +1016,22 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginTop: spacing.md,
   },
+  filterGrid: {
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  activeFilter: {
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: spacing.md,
+  },
+  errorInline: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: spacing.md,
+  },
   metricGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -799,5 +1066,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     marginTop: spacing.lg,
+  },
+  cancelledPill: {
+    alignItems: "center",
+    backgroundColor: "#fee2e2",
+    borderColor: "#fecaca",
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 45,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  cancelledPillText: {
+    color: "#991b1b",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  cancelledPanel: {
+    backgroundColor: "#fff1f2",
+    borderColor: "#fecdd3",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexShrink: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  cancelledPanelTitle: {
+    color: "#991b1b",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  cancelledPanelBody: {
+    color: "#9f1239",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 2,
   },
 });

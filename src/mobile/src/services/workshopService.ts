@@ -6,6 +6,11 @@ import {
   WorkshopFormValues,
   WorkshopStatus,
 } from "../models/types";
+import {
+  formatDateInput,
+  formatTimeInput,
+  toLocalDateTime,
+} from "../utils/dateTime";
 import { apiRequest } from "./apiClient";
 
 type BackendWorkshopListSession = {
@@ -62,8 +67,8 @@ export async function getWorkshopDetail(workshopId: string): Promise<Workshop> {
 }
 
 export async function getMyRegistrations(): Promise<Registration[]> {
-  await apiRequest<string>("/api/registrations/auth-test");
-  return [];
+  const response = await apiRequest<Registration[]>("/api/registrations");
+  return response;
 }
 
 export async function registerForWorkshop(): Promise<Registration> {
@@ -71,11 +76,16 @@ export async function registerForWorkshop(): Promise<Registration> {
 }
 
 export async function getOrganizerDashboard() {
-  const workshops = (await getWorkshops()).map(toManagedWorkshop);
+  const workshops = (await getAdminWorkshops()).map(toManagedWorkshop);
   return {
     stats: buildStats(workshops),
     workshops,
   };
+}
+
+export async function getAdminWorkshops(): Promise<Workshop[]> {
+  const response = await apiRequest<BackendWorkshop[]>("/api/admin/workshops");
+  return response.map(mapWorkshopDetail);
 }
 
 export async function getRooms(): Promise<Room[]> {
@@ -91,7 +101,7 @@ export async function createWorkshop(
     title: values.title.trim(),
     speaker: values.speaker.trim(),
     description: values.description.trim(),
-    sessions: [await toCreateSessionBody(values)],
+    sessions: [toCreateSessionBody(values)],
   };
   let created = await apiRequest<BackendWorkshop>("/api/admin/workshops", {
     method: "POST",
@@ -124,7 +134,7 @@ export async function updateWorkshop(
     },
   );
 
-  const sessionBody = await toCreateSessionBody(values);
+  const sessionBody = toCreateSessionBody(values);
   if (workshop.sessionId) {
     const session = await apiRequest<BackendWorkshopSession>(
       `/api/admin/sessions/${workshop.sessionId}`,
@@ -161,6 +171,11 @@ export async function cancelWorkshop(
 
 function mapWorkshopListItem(item: BackendWorkshopListItem): Workshop {
   const session = item.sessions[0];
+  const scheduleSessions = item.sessions.map((itemSession) => ({
+    date: formatDateInput(itemSession.startAt),
+    startTime: formatTimeInput(itemSession.startAt),
+    endTime: formatTimeInput(itemSession.endAt),
+  }));
   return {
     id: item.id,
     sessionId: session?.id,
@@ -168,10 +183,11 @@ function mapWorkshopListItem(item: BackendWorkshopListItem): Workshop {
     speaker: item.speaker,
     speakerTitle: "Workshop Speaker",
     speakerBio: item.speaker,
-    date: formatDate(session?.startAt),
-    startTime: formatTime(session?.startAt),
-    endTime: formatTime(session?.endAt),
-    time: `${formatTime(session?.startAt)} - ${formatTime(session?.endAt)}`,
+    date: formatDateInput(session?.startAt),
+    startTime: formatTimeInput(session?.startAt),
+    endTime: formatTimeInput(session?.endAt),
+    time: `${formatTimeInput(session?.startAt)} - ${formatTimeInput(session?.endAt)}`,
+    scheduleSessions,
     room: formatRoom(session?.roomName, session?.building),
     roomHint: session?.building || "",
     remainingSeats: session?.remainingSeats ?? 0,
@@ -204,12 +220,13 @@ function toManagedWorkshop(workshop: Workshop): ManagedWorkshop {
   };
 }
 
-async function toCreateSessionBody(
-  values: WorkshopFormValues,
-): Promise<CreateSessionBody> {
-  const room = await resolveRoom(values.room);
+function toCreateSessionBody(values: WorkshopFormValues): CreateSessionBody {
+  if (!values.roomId) {
+    throw new Error("Select a room before saving.");
+  }
+
   return {
-    roomId: room.id,
+    roomId: values.roomId,
     startAt: toLocalDateTime(values.date, values.startTime),
     endAt: toLocalDateTime(values.date, values.endTime),
     seatCapacity: Number(values.capacity),
@@ -219,23 +236,6 @@ async function toCreateSessionBody(
   };
 }
 
-async function resolveRoom(roomName: string): Promise<Room> {
-  const rooms = await getRooms();
-  const normalizedName = roomName.trim().toLowerCase();
-  const room = rooms.find(
-    (item) =>
-      item.id === roomName.trim() ||
-      item.name.toLowerCase() === normalizedName ||
-      `${item.building} ${item.name}`.trim().toLowerCase() === normalizedName,
-  );
-
-  if (!room) {
-    throw new Error("Room not found. Use a room returned by the backend.");
-  }
-
-  return room;
-}
-
 function replaceSession(
   sessions: BackendWorkshopSession[],
   nextSession: BackendWorkshopSession,
@@ -243,45 +243,6 @@ function replaceSession(
   return sessions.map((session) =>
     session.id === nextSession.id ? nextSession : session,
   );
-}
-
-function toLocalDateTime(dateText: string, timeText: string) {
-  const parsedDate = new Date(dateText);
-  if (Number.isNaN(parsedDate.getTime())) {
-    throw new Error("Enter a valid date.");
-  }
-  const [hours, minutes] = timeText.split(":").map(Number);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-    throw new Error("Enter time as HH:mm.");
-  }
-
-  parsedDate.setHours(hours, minutes, 0, 0);
-  const year = parsedDate.getFullYear();
-  const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
-  const day = String(parsedDate.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}T${timeText}:00`;
-}
-
-function formatDate(value?: string) {
-  if (!value) {
-    return "Date not set";
-  }
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatTime(value?: string) {
-  if (!value) {
-    return "Time not set";
-  }
-  return new Date(value).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 }
 
 function formatRoom(roomName?: string, building?: string) {

@@ -80,8 +80,9 @@ function roleLabel(role: Role) {
 }
 
 function toKnownRole(role: string | undefined): Role {
-  if (role === "CHECKIN_STAFF" || role === "ORGANIZER") {
-    return role;
+  const normalized = role?.trim().toUpperCase();
+  if (normalized === "CHECKIN_STAFF" || normalized === "ORGANIZER") {
+    return normalized;
   }
   return "STUDENT";
 }

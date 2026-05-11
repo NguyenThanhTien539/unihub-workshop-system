@@ -15,7 +15,7 @@ export default function App() {
 
   const roleTitle = useMemo(() => {
     if (!account) {
-      return "Mobile Demo";
+      return "Sign in";
     }
     if (account.role === "CHECKIN_STAFF") {
       return "Door Check-in";

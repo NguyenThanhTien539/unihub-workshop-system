@@ -53,6 +53,13 @@ Browser:
 npm run web
 ```
 
+From the repository root, the same command is available through the root
+package script:
+
+```bash
+npm run web
+```
+
 The browser URL is usually:
 
 ```text

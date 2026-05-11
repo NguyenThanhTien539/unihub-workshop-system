@@ -124,6 +124,36 @@ public class JpaWorkshopRepository implements WorkshopRepository {
   }
 
   @Override
+  public List<Workshop> findAll(String keyword, Integer page, Integer size) {
+    StringBuilder sql = new StringBuilder("""
+        SELECT id, title, speaker, description, status, created_by_user_id, created_at, updated_at, published_at, canceled_at
+        FROM workshops
+        """);
+    MapSqlParameterSource params = new MapSqlParameterSource();
+
+    if (keyword != null && !keyword.isBlank()) {
+      sql.append("""
+          WHERE lower(title) LIKE :keyword
+             OR lower(speaker) LIKE :keyword
+             OR lower(description) LIKE :keyword
+          """);
+      params.addValue("keyword", "%" + keyword.trim().toLowerCase() + "%");
+    }
+
+    sql.append(" ORDER BY updated_at DESC, created_at DESC ");
+
+    if (page != null && size != null) {
+      int limit = Math.max(size, 1);
+      int offset = Math.max(page, 0) * limit;
+      sql.append(" LIMIT :limit OFFSET :offset ");
+      params.addValue("limit", limit);
+      params.addValue("offset", offset);
+    }
+
+    return jdbcTemplate.query(sql.toString(), params, workshopRowMapper());
+  }
+
+  @Override
   public List<WorkshopSessionView> findPublishedWorkshopSessions(
       String keyword,
       FeeType feeType,

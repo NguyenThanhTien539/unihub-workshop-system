@@ -4,6 +4,12 @@ export type FeeType = "FREE" | "PAID";
 
 export type WorkshopStatus = "DRAFT" | "PUBLISHED" | "FULL" | "CANCELLED";
 
+export type WorkshopScheduleSession = {
+  date: string;
+  startTime: string;
+  endTime: string;
+};
+
 export type Workshop = {
   id: string;
   sessionId?: string;
@@ -16,6 +22,7 @@ export type Workshop = {
   startTime: string;
   endTime: string;
   date: string;
+  scheduleSessions: WorkshopScheduleSession[];
   room: string;
   roomHint: string;
   remainingSeats: number;
@@ -32,7 +39,7 @@ export type Registration = {
   id: string;
   workshopId: string;
   workshopTitle: string;
-  status: "CONFIRMED" | "PENDING_PAYMENT" | "PAYMENT_FAILED";
+  status: "CONFIRMED" | "PENDING_PAYMENT" | "PAYMENT_FAILED" | "EXPIRED" | "CANCELED";
   qrToken?: string;
   message: string;
   notification: string;
@@ -102,6 +109,7 @@ export type WorkshopFormValues = {
   date: string;
   startTime: string;
   endTime: string;
+  roomId: string;
   room: string;
   capacity: string;
   feeType: FeeType;

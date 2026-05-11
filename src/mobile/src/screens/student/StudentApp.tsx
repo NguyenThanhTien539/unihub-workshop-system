@@ -17,9 +17,26 @@ export function StudentApp({ account }: { account: Account }) {
     null,
   );
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [registrationsLoading, setRegistrationsLoading] = useState(true);
+  const [registrationsError, setRegistrationsError] = useState<string | null>(null);
+
+  const refreshRegistrations = async () => {
+    setRegistrationsLoading(true);
+    setRegistrationsError(null);
+    try {
+      setRegistrations(await getMyRegistrations());
+    } catch (err) {
+      setRegistrations([]);
+      setRegistrationsError(
+        err instanceof Error ? err.message : "Unable to load registrations.",
+      );
+    } finally {
+      setRegistrationsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getMyRegistrations().then(setRegistrations).catch(() => setRegistrations([]));
+    refreshRegistrations();
   }, []);
 
   const confirmedRegistration = registrations.find(
@@ -57,7 +74,12 @@ export function StudentApp({ account }: { account: Account }) {
         )
       ) : null}
       {tab === "registrations" ? (
-        <MyRegistrations registrations={registrations} />
+        <MyRegistrations
+          registrations={registrations}
+          loading={registrationsLoading}
+          error={registrationsError}
+          onRetry={refreshRegistrations}
+        />
       ) : null}
       {tab === "ticket" ? (
         confirmedRegistration ? (
@@ -83,12 +105,23 @@ function WorkshopList({
 }) {
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshWorkshops = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setWorkshops(await getWorkshops());
+    } catch (err) {
+      setWorkshops([]);
+      setError(err instanceof Error ? err.message : "Unable to load workshops.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getWorkshops()
-      .then(setWorkshops)
-      .catch(() => setWorkshops([]))
-      .finally(() => setLoading(false));
+    refreshWorkshops();
   }, []);
 
   if (loading) {
@@ -103,9 +136,17 @@ function WorkshopList({
   return (
     <View style={styles.stack}>
       <Card>
-        <Text style={styles.title}>Workshop List</Text>
+        <View style={styles.rowBetween}>
+          <Text style={styles.title}>Workshop List</Text>
+          <Button label="Refresh" onPress={refreshWorkshops} variant="secondary" />
+        </View>
       </Card>
-      {workshops.length === 0 ? (
+      {error ? (
+        <Card>
+          <Text style={styles.error}>{error}</Text>
+          <Button label="Retry" onPress={refreshWorkshops} variant="secondary" />
+        </Card>
+      ) : workshops.length === 0 ? (
         <EmptyState title="No workshops found" body="No published workshops are available." />
       ) : workshops.map((workshop) => {
         const registration = registrations.find(
@@ -216,7 +257,35 @@ function WorkshopDetail({
   );
 }
 
-function MyRegistrations({ registrations }: { registrations: Registration[] }) {
+function MyRegistrations({
+  registrations,
+  loading,
+  error,
+  onRetry,
+}: {
+  registrations: Registration[];
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  if (loading) {
+    return (
+      <Card>
+        <Text style={styles.title}>Loading registrations...</Text>
+        <Text style={styles.body}>Checking your confirmed and pending registrations.</Text>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <Text style={styles.error}>{error}</Text>
+        <Button label="Retry" onPress={onRetry} variant="secondary" />
+      </Card>
+    );
+  }
+
   if (registrations.length === 0) {
     return (
       <EmptyState
@@ -256,8 +325,16 @@ function QrTicket({
       <Text style={styles.detailTitle}>{registration.workshopTitle}</Text>
       <Text style={styles.body}>Student: {account.name}</Text>
       <View style={styles.qrBox}>
-        <Text style={styles.qrText}>QR</Text>
-        <Text style={styles.qrToken}>{registration.qrToken}</Text>
+        {registration.qrToken ? (
+          <>
+            <Text style={styles.qrText}>QR</Text>
+            <Text style={styles.qrToken}>{registration.qrToken}</Text>
+          </>
+        ) : (
+          <Text style={styles.qrUnavailable}>
+            QR token is not available from the current backend response.
+          </Text>
+        )}
       </View>
       <Text style={styles.notification}>{registration.notification}</Text>
     </Card>
@@ -399,6 +476,13 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 12,
     marginTop: spacing.sm,
+    textAlign: "center",
+  },
+  qrUnavailable: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 20,
     textAlign: "center",
   },
   notification: {

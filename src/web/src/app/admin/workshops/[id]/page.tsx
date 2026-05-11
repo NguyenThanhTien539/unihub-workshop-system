@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import {
   Ban,
@@ -43,8 +43,9 @@ type SessionForm = {
   currency: string;
 };
 
-export default function WorkshopEditPage({ params }: { params: { id: string } }) {
-  const id = params.id;
+export default function WorkshopEditPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
+  const id = resolvedParams.id;
   const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [title, setTitle] = useState("");

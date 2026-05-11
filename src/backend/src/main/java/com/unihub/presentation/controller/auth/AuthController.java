@@ -41,13 +41,12 @@ public class AuthController {
 
   @PostMapping("/login")
   public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-    System.out.println("Login attempt: " + request.email() + " / " + request.password());
     LoginResult result = authCommandService.login(new LoginCommand(request.email(), request.password()));
     AuthResponse response = new AuthResponse(
         result.token().accessToken(),
         result.token().refreshToken(),
         result.token().expiresIn(),
-        result.user().roles()
+        toUserResponse(result.user())
     );
     return ApiResponse.success(response);
   }
@@ -76,7 +75,7 @@ public class AuthController {
     }
 
     CurrentUser user = authQueryService.getCurrentUser(principal.id());
-    return ApiResponse.success(new MeResponse(toUserResponse(user)));
+    return ApiResponse.success(toMeResponse(user));
   }
 
   private UserResponse toUserResponse(CurrentUser currentUser) {
@@ -85,6 +84,9 @@ public class AuthController {
         : new StudentProfileResponse(
             currentUser.studentProfile().studentId(),
             currentUser.studentProfile().studentCode(),
+            currentUser.studentProfile().faculty(),
+            currentUser.studentProfile().major(),
+            currentUser.studentProfile().className(),
             currentUser.studentProfile().status()
         );
 
@@ -92,9 +94,21 @@ public class AuthController {
         currentUser.id(),
         currentUser.email(),
         currentUser.fullName(),
+        currentUser.accountStatus(),
         currentUser.roles(),
         profile
     );
+  }
+
+  private MeResponse toMeResponse(CurrentUser currentUser) {
+    UserResponse user = toUserResponse(currentUser);
+    return new MeResponse(
+        user.id(),
+        user.email(),
+        user.fullName(),
+        user.accountStatus(),
+        user.roles(),
+        user.studentProfile());
   }
 }
 

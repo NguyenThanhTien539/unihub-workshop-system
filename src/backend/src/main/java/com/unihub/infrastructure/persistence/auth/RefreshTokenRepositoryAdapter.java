@@ -22,6 +22,14 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenRepository {
       LIMIT 1
       """;
 
+  private static final String SQL_FIND_BY_TOKEN_HASH_FOR_UPDATE = """
+      SELECT id, user_id, token_hash, expires_at, revoked_at, created_at, replaced_by_token_id
+      FROM refresh_tokens
+      WHERE token_hash = :tokenHash
+      LIMIT 1
+      FOR UPDATE
+      """;
+
   private static final String SQL_INSERT_REFRESH_TOKEN = """
       INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at)
       VALUES (:id, :userId, :tokenHash, :expiresAt, :createdAt)
@@ -53,6 +61,13 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenRepository {
   }
 
   @Override
+  public Optional<RefreshToken> findByTokenHashForUpdate(String tokenHash) {
+    MapSqlParameterSource params = new MapSqlParameterSource("tokenHash", tokenHash);
+    List<RefreshToken> rows = jdbcTemplate.query(SQL_FIND_BY_TOKEN_HASH_FOR_UPDATE, params, refreshTokenRowMapper());
+    return rows.stream().findFirst();
+  }
+
+  @Override
   @Transactional
   public RefreshToken save(UUID userId, String tokenHash, Instant expiresAt) {
     UUID id = UUID.randomUUID();
@@ -77,6 +92,15 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenRepository {
         .addValue("id", id)
         .addValue("revokedAt", Timestamp.from(revokedAt));
     jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKEN, params);
+  }
+
+  @Override
+  @Transactional
+  public boolean revokeIfActive(UUID id, Instant revokedAt) {
+    MapSqlParameterSource params = new MapSqlParameterSource()
+        .addValue("id", id)
+        .addValue("revokedAt", Timestamp.from(revokedAt));
+    return jdbcTemplate.update(SQL_REVOKE_REFRESH_TOKEN, params) == 1;
   }
 
   @Override

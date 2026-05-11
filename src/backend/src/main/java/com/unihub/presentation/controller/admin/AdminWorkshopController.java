@@ -10,6 +10,7 @@ import com.unihub.application.workshop.WorkshopQueryService;
 import com.unihub.domain.user.UserErrorCode;
 import com.unihub.domain.workshop.Workshop;
 import com.unihub.domain.workshop.WorkshopSession;
+import com.unihub.domain.workshop.WorkshopStatus;
 import com.unihub.infrastructure.security.UserPrincipal;
 import com.unihub.presentation.ApiResponse;
 import com.unihub.presentation.dto.request.workshop.CreateWorkshopRequest;
@@ -22,6 +23,7 @@ import jakarta.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -42,6 +45,22 @@ public class AdminWorkshopController {
       WorkshopQueryService workshopQueryService) {
     this.workshopCommandService = workshopCommandService;
     this.workshopQueryService = workshopQueryService;
+  }
+
+  @GetMapping("/workshops")
+  public ApiResponse<List<WorkshopDetailResponse>> listWorkshops(
+      @RequestParam(required = false) String keyword,
+      @RequestParam(required = false) WorkshopStatus status,
+      @RequestParam(required = false) Integer page,
+      @RequestParam(required = false) Integer size) {
+    List<WorkshopDetailResponse> responses = workshopQueryService.listAdminWorkshops(keyword, status, page, size);
+    return ApiResponse.success(responses);
+  }
+
+  @GetMapping("/workshops/{workshopId}")
+  public ApiResponse<WorkshopDetailResponse> getWorkshopDetail(@PathVariable UUID workshopId) {
+    WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshopId);
+    return ApiResponse.success(response);
   }
 
   @PostMapping("/workshops")

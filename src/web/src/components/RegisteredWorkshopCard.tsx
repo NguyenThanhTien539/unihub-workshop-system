@@ -1,12 +1,21 @@
 import { CalendarDays, Clock, MapPin, QrCode } from "lucide-react";
 
-export const RegisteredWorkshopCard = ({ item }: any) => {
+type RegisteredWorkshopItem = {
+  title: string;
+  image?: string;
+  date: string;
+  location: string;
+  time: string;
+};
+
+export const RegisteredWorkshopCard = ({ item }: { item: RegisteredWorkshopItem }) => {
   return (
     <>
       <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         {/* Image */}
         <img
           src={item.image}
+          alt={item.title}
           className="h-28 w-40 rounded-lg object-cover"
         />
 

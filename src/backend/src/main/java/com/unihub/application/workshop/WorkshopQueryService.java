@@ -62,6 +62,21 @@ public class WorkshopQueryService {
   }
 
   @Transactional(readOnly = true)
+  public List<WorkshopDetailResponse> listAdminWorkshops(
+      String keyword,
+      WorkshopStatus status,
+      Integer page,
+      Integer size) {
+    List<Workshop> workshops = workshopRepository.findWorkshops(keyword, status, page, size);
+    return workshops.stream()
+        .map(workshop -> {
+          List<WorkshopSessionView> sessions = workshopRepository.findWorkshopSessions(workshop.id(), true);
+          return workshopMapper.toWorkshopDetailResponse(workshop, sessions);
+        })
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
   public WorkshopDetailResponse getPublishedWorkshopDetail(UUID workshopId) {
     Workshop workshop = workshopRepository.findById(workshopId)
         .orElseThrow(() -> new WorkshopException(WorkshopErrorCode.WORKSHOP_NOT_FOUND, HttpStatus.NOT_FOUND));

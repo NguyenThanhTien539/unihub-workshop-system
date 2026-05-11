@@ -1,177 +1,208 @@
-"use client"
+"use client";
 
+import { useEffect, useState, use } from "react";
+import { ArrowLeft, Calendar, Clock, MapPin, UserRound, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
-  Calendar, Clock, MapPin, Users,
-  CheckCircle2, ArrowLeft, HelpCircle
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { OverallSection } from './components/OverallSection';
-import ContentSection from './components/ContentSection';
-import AuthorSection from './components/AuthorSection';
+  formatLocation,
+  formatMoney,
+  formatSeatSummary,
+  formatSessionDate,
+  formatSessionTime,
+  getFirstSession,
+  getPublicWorkshop,
+  statusLabel,
+  type WorkshopDetail,
+} from "../../../../lib/workshops";
 
-const WorkshopDetail = () => {
+export default function WorkshopDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const tabs = [
-    { id: 'overview', label: 'Tổng quan' },
-    { id: 'content', label: 'Nội dung' },
-    { id: 'author', label: 'Diễn giả' },
-  ];
+  useEffect(() => {
+    let mounted = true;
 
-  // Hàm render nội dung tương ứng với Tab
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'overview':
-        return <div className="animate-in fade-in duration-300"> <OverallSection /> </div>;
-      case 'content':
-        return <div className="animate-in fade-in duration-300">  <ContentSection /> </div>;
-      case 'author':
-        return <div className="animate-in fade-in duration-300">  <AuthorSection />  </div>;
+    async function loadWorkshop() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const data = await getPublicWorkshop(resolvedParams.id);
+        if (mounted) setWorkshop(data);
+      } catch (err) {
+        if (mounted) {
+          setWorkshop(null);
+          setError(err instanceof Error ? err.message : "Không tải được workshop");
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
     }
-  };
+
+    void loadWorkshop();
+    return () => {
+      mounted = false;
+    };
+  }, [resolvedParams.id]);
+
+  if (loading) {
+    return <div className="min-h-[520px] animate-pulse rounded-lg bg-white" />;
+  }
+
+  if (error || !workshop) {
+    return (
+      <section className="rounded-lg border border-red-200 bg-red-50 p-6">
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-red-700"
+        >
+          <ArrowLeft size={16} />
+          Quay lại danh sách
+        </button>
+        <h1 className="text-xl font-semibold text-red-900">Không mở được workshop</h1>
+        <p className="mt-2 text-sm text-red-700">{error ?? "Workshop không tồn tại hoặc chưa được xuất bản."}</p>
+      </section>
+    );
+  }
+
+  const firstSession = getFirstSession(workshop);
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
-      {/* Hero Section */}
-      <div className="relative h-[400px] w-full overflow-hidden">
-        <button
-          onClick={() => {
-            router.push("/");
-          }}
-          className="absolute top-4 right-4 z-10 flex items-center gap-2 rounded-lg bg-black/40 px-3 py-2 text-sm text-white backdrop-blur hover:bg-black/60 transition">
-          <ArrowLeft size={18} />
-          Quay lại
-        </button>
-        <img
-          src="https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=2070&auto=format&fit=crop"
-          className="w-full h-full object-cover brightness-50"
-          alt="AI Background"
-        />
-        <div className="absolute inset-0 flex flex-col justify-end p-12 bg-gradient-to-t from-black/60 to-transparent">
-          <div className="max-w-7xl mx-auto w-full">
-            <span className="bg-white text-black px-3 py-1 rounded-full text-xs font-semibold mb-4 inline-block">
-              Technology
-            </span>
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              AI & Machine Learning Fundamentals
-            </h1>
-            <div className="flex flex-wrap gap-6 text-white/90 text-sm">
-              <div className="flex items-center gap-2"><Calendar size={18} /> Thứ Ba, 5 tháng 5</div>
-              <div className="flex items-center gap-2"><Clock size={18} /> 09:00 - 11:00</div>
-              <div className="flex items-center gap-2"><MapPin size={18} /> Phòng A101</div>
+    <section className="space-y-6">
+      <div className="overflow-hidden rounded-lg bg-slate-950 text-white shadow-sm">
+        <div className="relative min-h-[360px]">
+          <img
+            src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1800&q=75"
+            alt={workshop.title}
+            className="absolute inset-0 h-full w-full object-cover opacity-45"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="absolute right-4 top-4 z-10 inline-flex items-center gap-2 rounded-md bg-white/15 px-3 py-2 text-sm backdrop-blur hover:bg-white/25"
+          >
+            <ArrowLeft size={16} />
+            Quay lại
+          </button>
+
+          <div className="relative z-10 flex min-h-[360px] flex-col justify-end p-6 sm:p-10">
+            <div className="mb-4 flex flex-wrap gap-2">
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-950">
+                {statusLabel(workshop.status)}
+              </span>
+              {firstSession && (
+                <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold">
+                  {formatMoney(Number(firstSession.feeAmount), firstSession.currency)}
+                </span>
+              )}
+            </div>
+            <h1 className="max-w-4xl text-3xl font-bold sm:text-5xl">{workshop.title}</h1>
+            <div className="mt-5 flex flex-wrap gap-5 text-sm text-white/90">
+              <span className="inline-flex items-center gap-2">
+                <UserRound size={17} />
+                {workshop.speaker}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <Calendar size={17} />
+                {formatSessionDate(firstSession?.startAt)}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <Clock size={17} />
+                {formatSessionTime(firstSession?.startAt, firstSession?.endAt)}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <MapPin size={17} />
+                {formatLocation(firstSession)}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content Container */}
-      <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8 relative">
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-6">
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">Tổng quan</h2>
+            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">{workshop.description}</p>
+          </section>
 
-        {/* Left Column */}
-        <div className="lg:col-span-2 space-y-8">
-          <div className="min-h-[400px]">
-            <div className="flex bg-gray-200/50 p-1 rounded-xl w-full mb-5">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${activeTab === tab.id
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            {renderTabContent()}
-          </div>
-
-          {/* Related Workshops */}
-          <section className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
-            <h2 className="text-xl font-bold mb-2">Workshop liên quan</h2>
-            <p className="text-gray-400 text-sm mb-6">Các workshop khác bạn có thể quan tâm</p>
-            <div className="grid md:grid-cols-2 gap-6">
-              {[
-                { title: 'Mobile App Development with React Native', date: '6/5/2026', img: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400' },
-                { title: 'Blockchain & Cryptocurrency Basics', date: '7/5/2026', img: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=400' }
-              ].map((ws, i) => (
-                <div key={i} className="border border-gray-100 rounded-xl overflow-hidden group cursor-pointer hover:shadow-md transition">
-                  <img src={ws.img} className="w-full h-32 object-cover" alt={ws.title} />
-                  <div className="p-4">
-                    <h4 className="font-bold text-sm mb-1 group-hover:text-blue-600 transition">{ws.title}</h4>
-                    <p className="text-xs text-gray-400">{ws.date}</p>
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">Lịch học và phòng</h2>
+            <div className="mt-4 space-y-3">
+              {workshop.sessions.length > 0 ? (
+                workshop.sessions.map((session) => (
+                  <div key={session.id} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="font-medium text-slate-950">{formatSessionDate(session.startAt)}</div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {formatSessionTime(session.startAt, session.endAt)} tại {formatLocation(session)}
+                        </div>
+                      </div>
+                      <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                        {statusLabel(session.status)}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+                      <span>{formatSeatSummary(session)}</span>
+                      <span>Đã xác nhận: {session.seatsConfirmed}</span>
+                      <span>{formatMoney(Number(session.feeAmount), session.currency)}</span>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+                  Workshop chưa có session khả dụng.
                 </div>
-              ))}
+              )}
             </div>
           </section>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6 sticky top-6 self-start">
-          {/* Registration Status */}
-          <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm text-center">
-            <h3 className="font-bold text-left mb-8">Đăng ký tham dự</h3>
-            <div className="flex flex-col items-center py-4">
-              <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle2 size={40} />
-              </div>
-              <p className="text-green-600 font-bold text-lg">Đã đăng ký</p>
-              <p className="text-gray-400 text-sm mt-2">Kiểm tra mã QR trong mục "Đã đăng ký"</p>
-            </div>
-          </div>
+        <aside className="space-y-6">
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">Đăng ký tham dự</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Module đăng ký chỗ chưa được backend triển khai, nên màn hình này chỉ hiển thị thông tin workshop và số chỗ còn lại.
+            </p>
+            <button
+              type="button"
+              disabled
+              className="mt-5 w-full rounded-lg bg-slate-300 px-4 py-2 text-sm font-semibold text-slate-600"
+            >
+              Đăng ký sẽ được bật ở module Registration
+            </button>
+          </section>
 
-          {/* Quick Info */}
-          <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="font-bold mb-6">Thông tin nhanh</h3>
-            <div className="space-y-6">
-              <div className="flex gap-4">
-                <div className="text-blue-500"><Calendar size={20} /></div>
-                <div>
-                  <p className="text-sm font-bold">Ngày tổ chức</p>
-                  <p className="text-sm text-gray-500">Thứ Ba, 5 tháng 5, 2026</p>
-                </div>
-              </div>
-              <div className="flex gap-4 border-t pt-6">
-                <div className="text-blue-500"><Clock size={20} /></div>
-                <div>
-                  <p className="text-sm font-bold">Thời gian</p>
-                  <p className="text-sm text-gray-500">09:00 - 11:00</p>
-                  <p className="text-xs text-gray-400">Thời lượng: 2 giờ</p>
-                </div>
-              </div>
-              <div className="flex gap-4 border-t pt-6">
-                <div className="text-blue-500"><MapPin size={20} /></div>
-                <div>
-                  <p className="text-sm font-bold">Địa điểm</p>
-                  <p className="text-sm text-gray-500">Phòng A101</p>
-                  <p className="text-xs text-gray-400">Trường Đại học A</p>
-                </div>
-              </div>
-              <div className="flex gap-4 border-t pt-6">
-                <div className="text-blue-500"><Users size={20} /></div>
-                <div>
-                  <p className="text-sm font-bold">Quy mô</p>
-                  <p className="text-sm text-gray-500">60 người</p>
-                  <p className="text-xs text-gray-400 text-blue-500">45 người đã đăng ký</p>
-                </div>
-              </div>
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">Thông tin nhanh</h2>
+            <div className="mt-4 space-y-4 text-sm text-slate-700">
+              <InfoRow icon={<Calendar size={18} />} label="Ngày tổ chức" value={formatSessionDate(firstSession?.startAt)} />
+              <InfoRow icon={<Clock size={18} />} label="Thời gian" value={formatSessionTime(firstSession?.startAt, firstSession?.endAt)} />
+              <InfoRow icon={<MapPin size={18} />} label="Địa điểm" value={formatLocation(firstSession)} />
+              <InfoRow icon={<Users size={18} />} label="Số chỗ" value={formatSeatSummary(firstSession)} />
             </div>
-          </div>
-        </div>
+          </section>
+        </aside>
       </div>
+    </section>
+  );
+}
 
-      {/* Floating Help Button */}
-      <div className="fixed bottom-6 right-6">
-        <button className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center border border-gray-100 hover:bg-gray-50 transition text-gray-400">
-          <HelpCircle size={24} />
-        </button>
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex gap-3 border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+      <div className="text-sky-600">{icon}</div>
+      <div>
+        <div className="font-medium text-slate-950">{label}</div>
+        <div className="mt-1 text-slate-600">{value}</div>
       </div>
     </div>
   );
-};
-
-export default WorkshopDetail;
+}

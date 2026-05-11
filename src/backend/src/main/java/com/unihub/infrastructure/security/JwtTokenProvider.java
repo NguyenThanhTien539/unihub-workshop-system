@@ -46,6 +46,8 @@ public class JwtTokenProvider implements TokenProvider {
         .claim("email", user.email())
         .claim("roles", user.roles())
         .claim("token_type", "access")
+        .claim("issued_at", issuedAt.toString())
+        .claim("expires_at", expiresAt.toString())
         .claim("jti", UUID.randomUUID().toString())
         .build();
 

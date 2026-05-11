@@ -40,6 +40,13 @@ public class GlobalExceptionHandler {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
+    if (request.getRequestURI().startsWith("/api/auth/")) {
+      ApiResponse<Void> body = ApiResponse.error(
+          UserErrorCode.AUTH_VALIDATION_ERROR.code(),
+          UserErrorCode.AUTH_VALIDATION_ERROR.defaultMessage());
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     String message = ex.getBindingResult().getFieldErrors().stream()
         .map(err -> err.getField() + " " + err.getDefaultMessage())
         .collect(Collectors.joining("; "));

@@ -3,6 +3,7 @@ package com.unihub.infrastructure.security;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.List;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -10,7 +11,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -18,8 +18,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -31,11 +37,12 @@ public class SecurityConfig {
   SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       UserPrincipalConverter userPrincipalConverter,
+      CorsConfigurationSource corsConfigurationSource,
       JsonAuthenticationEntryPoint authenticationEntryPoint,
       JsonAccessDeniedHandler accessDeniedHandler) throws Exception {
     http
         .csrf(csrf -> csrf.disable())
-        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .cors(cors -> cors.configurationSource(corsConfigurationSource))
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .exceptionHandling(ex -> ex
             .authenticationEntryPoint(authenticationEntryPoint)
@@ -43,12 +50,20 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.GET, "/api/health/**").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
+            // Payment callbacks are authenticated by the Payment module using gateway signature/shared secret.
+            .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/workshops/**").permitAll()
-            .requestMatchers("/api/admin/**").hasRole("ORGANIZER")
-            .requestMatchers("/api/checkin/**").hasRole("CHECKIN_STAFF")
-            .requestMatchers("/api/registrations/**").hasRole("STUDENT")
             .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
+            .requestMatchers(HttpMethod.GET, "/api/notifications/me").authenticated()
+            .requestMatchers(HttpMethod.PATCH, "/api/notifications/*/read").authenticated()
+            .requestMatchers("/api/registrations/**").hasRole("STUDENT")
+            .requestMatchers(HttpMethod.POST, "/api/payments/intents").hasRole("STUDENT")
+            .requestMatchers(HttpMethod.GET, "/api/payments/*/status").hasRole("STUDENT")
+            .requestMatchers(HttpMethod.GET, "/api/checkin/sessions").hasRole("CHECKIN_STAFF")
+            .requestMatchers(HttpMethod.POST, "/api/checkin/validate", "/api/checkin/sync").hasRole("CHECKIN_STAFF")
+            .requestMatchers("/api/checkin/**").hasRole("CHECKIN_STAFF")
+            .requestMatchers("/api/admin/**").hasRole("ORGANIZER")
             .anyRequest().authenticated())
         .oauth2ResourceServer(oauth2 -> oauth2
             .jwt(jwt -> jwt.jwtAuthenticationConverter(userPrincipalConverter))
@@ -70,9 +85,24 @@ public class SecurityConfig {
 
   @Bean
   JwtDecoder jwtDecoder(SecretKey jwtSecretKey) {
-    return NimbusJwtDecoder.withSecretKey(jwtSecretKey)
+    NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSecretKey)
         .macAlgorithm(MacAlgorithm.HS256)
         .build();
+    OAuth2TokenValidator<Jwt> tokenTypeValidator = jwt -> {
+      String tokenType = jwt.getClaimAsString("token_type");
+      if ("access".equals(tokenType)) {
+        return OAuth2TokenValidatorResult.success();
+      }
+      OAuth2Error error = new OAuth2Error(
+          "invalid_token",
+          "JWT token_type must be access",
+          null);
+      return OAuth2TokenValidatorResult.failure(error);
+    };
+    decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+        JwtValidators.createDefault(),
+        tokenTypeValidator));
+    return decoder;
   }
 
   @Bean
@@ -89,11 +119,16 @@ public class SecurityConfig {
   }
 
   @Bean
-  CorsConfigurationSource corsConfigurationSource() {
+  CorsConfigurationSource corsConfigurationSource(
+      @Value("${app.security.cors.allowed-origins:http://localhost:3000,http://localhost:8081}") String allowedOrigins) {
     CorsConfiguration config = new CorsConfiguration();
-    config.setAllowedOriginPatterns(List.of("*"));
+    List<String> origins = Arrays.stream(allowedOrigins.split(","))
+        .map(String::trim)
+        .filter(origin -> !origin.isBlank())
+        .toList();
+    config.setAllowedOrigins(origins);
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    config.setAllowedHeaders(List.of("*"));
+    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
     config.setAllowCredentials(true);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", config);

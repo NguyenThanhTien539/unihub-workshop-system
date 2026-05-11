@@ -8,6 +8,12 @@ import java.util.UUID;
 public interface WorkshopRepository {
   Optional<Workshop> findById(UUID workshopId);
 
+  List<Workshop> findWorkshops(
+      String keyword,
+      WorkshopStatus status,
+      Integer page,
+      Integer size);
+
   List<WorkshopSessionView> findPublishedWorkshopSessions(
       String keyword,
       FeeType feeType,

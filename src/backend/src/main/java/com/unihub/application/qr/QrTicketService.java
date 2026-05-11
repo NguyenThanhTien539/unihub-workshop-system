@@ -53,6 +53,16 @@ public class QrTicketService {
     return toData(qrTicket);
   }
 
+  public VerifiedQrTicket verifyQrToken(String qrToken) {
+    QrTokenClaims claims = qrTokenCodec.verifyPayload(qrToken);
+    QrTicket qrTicket = qrTicketRepository.findByTokenHash(sha256(qrToken))
+        .orElseThrow(() -> new IllegalStateException("QR ticket not found"));
+    if (!qrTicket.id().equals(claims.ticketId()) || !qrTicket.registrationId().equals(claims.registrationId())) {
+      throw new QrTokenVerificationException("QR payload does not match stored ticket");
+    }
+    return new VerifiedQrTicket(qrTicket, claims);
+  }
+
   private QrTicket createTicket(Registration registration) {
     LocalDateTime issuedAt = registration.confirmedAt() == null ? LocalDateTime.now(clock) : registration.confirmedAt();
     LocalDateTime expiresAt = issuedAt.plusMinutes(qrProperties.ttlMinutes());

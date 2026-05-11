@@ -4,4 +4,6 @@ import com.unihub.domain.qr.QrTicket;
 
 public interface QrTokenCodec {
   String createPayload(QrTicket qrTicket);
+
+  QrTokenClaims verifyPayload(String payload);
 }

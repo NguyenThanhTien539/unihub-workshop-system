@@ -22,6 +22,13 @@ public class QrTicketRepositoryAdapter implements QrTicketRepository {
       LIMIT 1
       """;
 
+  private static final String SQL_FIND_BY_TOKEN_HASH = """
+      SELECT id, registration_id, qr_token_hash, status, issued_at, expires_at, revoked_at, created_at
+      FROM qr_tickets
+      WHERE qr_token_hash = :qrTokenHash
+      LIMIT 1
+      """;
+
   private static final String SQL_INSERT = """
       INSERT INTO qr_tickets (
         id, registration_id, qr_token_hash, status, issued_at, expires_at, revoked_at, created_at
@@ -40,6 +47,13 @@ public class QrTicketRepositoryAdapter implements QrTicketRepository {
   public Optional<QrTicket> findByRegistrationId(UUID registrationId) {
     List<QrTicket> rows = jdbcTemplate.query(SQL_FIND_BY_REGISTRATION_ID,
         new MapSqlParameterSource("registrationId", registrationId), rowMapper());
+    return rows.stream().findFirst();
+  }
+
+  @Override
+  public Optional<QrTicket> findByTokenHash(String qrTokenHash) {
+    List<QrTicket> rows = jdbcTemplate.query(SQL_FIND_BY_TOKEN_HASH,
+        new MapSqlParameterSource("qrTokenHash", qrTokenHash), rowMapper());
     return rows.stream().findFirst();
   }
 

@@ -1,6 +1,7 @@
 package com.unihub.presentation.error;
 
 import com.unihub.application.auth.exception.AuthException;
+import com.unihub.application.checkin.CheckinException;
 import com.unihub.application.payment.exception.PaymentException;
 import com.unihub.application.registration.exception.RegistrationException;
 import com.unihub.application.workshop.exception.WorkshopException;
@@ -39,6 +40,12 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(PaymentException.class)
   public ResponseEntity<ApiResponse<Void>> handlePaymentException(PaymentException ex) {
+    ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
+    return ResponseEntity.status(ex.getStatus()).body(body);
+  }
+
+  @ExceptionHandler(CheckinException.class)
+  public ResponseEntity<ApiResponse<Void>> handleCheckinException(CheckinException ex) {
     ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
     return ResponseEntity.status(ex.getStatus()).body(body);
   }

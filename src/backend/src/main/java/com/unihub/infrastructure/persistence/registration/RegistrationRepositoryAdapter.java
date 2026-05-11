@@ -23,7 +23,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class RegistrationRepositoryAdapter implements RegistrationRepository {
+public class  RegistrationRepositoryAdapter implements RegistrationRepository {
   private static final String SQL_FIND_BY_ID = """
       SELECT id, student_id, session_id, status, registration_type, reserved_at, confirmed_at,
              expires_at, canceled_at, created_at, updated_at

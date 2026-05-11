@@ -157,7 +157,8 @@ public class RegistrationCommandService {
 
   private Student requireEligibleStudent(UUID userId) {
     Student student = studentRepository.findByUserId(userId)
-        .orElseThrow(() -> new RegistrationException(RegistrationErrorCode.REG_STUDENT_NOT_ELIGIBLE, HttpStatus.FORBIDDEN));
+        .orElseThrow(
+            () -> new RegistrationException(RegistrationErrorCode.REG_STUDENT_NOT_ELIGIBLE, HttpStatus.FORBIDDEN));
     if (student.status() != StudentStatus.ACTIVE) {
       throw new RegistrationException(RegistrationErrorCode.REG_STUDENT_NOT_ELIGIBLE, HttpStatus.FORBIDDEN);
     }
@@ -175,7 +176,8 @@ public class RegistrationCommandService {
     if (session.sessionStatus() == WorkshopSessionStatus.CANCELED) {
       throw new RegistrationException(RegistrationErrorCode.REG_SESSION_CANCELED, HttpStatus.CONFLICT);
     }
-    if (session.sessionStatus() != WorkshopSessionStatus.OPEN && session.sessionStatus() != WorkshopSessionStatus.FULL) {
+    if (session.sessionStatus() != WorkshopSessionStatus.OPEN
+        && session.sessionStatus() != WorkshopSessionStatus.FULL) {
       throw new RegistrationException(RegistrationErrorCode.REG_SESSION_NOT_REGISTERABLE, HttpStatus.CONFLICT);
     }
     if (expectedFeeType == FeeType.FREE && session.feeType() != FeeType.FREE) {

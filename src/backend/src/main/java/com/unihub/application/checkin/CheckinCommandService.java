@@ -65,7 +65,8 @@ public class CheckinCommandService {
   private CheckinSyncItemResult processSyncEvent(UUID scannedByUserId, CheckinSyncEventCommand event) {
     CheckinRecord existing = checkinRepository.findBySyncEventId(event.syncEventId()).orElse(null);
     if (existing != null) {
-      CheckinCandidate candidate = checkinRepository.findCandidateByRegistrationId(existing.registrationId()).orElse(null);
+      CheckinCandidate candidate = checkinRepository.findCandidateByRegistrationId(existing.registrationId())
+          .orElse(null);
       return new CheckinSyncItemResult(
           event.syncEventId(),
           CheckinResult.ALREADY_SYNCED,
@@ -203,7 +204,8 @@ public class CheckinCommandService {
     if (syncEventId != null) {
       CheckinRecord existingSync = checkinRepository.findBySyncEventId(syncEventId).orElse(null);
       if (existingSync != null) {
-        CheckinCandidate candidate = checkinRepository.findCandidateByRegistrationId(existingSync.registrationId()).orElse(null);
+        CheckinCandidate candidate = checkinRepository.findCandidateByRegistrationId(existingSync.registrationId())
+            .orElse(null);
         return new CheckinProcessingResult(
             CheckinResult.ALREADY_SYNCED,
             existingSync.registrationId(),

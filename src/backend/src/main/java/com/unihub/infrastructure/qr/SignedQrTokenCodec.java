@@ -41,7 +41,8 @@ public class SignedQrTokenCodec implements QrTokenCodec {
     payload.put("ticketId", qrTicket.id());
     payload.put("registrationId", qrTicket.registrationId());
     payload.put("iat", qrTicket.issuedAt().toInstant(ZoneOffset.UTC).toEpochMilli());
-    payload.put("exp", qrTicket.expiresAt() == null ? null : qrTicket.expiresAt().toInstant(ZoneOffset.UTC).toEpochMilli());
+    payload.put("exp",
+        qrTicket.expiresAt() == null ? null : qrTicket.expiresAt().toInstant(ZoneOffset.UTC).toEpochMilli());
     try {
       String encodedPayload = Base64.getUrlEncoder().withoutPadding().encodeToString(
           objectMapper.writeValueAsBytes(payload));

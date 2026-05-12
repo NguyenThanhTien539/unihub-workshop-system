@@ -7,6 +7,7 @@ public record UserResponse(
     UUID id,
     String email,
     String fullName,
+    String accountStatus,
     List<String> roles,
     StudentProfileResponse studentProfile
 ) {

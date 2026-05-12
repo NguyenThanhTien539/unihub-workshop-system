@@ -124,33 +124,13 @@ public class JpaWorkshopRepository implements WorkshopRepository {
   }
 
   @Override
-  public List<Workshop> findAll(String keyword, Integer page, Integer size) {
-    StringBuilder sql = new StringBuilder("""
-        SELECT id, title, speaker, description, status, created_by_user_id, created_at, updated_at, published_at, canceled_at
-        FROM workshops
-        """);
-    MapSqlParameterSource params = new MapSqlParameterSource();
-
-    if (keyword != null && !keyword.isBlank()) {
-      sql.append("""
-          WHERE lower(title) LIKE :keyword
-             OR lower(speaker) LIKE :keyword
-             OR lower(description) LIKE :keyword
-          """);
-      params.addValue("keyword", "%" + keyword.trim().toLowerCase() + "%");
-    }
-
-    sql.append(" ORDER BY updated_at DESC, created_at DESC ");
-
-    if (page != null && size != null) {
-      int limit = Math.max(size, 1);
-      int offset = Math.max(page, 0) * limit;
-      sql.append(" LIMIT :limit OFFSET :offset ");
-      params.addValue("limit", limit);
-      params.addValue("offset", offset);
-    }
-
-    return jdbcTemplate.query(sql.toString(), params, workshopRowMapper());
+  public List<Workshop> findWorkshops(
+      String keyword,
+      WorkshopStatus status,
+      Integer page,
+      Integer size) {
+    QueryBundle bundle = buildAdminWorkshopQuery(keyword, status, page, size);
+    return jdbcTemplate.query(bundle.sql(), bundle.params(), workshopRowMapper());
   }
 
   @Override
@@ -447,6 +427,42 @@ public class JpaWorkshopRepository implements WorkshopRepository {
 
     String sql = baseSelect + filter + " ORDER BY w.title, s.start_at";
     return new QueryBundle(sql, params);
+  }
+
+  private QueryBundle buildAdminWorkshopQuery(
+      String keyword,
+      WorkshopStatus status,
+      Integer page,
+      Integer size) {
+    StringBuilder sql = new StringBuilder("""
+        SELECT id, title, speaker, description, status, created_by_user_id, created_at, updated_at, published_at, canceled_at
+        FROM workshops
+        WHERE 1 = 1
+        """);
+    MapSqlParameterSource params = new MapSqlParameterSource();
+
+    if (keyword != null && !keyword.isBlank()) {
+      sql.append(
+          " AND (lower(title) LIKE :keyword OR lower(speaker) LIKE :keyword OR lower(description) LIKE :keyword) ");
+      params.addValue("keyword", "%" + keyword.trim().toLowerCase() + "%");
+    }
+
+    if (status != null) {
+      sql.append(" AND status = :status ");
+      params.addValue("status", status.name());
+    }
+
+    sql.append(" ORDER BY updated_at DESC, created_at DESC, title ASC ");
+
+    if (page != null && size != null) {
+      int limit = Math.max(size, 1);
+      int offset = Math.max(page, 0) * limit;
+      sql.append(" LIMIT :limit OFFSET :offset ");
+      params.addValue("limit", limit);
+      params.addValue("offset", offset);
+    }
+
+    return new QueryBundle(sql.toString(), params);
   }
 
   private Timestamp toTimestamp(LocalDateTime time) {

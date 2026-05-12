@@ -1,17 +1,15 @@
 "use client"
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setTokens } from "../../../lib/adminAuth";
-import { apiFetch } from "../../../lib/api";
+import { login } from "../../../lib/adminAuth";
 
 export default function LoginPageClient() {
   const router = useRouter();
-  const [role, setRole] = useState<string>("");
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setRole(params.get("role") ?? "");
-  }, []);
+  const [role] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("role") ?? "";
+  });
   const roleLabel = role === "organizer" ? "Ban tổ chức" : role === "student" ? "Sinh viên" : "Người dùng";
 
   const [identifier, setIdentifier] = useState("");
@@ -24,38 +22,15 @@ export default function LoginPageClient() {
     setLoading(true);
     setError(null);
     try {
-      console.log("Fetch API");
-      const res = await apiFetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: identifier, password: password }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Login failed');
-
-      // try a few places for tokens
-      const data = json?.data ?? json;
-      const access = data?.accessToken ?? data?.token?.accessToken ?? data?.token ?? data?.access;
-      const refresh = data?.refreshToken ?? data?.token?.refreshToken ?? null;
-      if (!access) throw new Error('No access token returned');
-      setTokens(String(access), refresh ? String(refresh) : undefined);
-      
-        // set a short-lived cookie and delay the redirect slightly so it's easy
-        // to inspect localStorage/cookies in DevTools during debugging
-        try {
-          document.cookie = `admin_access_set=1; path=/`;
-        } catch (e) {
-          // ignore
-        }
-        await new Promise((r) => setTimeout(r, 300));
+      await login(identifier, password);
 
       if (role === 'organizer' || role === 'admin') {
         router.replace('/admin/workshops');
       } else {
         router.replace('/');
       }
-    } catch (err: any) {
-      setError(String(err?.message ?? err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }

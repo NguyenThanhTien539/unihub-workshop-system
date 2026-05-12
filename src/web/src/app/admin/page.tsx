@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function AdminPage() {
   return (
     <section className="space-y-6">
@@ -30,7 +32,7 @@ export default function AdminPage() {
           <h2 className="text-base font-semibold text-slate-900">Workshop Management</h2>
           <p className="mt-2 text-sm text-slate-600">Create, edit, publish and cancel workshops; manage sessions.</p>
           <div className="mt-3">
-            <a href="/admin/workshops" className="inline-flex items-center rounded-md bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-700">Open Workshop Admin</a>
+            <Link href="/admin/workshops" className="inline-flex items-center rounded-md bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-700">Open Workshop Admin</Link>
           </div>
         </div>
       </div>

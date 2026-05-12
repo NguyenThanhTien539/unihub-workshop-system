@@ -10,6 +10,7 @@ import com.unihub.application.workshop.WorkshopQueryService;
 import com.unihub.domain.user.UserErrorCode;
 import com.unihub.domain.workshop.Workshop;
 import com.unihub.domain.workshop.WorkshopSession;
+import com.unihub.domain.workshop.WorkshopStatus;
 import com.unihub.infrastructure.security.UserPrincipal;
 import com.unihub.presentation.ApiResponse;
 import com.unihub.presentation.dto.request.workshop.CreateWorkshopRequest;
@@ -46,6 +47,22 @@ public class AdminWorkshopController {
     this.workshopQueryService = workshopQueryService;
   }
 
+  @GetMapping("/workshops")
+  public ApiResponse<List<WorkshopDetailResponse>> listWorkshops(
+      @RequestParam(required = false) String keyword,
+      @RequestParam(required = false) WorkshopStatus status,
+      @RequestParam(required = false) Integer page,
+      @RequestParam(required = false) Integer size) {
+    List<WorkshopDetailResponse> responses = workshopQueryService.listAdminWorkshops(keyword, status, page, size);
+    return ApiResponse.success(responses);
+  }
+
+  @GetMapping("/workshops/{workshopId}")
+  public ApiResponse<WorkshopDetailResponse> getWorkshopDetail(@PathVariable UUID workshopId) {
+    WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshopId);
+    return ApiResponse.success(response);
+  }
+
   @PostMapping("/workshops")
   public ApiResponse<WorkshopDetailResponse> createWorkshop(
       Authentication authentication,
@@ -61,21 +78,6 @@ public class AdminWorkshopController {
         sessions));
 
     WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshop.id());
-    return ApiResponse.success(response);
-  }
-
-  @GetMapping("/workshops")
-  public ApiResponse<List<WorkshopDetailResponse>> listWorkshops(
-      @RequestParam(required = false) String keyword,
-      @RequestParam(required = false) Integer page,
-      @RequestParam(required = false) Integer size) {
-    List<WorkshopDetailResponse> responses = workshopQueryService.listAdminWorkshops(keyword, page, size);
-    return ApiResponse.success(responses);
-  }
-
-  @GetMapping("/workshops/{workshopId}")
-  public ApiResponse<WorkshopDetailResponse> getWorkshopDetail(@PathVariable UUID workshopId) {
-    WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshopId);
     return ApiResponse.success(response);
   }
 

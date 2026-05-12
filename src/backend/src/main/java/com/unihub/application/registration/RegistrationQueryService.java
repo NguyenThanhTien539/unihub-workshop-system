@@ -27,6 +27,21 @@ public class RegistrationQueryService {
       ORDER BY COALESCE(r.confirmed_at, r.reserved_at, r.created_at) DESC
       """;
 
+  private static final String SQL_FIND_BY_ID = """
+      SELECT
+        r.id,
+        w.id AS workshop_id,
+        w.title AS workshop_title,
+        r.status,
+        ws.start_at,
+        ws.end_at
+      FROM registrations r
+      JOIN workshop_sessions ws ON ws.id = r.session_id
+      JOIN workshops w ON w.id = ws.workshop_id
+      WHERE r.id = :registrationId
+      LIMIT 1
+      """;
+
   private final NamedParameterJdbcTemplate jdbcTemplate;
   private final StudentRepository studentRepository;
 
@@ -41,6 +56,14 @@ public class RegistrationQueryService {
     return studentRepository.findByUserId(userId)
         .map(this::listForStudent)
         .orElseGet(List::of);
+  }
+
+  public RegistrationResponse getRegistration(UUID registrationId) {
+    MapSqlParameterSource params = new MapSqlParameterSource("registrationId", registrationId);
+    return jdbcTemplate.query(SQL_FIND_BY_ID, params, registrationRowMapper())
+        .stream()
+        .findFirst()
+        .orElseThrow();
   }
 
   private List<RegistrationResponse> listForStudent(Student student) {

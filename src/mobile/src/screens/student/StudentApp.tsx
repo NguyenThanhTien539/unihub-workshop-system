@@ -5,6 +5,7 @@ import {
   getMyRegistrations,
   getWorkshopDetail,
   getWorkshops,
+  registerForWorkshop,
 } from "../../services/workshopService";
 import { colors, spacing } from "../../theme/theme";
 import { Badge, Button, Card, EmptyState, TabBar } from "../../components/ui";
@@ -64,6 +65,7 @@ export function StudentApp({ account }: { account: Account }) {
             account={account}
             workshop={selectedWorkshop}
             registrations={registrations}
+            onRegistered={refreshRegistrations}
             onBack={() => setSelectedWorkshop(null)}
           />
         ) : (
@@ -196,11 +198,13 @@ function WorkshopDetail({
   account,
   workshop,
   registrations,
+  onRegistered,
   onBack,
 }: {
   account: Account;
   workshop: Workshop;
   registrations: Registration[];
+  onRegistered: () => Promise<void>;
   onBack: () => void;
 }) {
   const existing = useMemo(
@@ -209,6 +213,7 @@ function WorkshopDetail({
   );
   const [detail, setDetail] = useState(workshop);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -221,6 +226,26 @@ function WorkshopDetail({
       })
       .finally(() => setLoadingDetail(false));
   }, [workshop.id]);
+
+  const handleRegister = async () => {
+    if (!detail.sessionId) {
+      setError("This workshop does not have an available session.");
+      return;
+    }
+
+    setRegistering(true);
+    setError(null);
+    try {
+      await registerForWorkshop(detail.sessionId);
+      const refreshedDetail = await getWorkshopDetail(workshop.id);
+      setDetail(refreshedDetail);
+      await onRegistered();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to register for this workshop.");
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   return (
     <View style={styles.stack}>
@@ -248,9 +273,11 @@ function WorkshopDetail({
         {existing ? (
           <RegistrationNotice registration={existing} />
         ) : (
-          <Text style={styles.unavailable}>
-            Registration is not available from the current backend API.
-          </Text>
+          <Button
+            label={registering ? "Registering..." : "Register"}
+            onPress={handleRegister}
+            disabled={registering || detail.status === "FULL" || !detail.sessionId}
+          />
         )}
       </Card>
     </View>

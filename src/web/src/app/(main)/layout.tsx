@@ -1,3 +1,5 @@
+import LogoutButton from "../../components/LogoutButton";
+
 export default function AuthLayout({ children }: Readonly<{
   children: React.ReactNode;
 }>) {
@@ -10,11 +12,11 @@ export default function AuthLayout({ children }: Readonly<{
             Tuần lễ kỹ năng và nghề nghiệp 2026
           </p>
 
-          <button
+          <LogoutButton
             className="absolute bottom-4 right-4 rounded-lg bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur hover:bg-white/30 transition"
           >
             Đăng xuất
-          </button>
+          </LogoutButton>
         </div>
         {children}
       </div>

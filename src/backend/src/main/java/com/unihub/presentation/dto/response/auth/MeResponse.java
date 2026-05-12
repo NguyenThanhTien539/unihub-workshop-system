@@ -1,10 +1,15 @@
 package com.unihub.presentation.dto.response.auth;
 
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import java.util.List;
+import java.util.UUID;
 
 public record MeResponse(
-    @JsonUnwrapped
-    UserResponse user
+    UUID id,
+    String email,
+    String fullName,
+    String accountStatus,
+    List<String> roles,
+    StudentProfileResponse studentProfile
 ) {
 }
 

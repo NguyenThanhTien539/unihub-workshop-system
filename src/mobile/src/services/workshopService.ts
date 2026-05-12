@@ -71,8 +71,11 @@ export async function getMyRegistrations(): Promise<Registration[]> {
   return response;
 }
 
-export async function registerForWorkshop(): Promise<Registration> {
-  throw new Error("Registration is not available from the current backend API.");
+export async function registerForWorkshop(sessionId: string): Promise<Registration> {
+  return apiRequest<Registration>("/api/registrations", {
+    method: "POST",
+    body: { sessionId },
+  });
 }
 
 export async function getOrganizerDashboard() {

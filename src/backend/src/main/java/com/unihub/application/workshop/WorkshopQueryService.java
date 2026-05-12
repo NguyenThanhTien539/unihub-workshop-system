@@ -64,13 +64,15 @@ public class WorkshopQueryService {
   @Transactional(readOnly = true)
   public List<WorkshopDetailResponse> listAdminWorkshops(
       String keyword,
+      WorkshopStatus status,
       Integer page,
       Integer size) {
-    List<Workshop> workshops = workshopRepository.findAll(keyword, page, size);
+    List<Workshop> workshops = workshopRepository.findWorkshops(keyword, status, page, size);
     return workshops.stream()
-        .map(workshop -> workshopMapper.toWorkshopDetailResponse(
-            workshop,
-            workshopRepository.findWorkshopSessions(workshop.id(), true)))
+        .map(workshop -> {
+          List<WorkshopSessionView> sessions = workshopRepository.findWorkshopSessions(workshop.id(), true);
+          return workshopMapper.toWorkshopDetailResponse(workshop, sessions);
+        })
         .toList();
   }
 

@@ -5,6 +5,9 @@ import java.util.UUID;
 public record StudentProfileResponse(
     UUID studentId,
     String studentCode,
+    String faculty,
+    String major,
+    String className,
     String status
 ) {
 }

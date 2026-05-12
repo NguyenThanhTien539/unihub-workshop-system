@@ -20,13 +20,15 @@ services:
       - "8080:8080"
     env_file:
       - ./src/backend/.env
+    depends_on:
+      - redis
     restart: unless-stopped
 
-  # redis:
-  #   image: redis:7
-  #   container_name: unihub-redis
-  #   ports:
-  #     - "6379:6379"
+  redis:
+    image: redis:7
+    container_name: unihub-redis
+    ports:
+      - "6379:6379"
 
   # minio:
   #   image: minio/minio:latest

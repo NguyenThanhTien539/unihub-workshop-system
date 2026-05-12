@@ -5,7 +5,7 @@ type AuthResponse = {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
-  roles: string[];
+  user: MeResponse;
 };
 
 type MeResponse = {
@@ -21,14 +21,17 @@ type MeResponse = {
 };
 
 export async function login(email: string, password: string): Promise<Account> {
+  setAuthTokens({});
   const auth = await apiRequest<AuthResponse>("/api/auth/login", {
     method: "POST",
     body: { email: email.trim(), password },
+    authenticated: false,
+    skipAuthRefresh: true,
   });
   setAuthTokens(auth);
 
   const me = await getCurrentUser(auth.accessToken);
-  const role = toKnownRole(auth.roles[0] || me.roles[0]);
+  const role = toKnownRole(auth.user.roles[0] || me.roles[0]);
 
   return {
     id: me.id,

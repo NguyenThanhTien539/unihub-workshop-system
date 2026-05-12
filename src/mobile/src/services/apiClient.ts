@@ -151,7 +151,7 @@ async function refreshAuthToken() {
 
 export function friendlyErrorMessage(status: number, fallback?: string) {
   if (status === 401) {
-    return "Your session has expired. Please sign in again.";
+    return fallback || "Your session has expired. Please sign in again.";
   }
   if (status === 403) {
     return "You do not have permission to perform this action.";

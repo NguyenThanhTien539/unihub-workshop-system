@@ -82,6 +82,14 @@ If PowerShell blocks `npx` scripts on Windows:
 
 ## Backend APIs
 
+Demo accounts seeded by the backend migrations:
+
+| Role | Email | Password |
+| ---- | ----- | -------- |
+| Student | `student1@university.edu.vn` | `Password123!` |
+| Organizer | `organizer@university.edu.vn` | `Password123!` |
+| Check-in staff | `checkin@university.edu.vn` | `Password123!` |
+
 The app uses `EXPO_PUBLIC_API_BASE_URL` and calls:
 
 - `POST /api/auth/login`
@@ -96,10 +104,12 @@ The app uses `EXPO_PUBLIC_API_BASE_URL` and calls:
 - `POST /api/admin/workshops/{id}/cancel`
 - `POST /api/admin/workshops/{id}/sessions`
 - `PATCH /api/admin/sessions/{id}`
+- `GET /api/registrations`
+- `POST /api/registrations`
 - `GET /api/registrations/auth-test`
 - `GET /api/checkin/auth-test`
 
-Registration creation, QR verification, assigned check-in sessions, offline
-sync, check-in history, and registration statistics require backend endpoints
-that are not currently exposed. The mobile app shows empty or unavailable
-states for those areas instead of local data.
+QR verification, assigned check-in sessions, offline sync, check-in history,
+and registration statistics require backend endpoints that are not currently
+exposed. The mobile app shows empty or unavailable states for those areas
+instead of local data.

@@ -52,7 +52,7 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
             // Payment callbacks are authenticated by the Payment module using gateway
             // signature/shared secret.
-            .requestMatchers(HttpMethod.POST, "/api/payments/zalopay/callRbacSecurityTestEndpointsback").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/payments/zalopay/callback").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/workshops/**").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()

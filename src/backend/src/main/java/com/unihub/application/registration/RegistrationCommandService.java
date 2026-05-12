@@ -1,186 +1,207 @@
 package com.unihub.application.registration;
 
+import com.unihub.application.mail.RegistrationConfirmationMailService;
+import com.unihub.application.qr.QrTicketService;
 import com.unihub.application.registration.exception.RegistrationException;
+import com.unihub.domain.payment.PaymentIntent;
+import com.unihub.domain.payment.PaymentRepository;
+import com.unihub.domain.payment.PaymentStatus;
+import com.unihub.domain.registration.Registration;
 import com.unihub.domain.registration.RegistrationErrorCode;
+import com.unihub.domain.registration.RegistrationRepository;
+import com.unihub.domain.registration.RegistrationSessionSnapshot;
+import com.unihub.domain.registration.RegistrationStatus;
+import com.unihub.domain.registration.RegistrationType;
 import com.unihub.domain.student.Student;
 import com.unihub.domain.student.StudentRepository;
-import com.unihub.presentation.dto.response.registration.RegistrationResponse;
-import java.math.BigDecimal;
-import java.sql.Timestamp;
+import com.unihub.domain.student.StudentStatus;
+import com.unihub.domain.workshop.FeeType;
+import com.unihub.domain.workshop.WorkshopSessionStatus;
+import com.unihub.domain.workshop.WorkshopStatus;
+import com.unihub.infrastructure.config.PaymentProperties;
+import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RegistrationCommandService {
-  private static final String SQL_FIND_SESSION_FOR_REGISTRATION = """
-      SELECT
-        ws.id,
-        ws.status AS session_status,
-        ws.seat_capacity,
-        ws.seats_confirmed,
-        ws.seats_reserved,
-        ws.fee_type,
-        ws.fee_amount,
-        ws.currency,
-        w.status AS workshop_status
-      FROM workshop_sessions ws
-      JOIN workshops w ON w.id = ws.workshop_id
-      WHERE ws.id = :sessionId
-      FOR UPDATE
-      """;
-
-  private static final String SQL_FIND_ACTIVE_REGISTRATION = """
-      SELECT id
-      FROM registrations
-      WHERE student_id = :studentId
-        AND session_id = :sessionId
-        AND status IN ('PENDING_PAYMENT', 'CONFIRMED')
-      LIMIT 1
-      """;
-
-  private static final String SQL_INSERT_REGISTRATION = """
-      INSERT INTO registrations (
-        id, student_id, session_id, status, registration_type,
-        reserved_at, confirmed_at, expires_at, created_at, updated_at
-      )
-      VALUES (
-        :id, :studentId, :sessionId, :status, :registrationType,
-        :reservedAt, :confirmedAt, :expiresAt, :now, :now
-      )
-      """;
-
-  private static final String SQL_UPDATE_SESSION_SEATS = """
-      UPDATE workshop_sessions
-      SET seats_confirmed = seats_confirmed + :confirmedDelta,
-          seats_reserved = seats_reserved + :reservedDelta,
-          status = CASE
-            WHEN seat_capacity <= seats_confirmed + seats_reserved + :confirmedDelta + :reservedDelta THEN 'FULL'
-            ELSE status
-          END,
-          updated_at = :now
-      WHERE id = :sessionId
-      """;
-
-  private final NamedParameterJdbcTemplate jdbcTemplate;
   private final StudentRepository studentRepository;
-  private final RegistrationQueryService registrationQueryService;
+  private final RegistrationRepository registrationRepository;
+  private final PaymentRepository paymentRepository;
+  private final QrTicketService qrTicketService;
+  private final RegistrationConfirmationMailService registrationConfirmationMailService;
+  private final PaymentProperties paymentProperties;
+  private final Clock clock;
 
   public RegistrationCommandService(
-      NamedParameterJdbcTemplate jdbcTemplate,
       StudentRepository studentRepository,
-      RegistrationQueryService registrationQueryService) {
-    this.jdbcTemplate = jdbcTemplate;
+      RegistrationRepository registrationRepository,
+      PaymentRepository paymentRepository,
+      QrTicketService qrTicketService,
+      RegistrationConfirmationMailService registrationConfirmationMailService,
+      PaymentProperties paymentProperties,
+      Clock clock) {
     this.studentRepository = studentRepository;
-    this.registrationQueryService = registrationQueryService;
+    this.registrationRepository = registrationRepository;
+    this.paymentRepository = paymentRepository;
+    this.qrTicketService = qrTicketService;
+    this.registrationConfirmationMailService = registrationConfirmationMailService;
+    this.paymentProperties = paymentProperties;
+    this.clock = clock;
   }
 
   @Transactional
-  public RegistrationResponse register(UUID userId, UUID sessionId) {
+  public RegistrationResult registerFree(CreateFreeRegistrationCommand command) {
+    Student student = requireEligibleStudent(command.userId());
+    RegistrationSessionSnapshot session = requireRegisterableSession(command.sessionId(), FeeType.FREE);
+    ensureNoDuplicate(student.id(), session.sessionId());
+    ensureCapacity(session);
+
+    LocalDateTime now = LocalDateTime.now(clock);
+    Registration registration = new Registration(
+        UUID.randomUUID(),
+        student.id(),
+        session.sessionId(),
+        RegistrationStatus.CONFIRMED,
+        RegistrationType.FREE,
+        null,
+        now,
+        null,
+        null,
+        now,
+        now);
+
+    try {
+      registrationRepository.save(registration);
+    } catch (DataIntegrityViolationException ex) {
+      throw duplicateRegistration();
+    }
+    registrationRepository.updateSessionSeatCounters(session.sessionId(), 1, 0);
+    qrTicketService.ensureQrTicket(registration);
+    registrationConfirmationMailService.queueRegistrationConfirmedEmail(registration.id());
+
+    return new RegistrationResult(
+        registration.id(),
+        session.workshopId(),
+        session.sessionId(),
+        registration.status().name(),
+        true,
+        null,
+        null,
+        null,
+        session.currency(),
+        null);
+  }
+
+  @Transactional
+  public RegistrationResult registerPaid(CreatePaidRegistrationCommand command) {
+    Student student = requireEligibleStudent(command.userId());
+    RegistrationSessionSnapshot session = requireRegisterableSession(command.sessionId(), FeeType.PAID);
+    ensureNoDuplicate(student.id(), session.sessionId());
+    ensureCapacity(session);
+
+    LocalDateTime now = LocalDateTime.now(clock);
+    LocalDateTime expiresAt = now.plusMinutes(paymentProperties.pendingExpirationMinutes());
+    Registration registration = new Registration(
+        UUID.randomUUID(),
+        student.id(),
+        session.sessionId(),
+        RegistrationStatus.PENDING_PAYMENT,
+        RegistrationType.PAID,
+        now,
+        null,
+        expiresAt,
+        null,
+        now,
+        now);
+
+    try {
+      registrationRepository.save(registration);
+    } catch (DataIntegrityViolationException ex) {
+      throw duplicateRegistration();
+    }
+    registrationRepository.updateSessionSeatCounters(session.sessionId(), 0, 1);
+
+    PaymentIntent paymentIntent = new PaymentIntent(
+        UUID.randomUUID(),
+        registration.id(),
+        "payment-intent:" + registration.id(),
+        null,
+        PaymentStatus.PENDING_GATEWAY,
+        session.feeAmount(),
+        session.currency(),
+        null,
+        expiresAt,
+        null,
+        null,
+        now,
+        now);
+    paymentRepository.save(paymentIntent);
+
+    return new RegistrationResult(
+        registration.id(),
+        session.workshopId(),
+        session.sessionId(),
+        registration.status().name(),
+        false,
+        paymentIntent.id(),
+        paymentIntent.status().name(),
+        paymentIntent.amount(),
+        paymentIntent.currency(),
+        paymentIntent.expiresAt());
+  }
+
+  private Student requireEligibleStudent(UUID userId) {
     Student student = studentRepository.findByUserId(userId)
-        .orElseThrow(() -> new RegistrationException(
-            RegistrationErrorCode.STUDENT_PROFILE_NOT_FOUND,
-            HttpStatus.NOT_FOUND));
-
-    UUID existingId = findActiveRegistrationId(student.id(), sessionId);
-    if (existingId != null) {
-      return registrationQueryService.getRegistration(existingId);
+        .orElseThrow(
+            () -> new RegistrationException(RegistrationErrorCode.REG_STUDENT_NOT_ELIGIBLE, HttpStatus.FORBIDDEN));
+    if (student.status() != StudentStatus.ACTIVE) {
+      throw new RegistrationException(RegistrationErrorCode.REG_STUDENT_NOT_ELIGIBLE, HttpStatus.FORBIDDEN);
     }
-
-    SessionForRegistration session = findSession(sessionId);
-    validateSession(session);
-
-    LocalDateTime now = LocalDateTime.now();
-    UUID registrationId = UUID.randomUUID();
-    boolean paid = "PAID".equals(session.feeType());
-    String status = paid ? "PENDING_PAYMENT" : "CONFIRMED";
-
-    MapSqlParameterSource insertParams = new MapSqlParameterSource()
-        .addValue("id", registrationId)
-        .addValue("studentId", student.id())
-        .addValue("sessionId", sessionId)
-        .addValue("status", status)
-        .addValue("registrationType", session.feeType())
-        .addValue("reservedAt", paid ? Timestamp.valueOf(now) : null)
-        .addValue("confirmedAt", paid ? null : Timestamp.valueOf(now))
-        .addValue("expiresAt", paid ? Timestamp.valueOf(now.plusMinutes(15)) : null)
-        .addValue("now", Timestamp.valueOf(now));
-    jdbcTemplate.update(SQL_INSERT_REGISTRATION, insertParams);
-
-    MapSqlParameterSource updateParams = new MapSqlParameterSource()
-        .addValue("sessionId", sessionId)
-        .addValue("confirmedDelta", paid ? 0 : 1)
-        .addValue("reservedDelta", paid ? 1 : 0)
-        .addValue("now", Timestamp.valueOf(now));
-    jdbcTemplate.update(SQL_UPDATE_SESSION_SEATS, updateParams);
-
-    return registrationQueryService.getRegistration(registrationId);
+    return student;
   }
 
-  private UUID findActiveRegistrationId(UUID studentId, UUID sessionId) {
-    MapSqlParameterSource params = new MapSqlParameterSource()
-        .addValue("studentId", studentId)
-        .addValue("sessionId", sessionId);
-    List<UUID> rows = jdbcTemplate.query(
-        SQL_FIND_ACTIVE_REGISTRATION,
-        params,
-        (rs, rowNum) -> rs.getObject("id", UUID.class));
-    return rows.stream().findFirst().orElse(null);
+  private RegistrationSessionSnapshot requireRegisterableSession(UUID sessionId, FeeType expectedFeeType) {
+    RegistrationSessionSnapshot session = registrationRepository.lockSessionForRegistration(sessionId);
+    if (session == null) {
+      throw new RegistrationException(RegistrationErrorCode.REG_SESSION_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+    if (session.workshopStatus() != WorkshopStatus.PUBLISHED) {
+      throw new RegistrationException(RegistrationErrorCode.REG_SESSION_NOT_REGISTERABLE, HttpStatus.CONFLICT);
+    }
+    if (session.sessionStatus() == WorkshopSessionStatus.CANCELED) {
+      throw new RegistrationException(RegistrationErrorCode.REG_SESSION_CANCELED, HttpStatus.CONFLICT);
+    }
+    if (session.sessionStatus() != WorkshopSessionStatus.OPEN
+        && session.sessionStatus() != WorkshopSessionStatus.FULL) {
+      throw new RegistrationException(RegistrationErrorCode.REG_SESSION_NOT_REGISTERABLE, HttpStatus.CONFLICT);
+    }
+    if (expectedFeeType == FeeType.FREE && session.feeType() != FeeType.FREE) {
+      throw new RegistrationException(RegistrationErrorCode.REG_PAYMENT_REQUIRED, HttpStatus.BAD_REQUEST);
+    }
+    if (expectedFeeType == FeeType.PAID && session.feeType() != FeeType.PAID) {
+      throw new RegistrationException(RegistrationErrorCode.REG_PAYMENT_NOT_REQUIRED, HttpStatus.BAD_REQUEST);
+    }
+    return session;
   }
 
-  private SessionForRegistration findSession(UUID sessionId) {
-    MapSqlParameterSource params = new MapSqlParameterSource("sessionId", sessionId);
-    List<SessionForRegistration> rows = jdbcTemplate.query(
-        SQL_FIND_SESSION_FOR_REGISTRATION,
-        params,
-        sessionRowMapper());
-    return rows.stream()
-        .findFirst()
-        .orElseThrow(() -> new RegistrationException(
-            RegistrationErrorCode.WORKSHOP_SESSION_NOT_FOUND,
-            HttpStatus.NOT_FOUND));
-  }
-
-  private void validateSession(SessionForRegistration session) {
-    if (!"PUBLISHED".equals(session.workshopStatus())) {
-      throw new RegistrationException(RegistrationErrorCode.WORKSHOP_NOT_AVAILABLE, HttpStatus.CONFLICT);
-    }
-    if (!"OPEN".equals(session.sessionStatus())) {
-      throw new RegistrationException(RegistrationErrorCode.WORKSHOP_SESSION_NOT_OPEN, HttpStatus.CONFLICT);
-    }
-    if (session.seatCapacity() <= session.seatsConfirmed() + session.seatsReserved()) {
-      throw new RegistrationException(RegistrationErrorCode.WORKSHOP_SESSION_FULL, HttpStatus.CONFLICT);
+  private void ensureNoDuplicate(UUID studentId, UUID sessionId) {
+    if (registrationRepository.findActiveByStudentAndSession(studentId, sessionId).isPresent()) {
+      throw duplicateRegistration();
     }
   }
 
-  private RowMapper<SessionForRegistration> sessionRowMapper() {
-    return (rs, rowNum) -> new SessionForRegistration(
-        rs.getObject("id", UUID.class),
-        rs.getString("session_status"),
-        rs.getInt("seat_capacity"),
-        rs.getInt("seats_confirmed"),
-        rs.getInt("seats_reserved"),
-        rs.getString("fee_type"),
-        rs.getBigDecimal("fee_amount"),
-        rs.getString("currency"),
-        rs.getString("workshop_status"));
+  private void ensureCapacity(RegistrationSessionSnapshot session) {
+    if (session.remainingSeats() <= 0) {
+      throw new RegistrationException(RegistrationErrorCode.REG_SESSION_FULL, HttpStatus.CONFLICT);
+    }
   }
 
-  private record SessionForRegistration(
-      UUID id,
-      String sessionStatus,
-      int seatCapacity,
-      int seatsConfirmed,
-      int seatsReserved,
-      String feeType,
-      BigDecimal feeAmount,
-      String currency,
-      String workshopStatus) {
+  private RegistrationException duplicateRegistration() {
+    return new RegistrationException(RegistrationErrorCode.REG_ALREADY_EXISTS, HttpStatus.CONFLICT);
   }
 }

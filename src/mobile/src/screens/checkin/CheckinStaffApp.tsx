@@ -8,12 +8,16 @@ import {
 } from "../../models/types";
 import {
   getCheckinHistory,
+  getCheckinSessions,
   getOfflineQueue,
+  queueOfflineCheckin,
   syncOfflineQueue,
   verifyCheckin,
 } from "../../services/checkinService";
+import { CheckinSession } from "../../services/checkinApi";
 import { colors, spacing } from "../../theme/theme";
 import { Badge, Button, Card, EmptyState, TabBar } from "../../components/ui";
+import { SelectField } from "../../components/SelectField";
 
 type CheckinTab = "scanner" | "queue" | "history" | "profile";
 
@@ -41,21 +45,61 @@ export function CheckinStaffApp({ account }: { account: Account }) {
 }
 
 function ScannerScreen() {
+  const [sessions, setSessions] = useState<CheckinSession[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState("");
   const [token, setToken] = useState("");
   const [result, setResult] = useState<CheckinResult | null>(null);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [queueing, setQueueing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const refreshSessions = async () => {
+    setSessionsLoading(true);
+    setError(null);
+    try {
+      const nextSessions = await getCheckinSessions();
+      setSessions(nextSessions);
+      setSelectedSessionId((current) => current || nextSessions[0]?.sessionId || "");
+    } catch (err) {
+      setSessions([]);
+      setError(err instanceof Error ? err.message : "Unable to load check-in sessions.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshSessions();
+  }, []);
 
   const scan = async () => {
     setLoading(true);
     setResult(null);
     setError(null);
+    setMessage(null);
     try {
-      setResult(await verifyCheckin(token));
+      setResult(await verifyCheckin(selectedSessionId, token));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Check-in failed.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const queueOffline = async () => {
+    setQueueing(true);
+    setResult(null);
+    setError(null);
+    setMessage(null);
+    try {
+      await queueOfflineCheckin(selectedSessionId, token);
+      setMessage("Scan queued offline. Open Offline Queue to sync it.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to queue offline scan.");
+    } finally {
+      setQueueing(false);
     }
   };
 
@@ -68,6 +112,21 @@ function ScannerScreen() {
             <Text style={styles.body}>Enter a QR token to verify check-in.</Text>
           </View>
         </View>
+        <SelectField
+          label="Workshop session"
+          value={selectedSessionId}
+          options={sessions.map((session) => ({
+            label: session.workshopTitle,
+            value: session.sessionId,
+            description: `${session.roomName}, ${session.building} - ${session.checkinOpen ? "Open" : "Closed"}`,
+          }))}
+          placeholder="Select a session"
+          loading={sessionsLoading}
+          loadError={!sessionsLoading && sessions.length === 0 ? error : null}
+          emptyText="No check-in sessions available"
+          onChange={setSelectedSessionId}
+          onRetry={refreshSessions}
+        />
         <View style={styles.scannerFrame}>
           <Text style={styles.scannerText}>QR scan area</Text>
         </View>
@@ -82,9 +141,16 @@ function ScannerScreen() {
         <Button
           label={loading ? "Verifying..." : "Verify"}
           onPress={scan}
-          disabled={loading || !token.trim()}
+          disabled={loading || queueing || !token.trim() || !selectedSessionId}
+        />
+        <Button
+          label={queueing ? "Queueing..." : "Queue offline"}
+          onPress={queueOffline}
+          disabled={loading || queueing || !token.trim() || !selectedSessionId}
+          variant="secondary"
         />
       </Card>
+      {message ? <Card><Text style={styles.success}>{message}</Text></Card> : null}
       {error ? <Card><Text style={styles.error}>{error}</Text></Card> : null}
       {result ? <CheckinResultCard result={result} /> : null}
     </View>

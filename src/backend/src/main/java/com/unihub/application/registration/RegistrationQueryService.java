@@ -1,109 +1,72 @@
 package com.unihub.application.registration;
 
+import com.unihub.application.qr.QrTicketData;
+import com.unihub.application.qr.QrTicketService;
+import com.unihub.application.registration.exception.RegistrationException;
+import com.unihub.domain.registration.Registration;
+import com.unihub.domain.registration.RegistrationErrorCode;
+import com.unihub.domain.registration.RegistrationRepository;
+import com.unihub.domain.registration.RegistrationView;
 import com.unihub.domain.student.Student;
 import com.unihub.domain.student.StudentRepository;
-import com.unihub.presentation.dto.response.registration.RegistrationResponse;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RegistrationQueryService {
-  private static final String SQL_FIND_BY_USER_ID = """
-      SELECT
-        r.id,
-        w.id AS workshop_id,
-        w.title AS workshop_title,
-        r.status,
-        ws.start_at,
-        ws.end_at
-      FROM registrations r
-      JOIN workshop_sessions ws ON ws.id = r.session_id
-      JOIN workshops w ON w.id = ws.workshop_id
-      WHERE r.student_id = :studentId
-      ORDER BY COALESCE(r.confirmed_at, r.reserved_at, r.created_at) DESC
-      """;
-
-  private static final String SQL_FIND_BY_ID = """
-      SELECT
-        r.id,
-        w.id AS workshop_id,
-        w.title AS workshop_title,
-        r.status,
-        ws.start_at,
-        ws.end_at
-      FROM registrations r
-      JOIN workshop_sessions ws ON ws.id = r.session_id
-      JOIN workshops w ON w.id = ws.workshop_id
-      WHERE r.id = :registrationId
-      LIMIT 1
-      """;
-
-  private final NamedParameterJdbcTemplate jdbcTemplate;
   private final StudentRepository studentRepository;
+  private final RegistrationRepository registrationRepository;
+  private final QrTicketService qrTicketService;
 
   public RegistrationQueryService(
-      NamedParameterJdbcTemplate jdbcTemplate,
-      StudentRepository studentRepository) {
-    this.jdbcTemplate = jdbcTemplate;
+      StudentRepository studentRepository,
+      RegistrationRepository registrationRepository,
+      QrTicketService qrTicketService) {
     this.studentRepository = studentRepository;
+    this.registrationRepository = registrationRepository;
+    this.qrTicketService = qrTicketService;
   }
 
-  public List<RegistrationResponse> listForUser(UUID userId) {
+  @Transactional(readOnly = true)
+  public List<RegistrationView> getMyRegistrations(UUID userId) {
+    Student student = requireStudent(userId);
+    return registrationRepository.findViewsByStudentId(student.id());
+  }
+
+  @Transactional(readOnly = true)
+  public RegistrationView getMyRegistration(UUID userId, UUID registrationId) {
+    Student student = requireStudent(userId);
+    return requireOwnedRegistration(registrationId, student.id());
+  }
+
+  @Transactional(readOnly = true)
+  public QrTicketData getMyRegistrationQr(UUID userId, UUID registrationId) {
+    Student student = requireStudent(userId);
+    RegistrationView view = requireOwnedRegistration(registrationId, student.id());
+    if (!view.qrAvailable() || !view.registrationStatus().isConfirmed()) {
+      throw new RegistrationException(RegistrationErrorCode.REG_QR_NOT_AVAILABLE, HttpStatus.CONFLICT);
+    }
+    return qrTicketService.getQrTicketData(registrationId);
+  }
+
+  private Student requireStudent(UUID userId) {
     return studentRepository.findByUserId(userId)
-        .map(this::listForStudent)
-        .orElseGet(List::of);
+        .orElseThrow(() -> new RegistrationException(RegistrationErrorCode.REG_STUDENT_NOT_ELIGIBLE, HttpStatus.FORBIDDEN));
   }
 
-  public RegistrationResponse getRegistration(UUID registrationId) {
-    MapSqlParameterSource params = new MapSqlParameterSource("registrationId", registrationId);
-    return jdbcTemplate.query(SQL_FIND_BY_ID, params, registrationRowMapper())
-        .stream()
-        .findFirst()
-        .orElseThrow();
+  private RegistrationView requireOwnedRegistration(UUID registrationId, UUID studentId) {
+    return registrationRepository.findViewByIdForStudent(registrationId, studentId)
+        .orElseThrow(() -> notFoundOrForbidden(registrationId));
   }
 
-  private List<RegistrationResponse> listForStudent(Student student) {
-    MapSqlParameterSource params = new MapSqlParameterSource("studentId", student.id());
-    return jdbcTemplate.query(SQL_FIND_BY_USER_ID, params, registrationRowMapper());
-  }
-
-  private RowMapper<RegistrationResponse> registrationRowMapper() {
-    return (rs, rowNum) -> {
-      String status = rs.getString("status");
-      String title = rs.getString("workshop_title");
-      return new RegistrationResponse(
-          rs.getObject("id", UUID.class),
-          rs.getObject("workshop_id", UUID.class),
-          title,
-          status,
-          null,
-          registrationMessage(status, title),
-          registrationNotification(status));
-    };
-  }
-
-  private String registrationMessage(String status, String workshopTitle) {
-    return switch (status) {
-      case "CONFIRMED" -> "Your registration for " + workshopTitle + " is confirmed.";
-      case "PENDING_PAYMENT" -> "Complete payment to confirm your registration.";
-      case "PAYMENT_FAILED" -> "Payment failed. Please try registering again.";
-      case "EXPIRED" -> "This registration expired before it was confirmed.";
-      case "CANCELED" -> "This registration was cancelled.";
-      default -> "Registration status: " + status;
-    };
-  }
-
-  private String registrationNotification(String status) {
-    return switch (status) {
-      case "CONFIRMED" -> "Show this ticket at check-in.";
-      case "PENDING_PAYMENT" -> "Your seat is reserved until the payment window expires.";
-      case "PAYMENT_FAILED" -> "No ticket was issued for this registration.";
-      case "EXPIRED", "CANCELED" -> "This registration is no longer active.";
-      default -> "Check the latest registration status before attending.";
-    };
+  private RegistrationException notFoundOrForbidden(UUID registrationId) {
+    Registration registration = registrationRepository.findById(registrationId).orElse(null);
+    if (registration == null) {
+      return new RegistrationException(RegistrationErrorCode.REG_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+    return new RegistrationException(RegistrationErrorCode.REG_ACCESS_DENIED, HttpStatus.FORBIDDEN);
   }
 }

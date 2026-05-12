@@ -8,7 +8,11 @@ public class RegistrationException extends RuntimeException {
   private final HttpStatus status;
 
   public RegistrationException(RegistrationErrorCode errorCode, HttpStatus status) {
-    super(errorCode.defaultMessage());
+    this(errorCode, status, errorCode.defaultMessage());
+  }
+
+  public RegistrationException(RegistrationErrorCode errorCode, HttpStatus status, String message) {
+    super(message);
     this.errorCode = errorCode;
     this.status = status;
   }

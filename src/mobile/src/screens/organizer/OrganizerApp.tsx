@@ -69,8 +69,16 @@ export function OrganizerApp({ account }: { account: Account }) {
       const result = await getOrganizerDashboard();
       setStats(result.stats);
       setWorkshops(result.workshops);
+      setSelectedWorkshop((current) =>
+        current
+          ? result.workshops.find((workshop) => workshop.id === current.id) ??
+            current
+          : current,
+      );
+      return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load workshops.");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -90,6 +98,7 @@ export function OrganizerApp({ account }: { account: Account }) {
     }
     setActionLoading(true);
     setError(null);
+    setMessage(null);
     try {
       const created = await createWorkshop(values);
       setMessage(`${created.title} created as ${created.status.toLowerCase()}.`);
@@ -108,11 +117,21 @@ export function OrganizerApp({ account }: { account: Account }) {
     }
     setActionLoading(true);
     setError(null);
+    setMessage(null);
     try {
       const updated = await updateWorkshop(selectedWorkshop, values);
       setSelectedWorkshop(updated);
-      setMessage(`${updated.title} updated.`);
-      await refreshDashboard();
+      setWorkshops((current) =>
+        current.map((workshop) =>
+          workshop.id === updated.id ? updated : workshop,
+        ),
+      );
+      setMessage("Workshop updated successfully");
+      const refreshed = await refreshDashboard();
+      const refreshedWorkshop = refreshed?.workshops.find(
+        (workshop) => workshop.id === updated.id,
+      );
+      setSelectedWorkshop(refreshedWorkshop ?? updated);
       setWorkshopView("detail");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update workshop failed.");
@@ -132,6 +151,7 @@ export function OrganizerApp({ account }: { account: Account }) {
     }
     setActionLoading(true);
     setError(null);
+    setMessage(null);
     try {
       const result = await cancelWorkshop(confirmWorkshop);
       setSelectedWorkshop(result);
@@ -275,38 +295,57 @@ function WorkshopWorkspace({
   onCreateSubmit: (values: WorkshopFormValues) => void;
   onEditSubmit: (values: WorkshopFormValues) => void;
 }) {
+  const notice =
+    view === "list" ? null : (
+      <Notice
+        message={message}
+        error={error}
+        onClearMessage={onClearMessage}
+        onClearError={onClearError}
+      />
+    );
+
   if (view === "create") {
     return (
-      <WorkshopFormScreen
-        mode="create"
-        onCancel={onBack}
-        onSubmit={onCreateSubmit}
-        submitting={actionLoading}
-      />
+      <View style={styles.stack}>
+        {notice}
+        <WorkshopFormScreen
+          mode="create"
+          onCancel={onBack}
+          onSubmit={onCreateSubmit}
+          submitting={actionLoading}
+        />
+      </View>
     );
   }
 
   if (view === "edit" && selectedWorkshop) {
     return (
-      <WorkshopFormScreen
-        mode="edit"
-        workshop={selectedWorkshop}
-        onCancel={() => onView(selectedWorkshop)}
-        onSubmit={onEditSubmit}
-        submitting={actionLoading}
-      />
+      <View style={styles.stack}>
+        {notice}
+        <WorkshopFormScreen
+          mode="edit"
+          workshop={selectedWorkshop}
+          onCancel={() => onView(selectedWorkshop)}
+          onSubmit={onEditSubmit}
+          submitting={actionLoading}
+        />
+      </View>
     );
   }
 
   if (view === "detail" && selectedWorkshop) {
     return (
-      <OrganizerWorkshopDetail
-        workshop={selectedWorkshop}
-        onBack={onBack}
-        onEdit={() => onEdit(selectedWorkshop)}
-        onCancel={() => onCancelRequest(selectedWorkshop)}
-        actionLoading={actionLoading}
-      />
+      <View style={styles.stack}>
+        {notice}
+        <OrganizerWorkshopDetail
+          workshop={selectedWorkshop}
+          onBack={onBack}
+          onEdit={() => onEdit(selectedWorkshop)}
+          onCancel={() => onCancelRequest(selectedWorkshop)}
+          actionLoading={actionLoading}
+        />
+      </View>
     );
   }
 
@@ -323,6 +362,39 @@ function WorkshopWorkspace({
       onEdit={onEdit}
       onCancel={onCancelRequest}
     />
+  );
+}
+
+function Notice({
+  message,
+  error,
+  onClearMessage,
+  onClearError,
+}: {
+  message: string | null;
+  error: string | null;
+  onClearMessage: () => void;
+  onClearError: () => void;
+}) {
+  if (!message && !error) {
+    return null;
+  }
+
+  return (
+    <Card>
+      {message ? (
+        <View style={styles.messageRow}>
+          <Text style={styles.success}>{message}</Text>
+          <Button label="OK" onPress={onClearMessage} variant="secondary" />
+        </View>
+      ) : null}
+      {error ? (
+        <View style={styles.messageRow}>
+          <Text style={styles.error}>{error}</Text>
+          <Button label="OK" onPress={onClearError} variant="secondary" />
+        </View>
+      ) : null}
+    </Card>
   );
 }
 

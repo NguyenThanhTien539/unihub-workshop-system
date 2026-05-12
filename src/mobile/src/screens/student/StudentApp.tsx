@@ -236,7 +236,7 @@ function WorkshopDetail({
     setRegistering(true);
     setError(null);
     try {
-      await registerForWorkshop(detail.sessionId);
+      await registerForWorkshop(detail.sessionId, detail.feeType);
       const refreshedDetail = await getWorkshopDetail(workshop.id);
       setDetail(refreshedDetail);
       await onRegistered();

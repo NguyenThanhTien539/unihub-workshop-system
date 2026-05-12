@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,7 +26,7 @@ public class WorkshopController {
   }
 
   @GetMapping
-  public ApiResponse<List<WorkshopListResponse>> listWorkshops(
+  public ResponseEntity<ApiResponse<List<WorkshopListResponse>>> listWorkshops(
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) FeeType feeType,
       @RequestParam(required = false) UUID roomId,
@@ -39,12 +40,12 @@ public class WorkshopController {
         date,
         page,
         size);
-    return ApiResponse.success(responses);
+    return ResponseEntity.ok(ApiResponse.success(responses));
   }
 
   @GetMapping("/{workshopId}")
-  public ApiResponse<WorkshopDetailResponse> getWorkshopDetail(@PathVariable UUID workshopId) {
+  public ResponseEntity<ApiResponse<WorkshopDetailResponse>> getWorkshopDetail(@PathVariable UUID workshopId) {
     WorkshopDetailResponse response = workshopQueryService.getPublishedWorkshopDetail(workshopId);
-    return ApiResponse.success(response);
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 }

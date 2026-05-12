@@ -56,6 +56,26 @@ type CreateSessionBody = {
   currency: string;
 };
 
+type BackendRegistration = {
+  registrationId: string;
+  workshopId: string;
+  workshopTitle: string;
+  sessionId: string;
+  registrationStatus: Registration["status"] | string;
+  registrationType: "FREE" | "PAID" | string;
+  paymentStatus?: string | null;
+  qrAvailable: boolean;
+};
+
+type BackendRegistrationMutation = {
+  registrationId: string;
+  workshopId: string;
+  sessionId: string;
+  registrationStatus: Registration["status"] | string;
+  qrAvailable: boolean;
+  paymentStatus?: string | null;
+};
+
 export async function getWorkshops(): Promise<Workshop[]> {
   const response = await apiRequest<BackendWorkshopListItem[]>("/api/workshops");
   return response.map(mapWorkshopListItem);
@@ -67,15 +87,22 @@ export async function getWorkshopDetail(workshopId: string): Promise<Workshop> {
 }
 
 export async function getMyRegistrations(): Promise<Registration[]> {
-  const response = await apiRequest<Registration[]>("/api/registrations");
-  return response;
+  const response = await apiRequest<BackendRegistration[]>("/api/registrations/me");
+  return response.map(mapRegistration);
 }
 
-export async function registerForWorkshop(sessionId: string): Promise<Registration> {
-  return apiRequest<Registration>("/api/registrations", {
+export async function registerForWorkshop(
+  sessionId: string,
+  feeType: "FREE" | "PAID" = "FREE",
+): Promise<Registration> {
+  const response = await apiRequest<BackendRegistrationMutation>(
+    `/api/registrations/${feeType === "PAID" ? "paid" : "free"}`,
+    {
     method: "POST",
     body: { sessionId },
-  });
+    },
+  );
+  return mapRegistrationMutation(response);
 }
 
 export async function getOrganizerDashboard() {
@@ -213,6 +240,34 @@ function mapWorkshopDetail(item: BackendWorkshop): Workshop {
   };
 }
 
+function mapRegistration(item: BackendRegistration): Registration {
+  const status = normalizeRegistrationStatus(item.registrationStatus);
+  return {
+    id: item.registrationId,
+    workshopId: item.workshopId,
+    workshopTitle: item.workshopTitle,
+    status,
+    message: registrationMessage(status, item.registrationType, item.paymentStatus),
+    notification: item.qrAvailable
+      ? "Your QR ticket is available from the registration detail endpoint."
+      : "Your QR ticket will appear after the registration is confirmed.",
+  };
+}
+
+function mapRegistrationMutation(item: BackendRegistrationMutation): Registration {
+  const status = normalizeRegistrationStatus(item.registrationStatus);
+  return {
+    id: item.registrationId,
+    workshopId: item.workshopId,
+    workshopTitle: "Registered workshop",
+    status,
+    message: registrationMessage(status, "FREE", item.paymentStatus),
+    notification: item.qrAvailable
+      ? "Registration confirmed. Refresh your registrations to view the ticket state."
+      : "Complete payment to confirm this registration.",
+  };
+}
+
 function toManagedWorkshop(workshop: Workshop): ManagedWorkshop {
   const registrations = Math.max(0, workshop.capacity - workshop.remainingSeats);
   return {
@@ -266,6 +321,41 @@ function normalizeStatus(status: string, remainingSeats?: number): WorkshopStatu
     return status;
   }
   return "DRAFT";
+}
+
+function normalizeRegistrationStatus(status: string): Registration["status"] {
+  if (
+    status === "CONFIRMED" ||
+    status === "PENDING_PAYMENT" ||
+    status === "PAYMENT_FAILED" ||
+    status === "EXPIRED" ||
+    status === "CANCELED"
+  ) {
+    return status;
+  }
+  return "PENDING_PAYMENT";
+}
+
+function registrationMessage(
+  status: Registration["status"],
+  type?: string,
+  paymentStatus?: string | null,
+) {
+  if (status === "CONFIRMED") {
+    return "Registration confirmed.";
+  }
+  if (status === "PENDING_PAYMENT" || paymentStatus === "PENDING") {
+    return type === "PAID"
+      ? "Payment is pending. Complete payment to confirm your seat."
+      : "Registration is waiting for confirmation.";
+  }
+  if (status === "PAYMENT_FAILED") {
+    return "Payment failed. Please try registering again.";
+  }
+  if (status === "EXPIRED") {
+    return "This registration expired.";
+  }
+  return "This registration was canceled.";
 }
 
 function buildStats(workshops: ManagedWorkshop[]) {

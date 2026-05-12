@@ -346,7 +346,7 @@ function SessionEditor({
             {formatSessionTime(session.startAt, session.endAt)} tại {formatLocation(session)}
           </div>
           <div className="mt-1 text-sm text-slate-500">
-            {formatSeatSummary(session)}, {formatMoney(Number(session.feeAmount), session.currency)}
+            {formatSeatSummary(session)}, {formatMoney(Number(session.feeAmount), session.currency ?? "VND")}
           </div>
         </div>
         <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">

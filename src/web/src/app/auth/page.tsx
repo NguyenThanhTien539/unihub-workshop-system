@@ -8,39 +8,58 @@ export default function AuthPage() {
       <div className="w-full max-w-2xl rounded-2xl bg-white/90 p-8 shadow-lg">
         <div className="text-center">
           <h1 className="text-2xl font-semibold">UniHub Workshop</h1>
-          <p className="mt-1 text-sm text-slate-600">Chọn vai trò để tiếp tục</p>
+          <p className="mt-1 text-sm text-slate-600">Choose a role to continue</p>
         </div>
 
         <div className="mt-6 space-y-4">
-          <Link
+          <RoleCard
             href="/auth/login?role=student"
-            className="flex items-center justify-between rounded-lg border border-black/10 bg-white px-4 py-4 shadow-sm hover:bg-slate-50"
-          >
-            <div className="flex items-center gap-5">
-              <FaUser />
-              <div>
-                <p className="font-medium">Sinh viên</p>
-                <p className="text-sm text-slate-500">Xem và đăng ký workshop</p>
-              </div>
-            </div>
-            <div className="text-slate-400">➜</div>
-          </Link>
-
-          <Link
+            icon={<FaUser />}
+            title="Student"
+            description="Browse workshops, register, and open QR tickets"
+          />
+          <RoleCard
             href="/auth/login?role=organizer"
-            className="flex items-center justify-between rounded-lg border border-black/10 bg-white px-4 py-4 shadow-sm hover:bg-slate-50"
-          >
-            <div className="flex items-center gap-5">
-              <FaShieldHalved />
-              <div>
-                <p className="font-medium">Ban tổ chức</p>
-                <p className="text-sm text-slate-500">Quản lý workshop và thống kê</p>
-              </div>
-            </div>
-            <div className="text-slate-400">➜</div>
-          </Link>
+            icon={<FaShieldHalved />}
+            title="Organizer"
+            description="Manage workshops, sessions, and publish changes"
+          />
+          <RoleCard
+            href="/auth/login?role=checkin"
+            icon={<FaShieldHalved />}
+            title="Check-in staff"
+            description="Validate attendee QR codes and sync door activity"
+          />
         </div>
       </div>
     </div>
+  );
+}
+
+function RoleCard({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between rounded-lg border border-black/10 bg-white px-4 py-4 shadow-sm transition hover:bg-slate-50"
+    >
+      <div className="flex items-center gap-5">
+        {icon}
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="text-sm text-slate-500">{description}</p>
+        </div>
+      </div>
+      <div className="text-slate-400">→</div>
+    </Link>
   );
 }

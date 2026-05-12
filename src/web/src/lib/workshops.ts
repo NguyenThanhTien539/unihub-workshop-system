@@ -1,14 +1,6 @@
-import { apiFetch } from "./api";
-import { fetchWithAuth } from "./adminAuth";
+"use client";
 
-type ApiResponse<T> = {
-  data?: T;
-  error?: {
-    code?: string;
-    message?: string;
-  };
-  message?: string;
-};
+import { apiRequest } from "./apiClient";
 
 export type FeeType = "FREE" | "PAID";
 export type WorkshopStatus = "DRAFT" | "PUBLISHED" | "CANCELED" | "ARCHIVED";
@@ -23,8 +15,8 @@ export type WorkshopListSession = {
   status: SessionStatus;
   remainingSeats: number;
   feeType: FeeType;
-  feeAmount: number;
-  currency: string;
+  feeAmount: number | null;
+  currency: string | null;
 };
 
 export type WorkshopSession = WorkshopListSession & {
@@ -69,6 +61,7 @@ export type WorkshopFilters = {
   keyword?: string;
   feeType?: FeeType | "";
   date?: string;
+  roomId?: string;
   status?: WorkshopStatus | "";
   page?: number;
   size?: number;
@@ -104,7 +97,7 @@ export function getFirstSession(workshop: WorkshopListItem | WorkshopDetail) {
 }
 
 export function formatSessionDate(value?: string | null) {
-  if (!value) return "Chưa xếp lịch";
+  if (!value) return "Chua xep lich";
   return new Intl.DateTimeFormat("vi-VN", {
     weekday: "long",
     day: "2-digit",
@@ -114,7 +107,7 @@ export function formatSessionDate(value?: string | null) {
 }
 
 export function formatSessionTime(startAt?: string | null, endAt?: string | null) {
-  if (!startAt || !endAt) return "Chưa có thời gian";
+  if (!startAt || !endAt) return "Chua co thoi gian";
   const formatter = new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
@@ -122,9 +115,20 @@ export function formatSessionTime(startAt?: string | null, endAt?: string | null
   return `${formatter.format(new Date(startAt))} - ${formatter.format(new Date(endAt))}`;
 }
 
+export function formatDateTime(value?: string | null) {
+  if (!value) return "Chua cap nhat";
+  return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 export function formatMoney(amount?: number | null, currency = "VND") {
   const safeAmount = Number(amount ?? 0);
-  if (safeAmount <= 0) return "Miễn phí";
+  if (safeAmount <= 0) return "Mien phi";
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency,
@@ -133,32 +137,32 @@ export function formatMoney(amount?: number | null, currency = "VND") {
 }
 
 export function formatLocation(session?: WorkshopListSession | WorkshopSession | null) {
-  if (!session) return "Chưa có phòng";
+  if (!session) return "Chua co phong";
   return `${session.roomName}, ${session.building}`;
 }
 
 export function formatSeatSummary(session?: WorkshopListSession | WorkshopSession | null) {
-  if (!session) return "Chưa có sức chứa";
+  if (!session) return "Chua co suc chua";
   if ("seatCapacity" in session) {
-    return `Còn ${session.remainingSeats}/${session.seatCapacity} chỗ`;
+    return `Con ${session.remainingSeats}/${session.seatCapacity} cho`;
   }
-  return `Còn ${session.remainingSeats} chỗ`;
+  return `Con ${session.remainingSeats} cho`;
 }
 
 export function statusLabel(status: string) {
   switch (status) {
     case "DRAFT":
-      return "Nháp";
+      return "Nhap";
     case "PUBLISHED":
-      return "Đã xuất bản";
+      return "Da xuat ban";
     case "CANCELED":
-      return "Đã hủy";
+      return "Da huy";
     case "ARCHIVED":
-      return "Lưu trữ";
+      return "Luu tru";
     case "OPEN":
-      return "Mở đăng ký";
+      return "Mo dang ky";
     case "CLOSED":
-      return "Đã đóng";
+      return "Da dong";
     default:
       return status;
   }
@@ -175,91 +179,95 @@ export function toApiDateTime(value: string) {
 }
 
 export async function listPublicWorkshops(filters: WorkshopFilters = {}) {
-  return requestPublic<WorkshopListItem[]>(`/api/workshops${queryString(filters)}`);
+  return apiRequest<WorkshopListItem[]>(`/api/workshops${queryString(filters)}`);
 }
 
 export async function getPublicWorkshop(id: string) {
-  return requestPublic<WorkshopDetail>(`/api/workshops/${id}`);
+  return apiRequest<WorkshopDetail>(`/api/workshops/${id}`);
 }
 
 export async function listAdminWorkshops(filters: WorkshopFilters = {}) {
-  return requestAdmin<WorkshopDetail[]>(`/api/admin/workshops${queryString(filters)}`);
+  return apiRequest<WorkshopDetail[]>(`/api/admin/workshops${queryString(filters)}`, undefined, { auth: true });
 }
 
 export async function getAdminWorkshop(id: string) {
-  return requestAdmin<WorkshopDetail>(`/api/admin/workshops/${id}`);
+  return apiRequest<WorkshopDetail>(`/api/admin/workshops/${id}`, undefined, { auth: true });
 }
 
 export async function createWorkshop(payload: CreateWorkshopPayload) {
-  return requestAdmin<WorkshopDetail>("/api/admin/workshops", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return apiRequest<WorkshopDetail>(
+    "/api/admin/workshops",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  );
 }
 
 export async function updateWorkshop(id: string, payload: UpdateWorkshopPayload) {
-  return requestAdmin<WorkshopDetail>(`/api/admin/workshops/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return apiRequest<WorkshopDetail>(
+    `/api/admin/workshops/${id}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  );
 }
 
 export async function publishWorkshop(id: string) {
-  return requestAdmin<WorkshopDetail>(`/api/admin/workshops/${id}/publish`, {
-    method: "POST",
-  });
+  return apiRequest<WorkshopDetail>(
+    `/api/admin/workshops/${id}/publish`,
+    { method: "POST" },
+    { auth: true },
+  );
 }
 
 export async function cancelWorkshop(id: string) {
-  return requestAdmin<WorkshopDetail>(`/api/admin/workshops/${id}/cancel`, {
-    method: "POST",
-  });
+  return apiRequest<WorkshopDetail>(
+    `/api/admin/workshops/${id}/cancel`,
+    { method: "POST" },
+    { auth: true },
+  );
 }
 
 export async function createWorkshopSession(id: string, payload: CreateWorkshopSessionPayload) {
-  return requestAdmin<WorkshopSession>(`/api/admin/workshops/${id}/sessions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return apiRequest<WorkshopSession>(
+    `/api/admin/workshops/${id}/sessions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  );
 }
 
 export async function updateWorkshopSession(id: string, payload: UpdateWorkshopSessionPayload) {
-  return requestAdmin<WorkshopSession>(`/api/admin/sessions/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return apiRequest<WorkshopSession>(
+    `/api/admin/sessions/${id}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  );
 }
 
 export async function cancelWorkshopSession(id: string) {
-  return requestAdmin<WorkshopSession>(`/api/admin/sessions/${id}/cancel`, {
-    method: "POST",
-  });
+  return apiRequest<WorkshopSession>(
+    `/api/admin/sessions/${id}/cancel`,
+    { method: "POST" },
+    { auth: true },
+  );
 }
 
 export async function listRooms(includeInactive = false) {
-  return requestAdmin<Room[]>(`/api/admin/rooms?includeInactive=${includeInactive}`);
-}
-
-async function requestPublic<T>(path: string, init?: RequestInit) {
-  const res = await apiFetch(path, init);
-  return readApiResponse<T>(res);
-}
-
-async function requestAdmin<T>(path: string, init?: RequestInit) {
-  const res = await fetchWithAuth(path, init);
-  return readApiResponse<T>(res);
-}
-
-async function readApiResponse<T>(res: Response) {
-  const body = (await res.json()) as ApiResponse<T>;
-  if (!res.ok || body.data === undefined) {
-    throw new Error(body.error?.message ?? body.message ?? "Request failed");
-  }
-  return body.data;
+  return apiRequest<Room[]>(`/api/admin/rooms?includeInactive=${includeInactive}`, undefined, { auth: true });
 }
 
 function queryString(filters: WorkshopFilters) {
@@ -268,6 +276,7 @@ function queryString(filters: WorkshopFilters) {
   if (filters.keyword?.trim()) params.set("keyword", filters.keyword.trim());
   if (filters.feeType) params.set("feeType", filters.feeType);
   if (filters.date) params.set("date", filters.date);
+  if (filters.roomId) params.set("roomId", filters.roomId);
   if (filters.status) params.set("status", filters.status);
   if (filters.page !== undefined) params.set("page", String(filters.page));
   if (filters.size !== undefined) params.set("size", String(filters.size));

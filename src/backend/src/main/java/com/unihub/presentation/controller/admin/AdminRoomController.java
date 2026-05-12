@@ -4,6 +4,7 @@ import com.unihub.application.workshop.WorkshopQueryService;
 import com.unihub.presentation.ApiResponse;
 import com.unihub.presentation.dto.response.workshop.RoomResponse;
 import java.util.List;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,9 +20,9 @@ public class AdminRoomController {
   }
 
   @GetMapping
-  public ApiResponse<List<RoomResponse>> listRooms(
+  public ResponseEntity<ApiResponse<List<RoomResponse>>> listRooms(
       @RequestParam(name = "includeInactive", required = false, defaultValue = "false") boolean includeInactive) {
     List<RoomResponse> responses = workshopQueryService.listRooms(includeInactive);
-    return ApiResponse.success(responses);
+    return ResponseEntity.ok(ApiResponse.success(responses));
   }
 }

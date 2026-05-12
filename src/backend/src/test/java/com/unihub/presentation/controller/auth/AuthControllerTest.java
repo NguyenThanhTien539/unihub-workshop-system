@@ -17,6 +17,7 @@ import com.unihub.application.auth.model.LoginResult;
 import com.unihub.application.auth.model.TokenPair;
 import com.unihub.application.auth.query.AuthQueryService;
 import com.unihub.infrastructure.security.UserPrincipal;
+import com.unihub.presentation.mapper.auth.AuthResponseMapper;
 import com.unihub.presentation.error.GlobalExceptionHandler;
 import java.time.Clock;
 import java.util.List;
@@ -40,7 +41,7 @@ class AuthControllerTest {
     authCommandService = new StubAuthCommandService();
     authQueryService = new StubAuthQueryService();
     mockMvc = MockMvcBuilders
-        .standaloneSetup(new AuthController(authCommandService, authQueryService))
+        .standaloneSetup(new AuthController(authCommandService, authQueryService, new AuthResponseMapper()))
         .setControllerAdvice(new GlobalExceptionHandler())
         .build();
   }
@@ -51,10 +52,10 @@ class AuthControllerTest {
     authCommandService.loginResult = new LoginResult(new TokenPair("access-token", "refresh-token", 900), user);
 
     mockMvc.perform(post("/api/auth/login")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(Map.of(
-                "email", "student1@university.edu.vn",
-                "password", "Password123!"))))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(Map.of(
+            "email", "student1@university.edu.vn",
+            "password", "Password123!"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.accessToken").value("access-token"))

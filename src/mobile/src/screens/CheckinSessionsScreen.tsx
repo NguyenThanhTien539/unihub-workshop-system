@@ -1,192 +1,156 @@
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useEffect, useState } from "react";
-import { RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
-import { getCheckinSessions } from "../api/checkinApi";
-import { CheckinSession } from "../api/types";
-import { RootStackParamList } from "../navigation/AppNavigator";
-import { AppButton } from "../components/AppButton";
-import { ErrorView } from "../components/ErrorView";
-import { LoadingView } from "../components/LoadingView";
-import { SessionCard } from "../components/SessionCard";
-import { StatusBadge } from "../components/StatusBadge";
-import { colors } from "../config/theme";
-import { getCachedSessions, upsertSessions } from "../db/sessionDao";
-import { useNetworkStore } from "../network/networkStore";
-import { getFriendlyErrorMessage } from "../utils/errors";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import type { CheckinSession } from "../services/checkinApi";
 
-type Props = NativeStackScreenProps<RootStackParamList, "Sessions">;
+type CheckinSessionsScreenProps = {
+  sessions: CheckinSession[];
+  selectedSessionId: string;
+  loading: boolean;
+  error: string | null;
+  onSelectSession: (sessionId: string) => void;
+  onRefresh: () => void;
+};
 
-export function CheckinSessionsScreen({ navigation }: Props) {
-  const isOnline = useNetworkStore((state) => state.isOnline);
-  const [sessions, setSessions] = useState<CheckinSession[]>([]);
-  const [isLoading, setLoading] = useState(true);
-  const [isRefreshing, setRefreshing] = useState(false);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadSessions = useCallback(
-    async (refreshing = false) => {
-      if (refreshing) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      setWarning(null);
-      setError(null);
-
-      try {
-        if (isOnline) {
-          try {
-            const liveSessions = await getCheckinSessions();
-            await upsertSessions(liveSessions);
-            setSessions(liveSessions);
-            return;
-          } catch (apiError) {
-            const cached = await getCachedSessions();
-            if (cached.length > 0) {
-              setSessions(cached);
-              setWarning(`Dang hien thi cache. ${getFriendlyErrorMessage(apiError)}`);
-              return;
-            }
-
-            throw apiError;
-          }
-        }
-
-        const cached = await getCachedSessions();
-        setSessions(cached);
-        if (cached.length === 0) {
-          setWarning("Chua co session offline. Hay ket noi mang de tai danh sach lan dau.");
-        }
-      } catch (loadError) {
-        setError(getFriendlyErrorMessage(loadError));
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [isOnline],
-  );
-
-  useEffect(() => {
-    void loadSessions();
-  }, [loadSessions]);
-
-  function openScanner(session: CheckinSession) {
-    navigation.navigate("Scanner", { session });
-  }
-
-  if (isLoading) {
-    return <LoadingView label="Dang tai sessions..." />;
-  }
-
+export function CheckinSessionsScreen({
+  sessions,
+  selectedSessionId,
+  loading,
+  error,
+  onSelectSession,
+  onRefresh,
+}: CheckinSessionsScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => loadSessions(true)} />}
-      >
-        <View style={styles.topbar}>
-          <View>
-            <Text style={styles.title}>Check-in sessions</Text>
-            <Text style={styles.subtitle}>Chon session dang truc.</Text>
-          </View>
-          <StatusBadge label={isOnline ? "Online" : "Offline"} tone={isOnline ? "success" : "warning"} />
-        </View>
+    <View style={styles.card}>
+      <View style={styles.row}>
+        <Text style={styles.title}>Check-in Sessions</Text>
+        <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
+          <Text style={styles.refreshButtonText}>{loading ? "Loading..." : "Refresh"}</Text>
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.actions}>
-          <AppButton title="Dong bo" onPress={() => navigation.navigate("OfflineSync")} variant="secondary" style={styles.actionButton} />
-          <AppButton title="Tai khoan" onPress={() => navigation.navigate("Profile")} variant="secondary" style={styles.actionButton} />
-        </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {warning ? (
-          <View style={styles.warning}>
-            <Text style={styles.warningText}>{warning}</Text>
-          </View>
-        ) : null}
-
-        {error ? <ErrorView message={error} actionLabel="Thu lai" onAction={() => loadSessions()} /> : null}
-
-        <View style={styles.list}>
-          {sessions.map((session) => (
-            <SessionCard key={session.sessionId} session={session} onStart={openScanner} />
-          ))}
-        </View>
-
-        {sessions.length === 0 && !error ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Khong co session</Text>
-            <Text style={styles.emptyText}>Ket noi mang de tai danh sach session truoc khi check-in offline.</Text>
-          </View>
-        ) : null}
-      </ScrollView>
-    </SafeAreaView>
+      {sessions.length === 0 ? (
+        <Text style={styles.empty}>No sessions loaded yet.</Text>
+      ) : (
+        sessions.map((session) => {
+          const active = session.sessionId === selectedSessionId;
+          return (
+            <TouchableOpacity
+              key={session.sessionId}
+              style={[styles.sessionCard, active ? styles.sessionCardActive : null]}
+              onPress={() => onSelectSession(session.sessionId)}
+            >
+              <Text style={styles.sessionTitle}>{session.workshopTitle}</Text>
+              <Text style={styles.sessionMeta}>
+                {formatDate(session.startAt)} · {formatTime(session.startAt, session.endAt)}
+              </Text>
+              <Text style={styles.sessionMeta}>
+                {session.roomName}, {session.building}
+              </Text>
+              <Text style={[styles.sessionBadge, session.checkinOpen ? styles.badgeOpen : styles.badgeClosed]}>
+                {session.checkinOpen ? "CHECK-IN OPEN" : "CHECK-IN CLOSED"}
+              </Text>
+            </TouchableOpacity>
+          );
+        })
+      )}
+    </View>
   );
 }
 
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatTime(startAt: string, endAt: string) {
+  const formatter = new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${formatter.format(new Date(startAt))} - ${formatter.format(new Date(endAt))}`;
+}
+
 const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: colors.background,
-    flex: 1,
-  },
-  container: {
-    gap: 14,
+  card: {
+    backgroundColor: "#ffffff",
+    borderColor: "rgba(15, 23, 42, 0.08)",
+    borderRadius: 20,
+    borderWidth: 1,
     padding: 16,
   },
-  topbar: {
-    alignItems: "flex-start",
+  row: {
+    alignItems: "center",
     flexDirection: "row",
-    gap: 12,
     justifyContent: "space-between",
   },
   title: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "900",
+    color: "#1f2933",
+    fontSize: 18,
+    fontWeight: "700",
   },
-  subtitle: {
-    color: colors.muted,
-    fontSize: 14,
-    marginTop: 4,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  warning: {
-    backgroundColor: colors.warningSoft,
-    borderColor: "#f3c46d",
-    borderRadius: 8,
+  refreshButton: {
+    borderColor: "#d7dde4",
+    borderRadius: 999,
     borderWidth: 1,
-    padding: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  warningText: {
-    color: colors.warning,
+  refreshButtonText: {
+    color: "#334155",
     fontSize: 13,
-    lineHeight: 18,
+    fontWeight: "600",
   },
-  list: {
-    gap: 12,
+  error: {
+    color: "#b91c1c",
+    fontSize: 13,
+    marginTop: 10,
   },
   empty: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 6,
-    padding: 18,
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  emptyText: {
-    color: colors.muted,
+    color: "#64748b",
     fontSize: 14,
-    lineHeight: 20,
+    marginTop: 12,
+  },
+  sessionCard: {
+    borderColor: "#e2e8f0",
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 14,
+  },
+  sessionCardActive: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#38bdf8",
+  },
+  sessionTitle: {
+    color: "#0f172a",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  sessionMeta: {
+    color: "#475569",
+    fontSize: 13,
+    marginTop: 4,
+  },
+  sessionBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 10,
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  badgeOpen: {
+    backgroundColor: "#dcfce7",
+    color: "#166534",
+  },
+  badgeClosed: {
+    backgroundColor: "#e2e8f0",
+    color: "#334155",
   },
 });

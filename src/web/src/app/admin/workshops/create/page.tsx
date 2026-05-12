@@ -238,7 +238,7 @@ export default function CreateWorkshopPage() {
                         <div className="font-medium text-slate-950">{formatSessionDate(session.startAt)}</div>
                         <div className="mt-1 text-sm text-slate-600">{formatSessionTime(session.startAt, session.endAt)}</div>
                         <div className="mt-1 text-sm text-slate-600">
-                          {session.seatCapacity} chỗ, {formatMoney(session.feeAmount, session.currency)}
+                          {session.seatCapacity} chỗ, {formatMoney(session.feeAmount, session.currency ?? "VND")}
                         </div>
                       </div>
                       <button type="button" onClick={() => removeSession(index)} className="rounded-md p-2 text-red-600 hover:bg-red-50">

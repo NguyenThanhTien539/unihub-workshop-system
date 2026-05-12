@@ -40,11 +40,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class RegistrationCommandServiceTest {
-  @Mock private StudentRepository studentRepository;
-  @Mock private RegistrationRepository registrationRepository;
-  @Mock private PaymentRepository paymentRepository;
-  @Mock private QrTicketService qrTicketService;
-  @Mock private RegistrationConfirmationMailService registrationConfirmationMailService;
+  @Mock
+  private StudentRepository studentRepository;
+  @Mock
+  private RegistrationRepository registrationRepository;
+  @Mock
+  private PaymentRepository paymentRepository;
+  @Mock
+  private QrTicketService qrTicketService;
+  @Mock
+  private RegistrationConfirmationMailService registrationConfirmationMailService;
 
   private RegistrationCommandService service;
   private UUID userId;
@@ -71,8 +76,16 @@ class RegistrationCommandServiceTest {
     workshopId = UUID.randomUUID();
 
     lenient().when(studentRepository.findByUserId(userId))
-        .thenReturn(Optional.of(new Student(studentId, userId, "S0001", StudentStatus.ACTIVE)));
-    lenient().when(registrationRepository.findActiveByStudentAndSession(studentId, sessionId)).thenReturn(Optional.empty());
+        .thenReturn(Optional.of(new Student(
+            studentId,
+            userId,
+            "S0001",
+            "Engineering",
+            "Software Engineering",
+            "SE-2025",
+            StudentStatus.ACTIVE)));
+    lenient().when(registrationRepository.findActiveByStudentAndSession(studentId, sessionId))
+        .thenReturn(Optional.empty());
   }
 
   @Test

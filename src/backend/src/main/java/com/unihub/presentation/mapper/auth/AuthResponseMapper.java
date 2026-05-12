@@ -17,7 +17,7 @@ public class AuthResponseMapper {
         result.token().accessToken(),
         result.token().refreshToken(),
         result.token().expiresIn(),
-        result.user().roles());
+        toUserResponse(result.user()));
   }
 
   public TokenResponse toTokenResponse(TokenPair tokenPair) {
@@ -28,7 +28,14 @@ public class AuthResponseMapper {
   }
 
   public MeResponse toMeResponse(CurrentUser currentUser) {
-    return new MeResponse(toUserResponse(currentUser));
+    UserResponse user = toUserResponse(currentUser);
+    return new MeResponse(
+        user.id(),
+        user.email(),
+        user.fullName(),
+        user.accountStatus(),
+        user.roles(),
+        user.studentProfile());
   }
 
   private UserResponse toUserResponse(CurrentUser currentUser) {
@@ -37,12 +44,16 @@ public class AuthResponseMapper {
         : new StudentProfileResponse(
             currentUser.studentProfile().studentId(),
             currentUser.studentProfile().studentCode(),
+            currentUser.studentProfile().faculty(),
+            currentUser.studentProfile().major(),
+            currentUser.studentProfile().className(),
             currentUser.studentProfile().status());
 
     return new UserResponse(
         currentUser.id(),
         currentUser.email(),
         currentUser.fullName(),
+        currentUser.accountStatus(),
         currentUser.roles(),
         profile);
   }

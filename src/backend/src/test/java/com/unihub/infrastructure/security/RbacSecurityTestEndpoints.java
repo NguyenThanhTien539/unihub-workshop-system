@@ -44,9 +44,9 @@ public class RbacSecurityTestEndpoints {
     return ApiResponse.success(id);
   }
 
-  @PostMapping("/api/payments/webhook")
-  ApiResponse<String> webhook() {
-    return ApiResponse.success("webhook");
+  @PostMapping("/api/payments/zalopay/callback")
+  ApiResponse<String> zalopayCallback() {
+    return ApiResponse.success("zalopay callback");
   }
 
   @GetMapping("/api/checkin/sessions")

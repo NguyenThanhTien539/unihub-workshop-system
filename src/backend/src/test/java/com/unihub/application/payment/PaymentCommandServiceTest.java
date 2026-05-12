@@ -38,12 +38,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentCommandServiceTest {
-  @Mock private StudentRepository studentRepository;
-  @Mock private PaymentRepository paymentRepository;
-  @Mock private RegistrationRepository registrationRepository;
-  @Mock private ZaloPayClient zaloPayClient;
-  @Mock private QrTicketService qrTicketService;
-  @Mock private RegistrationConfirmationMailService registrationConfirmationMailService;
+  @Mock
+  private StudentRepository studentRepository;
+  @Mock
+  private PaymentRepository paymentRepository;
+  @Mock
+  private RegistrationRepository registrationRepository;
+  @Mock
+  private ZaloPayClient zaloPayClient;
+  @Mock
+  private QrTicketService qrTicketService;
+  @Mock
+  private RegistrationConfirmationMailService registrationConfirmationMailService;
 
   private PaymentCommandService service;
   private UUID userId;
@@ -69,7 +75,14 @@ class PaymentCommandServiceTest {
     sessionId = UUID.randomUUID();
 
     lenient().when(studentRepository.findByUserId(userId))
-        .thenReturn(Optional.of(new Student(studentId, userId, "S0001", StudentStatus.ACTIVE)));
+        .thenReturn(Optional.of(new Student(
+            studentId,
+            userId,
+            "S0001",
+            "Engineering",
+            "Software Engineering",
+            "SE-2025",
+            StudentStatus.ACTIVE)));
   }
 
   @Test

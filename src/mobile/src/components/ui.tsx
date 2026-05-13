@@ -137,10 +137,15 @@ export function EmptyState({
 const styles = StyleSheet.create({
   button: {
     alignItems: "center",
+    alignSelf: "stretch",
     backgroundColor: colors.primary,
     borderRadius: 8,
+    flexShrink: 1,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
+    minHeight: 48,
+    justifyContent: "center",
+    maxWidth: "100%",
   },
   secondaryButton: {
     backgroundColor: colors.surfaceMuted,
@@ -157,6 +162,9 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "700",
+    lineHeight: 20,
+    textAlign: "center",
+    flexShrink: 1,
   },
   secondaryButtonText: {
     color: colors.ink,
@@ -166,7 +174,8 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: 8,
     borderWidth: 1,
-    padding: spacing.lg,
+    gap: spacing.md,
+    padding: spacing.xl,
   },
   badge: {
     alignSelf: "flex-start",
@@ -190,7 +199,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   field: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   fieldLabel: {
     color: colors.ink,
@@ -205,7 +214,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 15,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
+    minHeight: 50,
   },
   fieldError: {
     color: colors.danger,
@@ -219,13 +229,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.xs,
-    padding: spacing.xs,
+    gap: spacing.sm,
+    padding: spacing.sm,
   },
   tab: {
     borderRadius: 7,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    flexGrow: 1,
+    minHeight: 42,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    justifyContent: "center",
   },
   activeTab: {
     backgroundColor: colors.ink,
@@ -234,6 +247,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 13,
     fontWeight: "800",
+    textAlign: "center",
   },
   activeTabText: {
     color: "#ffffff",
@@ -242,11 +256,12 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 18,
     fontWeight: "800",
+    lineHeight: 24,
   },
   emptyBody: {
     color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
 });

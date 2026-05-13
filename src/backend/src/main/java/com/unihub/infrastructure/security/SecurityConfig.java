@@ -54,6 +54,7 @@ public class SecurityConfig {
             // signature/shared secret.
             .requestMatchers(HttpMethod.POST, "/api/payments/zalopay/callback").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/workshops/**").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/student/workshops/**").hasRole("STUDENT")
             .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/notifications/me").authenticated()

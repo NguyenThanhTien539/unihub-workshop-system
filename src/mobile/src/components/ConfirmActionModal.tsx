@@ -51,22 +51,25 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.48)",
     flex: 1,
     justifyContent: "center",
-    padding: spacing.lg,
+    padding: spacing.xl,
   },
   title: {
     color: colors.ink,
     fontSize: 22,
     fontWeight: "900",
+    lineHeight: 28,
   },
   workshopTitle: {
     color: colors.ink,
     fontSize: 18,
     fontWeight: "900",
-    marginTop: spacing.md,
+    lineHeight: 24,
+    marginTop: spacing.lg,
   },
   meta: {
     color: colors.muted,
     fontSize: 14,
+    lineHeight: 20,
     marginTop: spacing.xs,
   },
   warning: {
@@ -77,7 +80,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   actions: {
-    gap: spacing.sm,
-    marginTop: spacing.lg,
+    gap: spacing.md,
+    marginTop: spacing.xl,
   },
 });

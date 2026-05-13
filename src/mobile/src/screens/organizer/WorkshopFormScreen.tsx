@@ -165,7 +165,7 @@ export function WorkshopFormScreen({
           {mode === "create" ? "Create Workshop" : "Edit Workshop"}
         </Text>
         <Text style={styles.body}>
-          Configure workshop details, room, seats, price, and publish state.
+          Configure workshop details, room, seats, price, and schedule.
         </Text>
       </Card>
       <Card>
@@ -181,12 +181,6 @@ export function WorkshopFormScreen({
             value={values.speaker}
             onChangeText={(text) => update("speaker", text)}
             error={errors.speaker}
-          />
-          <Field
-            label="Speaker bio"
-            value={values.speakerBio}
-            onChangeText={(text) => update("speakerBio", text)}
-            multiline
           />
           <DateInput
             label="Date"
@@ -264,21 +258,24 @@ export function WorkshopFormScreen({
             onChangeText={(text) => update("description", text)}
             multiline
           />
-          <Field
-            label="Summary"
-            value={values.summary}
-            onChangeText={(text) => update("summary", text)}
-            multiline
-          />
           <Text style={styles.fieldLabel}>Status</Text>
-          <TabBar
-            active={values.status}
-            onChange={(status) => update("status", status)}
-            tabs={[
-              { key: "DRAFT", label: "Draft" },
-              { key: "PUBLISHED", label: "Published" },
-            ]}
-          />
+          {mode === "edit" && workshop?.status !== "DRAFT" ? (
+            <View style={styles.lockedStatus}>
+              <Text style={styles.lockedStatusText}>{workshop?.status}</Text>
+              <Text style={styles.helpText}>
+                Published or cancelled workshops cannot be moved back to draft.
+              </Text>
+            </View>
+          ) : (
+            <TabBar
+              active={values.status}
+              onChange={(status) => update("status", status)}
+              tabs={[
+                { key: "DRAFT", label: "Draft" },
+                { key: "PUBLISHED", label: "Published" },
+              ]}
+            />
+          )}
           <View style={styles.actions}>
             <Button label="Cancel" onPress={cancel} variant="secondary" />
             <Button
@@ -391,28 +388,31 @@ function findRoomByDisplayText(rooms: Room[], value: string) {
 
 const styles = StyleSheet.create({
   stack: {
-    gap: spacing.md,
+    gap: spacing.xl,
   },
   title: {
     color: colors.ink,
     fontSize: 24,
     fontWeight: "900",
+    lineHeight: 30,
   },
   body: {
     color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   form: {
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   row: {
     flexDirection: "row",
-    gap: spacing.md,
+    flexWrap: "wrap",
+    gap: spacing.lg,
   },
   flex: {
     flex: 1,
+    minWidth: 220,
   },
   fieldLabel: {
     color: colors.ink,
@@ -420,7 +420,26 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   actions: {
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    gap: spacing.md,
+    marginTop: spacing.xl,
+  },
+  helpText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  lockedStatus: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.line,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.lg,
+  },
+  lockedStatusText: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: "900",
   },
 });

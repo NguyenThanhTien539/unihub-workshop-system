@@ -1,6 +1,21 @@
-version: "3.9"
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: unihub-postgres
+    ports:
+      - "15432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-unihub}
+      POSTGRES_USER: ${POSTGRES_USER:-unihub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unihub}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-unihub} -d ${POSTGRES_DB:-unihub}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     container_name: unihub-redis
@@ -21,12 +36,20 @@ services:
     container_name: unihub-backend
     ports:
       - "8080:8080"
-    env_file:
-      - ./src/backend/.env
     environment:
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
+      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/unihub}
+      DB_USERNAME: ${DB_USERNAME:-unihub}
+      DB_PASSWORD: ${DB_PASSWORD:-unihub}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-before-production}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8081}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      APP_MAIL_ENABLED: ${APP_MAIL_ENABLED:-false}
+      APP_MAIL_QUEUE_ENABLED: ${APP_MAIL_QUEUE_ENABLED:-false}
+      APP_PAYMENT_ZALOPAY_ENABLED: ${APP_PAYMENT_ZALOPAY_ENABLED:-false}
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -45,4 +68,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  postgres_data:
   redis_data:

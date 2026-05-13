@@ -25,11 +25,15 @@ data/                   # Local sample data and seeds
 
 ## Local infrastructure
 
-Start PostgreSQL, Redis, and MinIO:
+Start PostgreSQL, Redis, the backend API, and the web app:
 
 ```
 docker compose up -d
 ```
+
+Compose supplies local development defaults for Postgres, Redis, JWT, mail, and
+payment settings. Use a root `.env` file only when you need to override those
+defaults for Docker.
 
 ## Backend (Spring Boot)
 
@@ -62,7 +66,7 @@ npx expo start
 
 ## Environment variables
 
-- Backend: copy `src/backend/.env.example` to `.env` and adjust as needed.
+- Backend local run: copy `src/backend/.env.example` to `src/backend/.env` and adjust as needed.
 - Web: copy `src/web/.env.example` to `.env.local`.
 - Mobile: copy `src/mobile/.env.example` to `.env`.
 

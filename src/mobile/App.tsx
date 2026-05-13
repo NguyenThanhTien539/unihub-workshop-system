@@ -82,11 +82,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   container: {
-    padding: spacing.lg,
-    paddingBottom: 40,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   header: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
   kicker: {
     color: colors.primaryDark,
@@ -101,7 +102,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   stack: {
-    gap: spacing.md,
+    gap: spacing.xl,
   },
   accountBar: {
     alignItems: "center",
@@ -110,9 +111,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.md,
+    flexWrap: "wrap",
+    gap: spacing.lg,
     justifyContent: "space-between",
-    padding: spacing.md,
+    padding: spacing.xl,
   },
   accountCopy: {
     flex: 1,

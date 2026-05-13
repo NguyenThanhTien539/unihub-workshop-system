@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { AppButton } from "./AppButton";
-import { colors } from "../config/theme";
+import { colors, spacing } from "../config/theme";
 
 type ErrorViewProps = {
   title?: string;
@@ -27,13 +27,14 @@ const styles = StyleSheet.create({
     borderColor: "#f4b4ae",
     borderRadius: 8,
     borderWidth: 1,
-    gap: 10,
-    padding: 14,
+    gap: spacing.md,
+    padding: spacing.xl,
   },
   title: {
     color: colors.danger,
     fontSize: 15,
     fontWeight: "800",
+    lineHeight: 21,
   },
   message: {
     color: colors.danger,

@@ -17,9 +17,11 @@ type BackendWorkshopListSession = {
   id: string;
   roomName: string;
   building: string;
+  roomMapUrl?: string | null;
   startAt: string;
   endAt: string;
   status: string;
+  seatCapacity?: number;
   remainingSeats: number;
   feeType: "FREE" | "PAID";
   feeAmount: number | null;
@@ -56,6 +58,14 @@ type CreateSessionBody = {
   currency: string;
 };
 
+type UpdateWorkshopBody = {
+  title: string;
+  speaker: string;
+  description: string;
+};
+
+type UpdateSessionBody = Partial<CreateSessionBody>;
+
 type BackendRegistration = {
   registrationId: string;
   workshopId: string;
@@ -78,6 +88,11 @@ type BackendRegistrationMutation = {
 
 export async function getWorkshops(): Promise<Workshop[]> {
   const response = await apiRequest<BackendWorkshopListItem[]>("/api/workshops");
+  return response.map(mapWorkshopListItem);
+}
+
+export async function getCurrentWeekWorkshops(): Promise<Workshop[]> {
+  const response = await apiRequest<BackendWorkshopListItem[]>("/api/student/workshops/current-week");
   return response.map(mapWorkshopListItem);
 }
 
@@ -152,11 +167,38 @@ export async function updateWorkshop(
   workshop: ManagedWorkshop,
   values: WorkshopFormValues,
 ): Promise<ManagedWorkshop> {
-  void workshop;
-  void values;
-  // TODO: Wire organizer edit when the backend exposes update endpoints, e.g.
-  // PATCH /api/admin/workshops/{workshopId} and PATCH /api/admin/sessions/{sessionId}.
-  throw new Error("Workshop editing is waiting for backend update endpoints.");
+  if (!workshop.sessionId) {
+    throw new Error("This workshop does not have a session to update.");
+  }
+
+  const workshopBody: UpdateWorkshopBody = {
+    title: values.title.trim(),
+    speaker: values.speaker.trim(),
+    description: values.description.trim(),
+  };
+
+  await apiRequest<BackendWorkshop>(`/api/admin/workshops/${workshop.id}`, {
+    method: "PATCH",
+    body: workshopBody,
+  });
+
+  const sessionBody: UpdateSessionBody = toUpdateSessionBody(values);
+  await apiRequest<BackendWorkshopSession>(`/api/admin/sessions/${workshop.sessionId}`, {
+    method: "PATCH",
+    body: sessionBody,
+  });
+
+  if (workshop.status === "DRAFT" && values.status === "PUBLISHED") {
+    await apiRequest<BackendWorkshop>(
+      `/api/admin/workshops/${workshop.id}/publish`,
+      { method: "POST" },
+    );
+  }
+
+  const updated = await apiRequest<BackendWorkshop>(
+    `/api/admin/workshops/${workshop.id}`,
+  );
+  return toManagedWorkshop(mapWorkshopDetail(updated));
 }
 
 export async function cancelWorkshop(
@@ -190,8 +232,9 @@ function mapWorkshopListItem(item: BackendWorkshopListItem): Workshop {
     scheduleSessions,
     room: formatRoom(session?.roomName, session?.building),
     roomHint: session?.building || "",
+    roomMapUrl: session?.roomMapUrl ?? null,
     remainingSeats: session?.remainingSeats ?? 0,
-    capacity: session?.remainingSeats ?? 0,
+    capacity: session?.seatCapacity ?? session?.remainingSeats ?? 0,
     feeType: session?.feeType || "FREE",
     feeAmount: Number(session?.feeAmount || 0),
     description: item.description,
@@ -219,8 +262,8 @@ function mapRegistration(item: BackendRegistration): Registration {
     status,
     message: registrationMessage(status, item.registrationType, item.paymentStatus),
     notification: item.qrAvailable
-      ? "Your QR ticket is available from the registration detail endpoint."
-      : "Your QR ticket will appear after the registration is confirmed.",
+      ? "Your check-in ticket has been sent to your email."
+      : "Your check-in ticket will be emailed after the registration is confirmed.",
   };
 }
 
@@ -233,7 +276,7 @@ function mapRegistrationMutation(item: BackendRegistrationMutation): Registratio
     status,
     message: registrationMessage(status, "FREE", item.paymentStatus),
     notification: item.qrAvailable
-      ? "Registration confirmed. Refresh your registrations to view the ticket state."
+      ? "Registration confirmed. Check your email for the check-in ticket."
       : "Complete payment to confirm this registration.",
   };
 }
@@ -262,6 +305,10 @@ function toCreateSessionBody(values: WorkshopFormValues): CreateSessionBody {
     feeAmount: Number(values.feeAmount || "0"),
     currency: "VND",
   };
+}
+
+function toUpdateSessionBody(values: WorkshopFormValues): UpdateSessionBody {
+  return toCreateSessionBody(values);
 }
 
 function formatRoom(roomName?: string, building?: string) {

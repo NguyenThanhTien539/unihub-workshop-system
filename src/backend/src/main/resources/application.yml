@@ -3,7 +3,7 @@ spring:
     name: unihub
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:55432/unihub}
+    url: ${DB_URL:jdbc:postgresql://localhost:15432/unihub}
     username: ${DB_USERNAME:unihub}
     password: ${DB_PASSWORD:unihub}
     driver-class-name: org.postgresql.Driver

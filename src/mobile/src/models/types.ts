@@ -25,6 +25,7 @@ export type Workshop = {
   scheduleSessions: WorkshopScheduleSession[];
   room: string;
   roomHint: string;
+  roomMapUrl?: string | null;
   remainingSeats: number;
   capacity: number;
   feeType: FeeType;

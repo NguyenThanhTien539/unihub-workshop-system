@@ -159,7 +159,7 @@ export function SelectField({
 
 const styles = StyleSheet.create({
   field: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   fieldLabel: {
     color: colors.ink,
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     minHeight: 54,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
   },
   selectorError: {
     borderColor: colors.danger,
@@ -197,7 +197,8 @@ const styles = StyleSheet.create({
   selectorDescription: {
     color: colors.muted,
     fontSize: 12,
-    marginTop: 2,
+    lineHeight: 17,
+    marginTop: spacing.xs,
   },
   selectorAction: {
     color: colors.primaryDark,
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.38)",
     flex: 1,
     justifyContent: "center",
-    padding: spacing.lg,
+    padding: spacing.xl,
   },
   modal: {
     backgroundColor: colors.surface,
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     maxHeight: "82%",
     maxWidth: 420,
-    padding: spacing.lg,
+    padding: spacing.xl,
     width: "100%",
   },
   modalTitle: {
@@ -240,7 +241,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginTop: spacing.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
+    minHeight: 50,
   },
   stateBox: {
     gap: spacing.sm,
@@ -262,11 +264,11 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: 8,
     borderWidth: 1,
-    marginTop: spacing.sm,
-    padding: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
   },
   optionList: {
-    marginTop: spacing.xs,
+    marginTop: spacing.md,
   },
   selectedOption: {
     backgroundColor: colors.ink,
@@ -280,21 +282,23 @@ const styles = StyleSheet.create({
   optionDescription: {
     color: colors.muted,
     fontSize: 12,
-    marginTop: spacing.xs,
+    lineHeight: 17,
+    marginTop: spacing.sm,
   },
   selectedOptionText: {
     color: "#ffffff",
   },
   modalActions: {
     alignItems: "flex-end",
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
   },
   secondaryAction: {
     alignItems: "center",
     backgroundColor: colors.surfaceMuted,
     borderRadius: 8,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
+    minHeight: 48,
   },
   secondaryActionText: {
     color: colors.ink,

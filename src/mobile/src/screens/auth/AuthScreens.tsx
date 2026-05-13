@@ -66,7 +66,7 @@ function LoginPanel({
 
 const styles = StyleSheet.create({
   stack: {
-    gap: spacing.md,
+    gap: spacing.xl,
   },
   title: {
     color: colors.ink,
@@ -77,11 +77,11 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   form: {
-    gap: spacing.md,
-    marginTop: spacing.lg,
+    gap: spacing.lg,
+    marginTop: spacing.xl,
   },
   error: {
     color: colors.danger,

@@ -1,47 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Account, Registration, Workshop } from "../../models/types";
+import { Account, Workshop } from "../../models/types";
 import {
-  getMyRegistrations,
-  getWorkshopDetail,
-  getWorkshops,
-  registerForWorkshop,
+  getCurrentWeekWorkshops,
 } from "../../services/workshopService";
 import { colors, spacing } from "../../theme/theme";
 import { Badge, Button, Card, EmptyState, TabBar } from "../../components/ui";
 
-type StudentTab = "home" | "registrations" | "ticket" | "profile";
+type StudentTab = "home" | "profile";
 
 export function StudentApp({ account }: { account: Account }) {
   const [tab, setTab] = useState<StudentTab>("home");
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(
     null,
-  );
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [registrationsLoading, setRegistrationsLoading] = useState(true);
-  const [registrationsError, setRegistrationsError] = useState<string | null>(null);
-
-  const refreshRegistrations = async () => {
-    setRegistrationsLoading(true);
-    setRegistrationsError(null);
-    try {
-      setRegistrations(await getMyRegistrations());
-    } catch (err) {
-      setRegistrations([]);
-      setRegistrationsError(
-        err instanceof Error ? err.message : "Unable to load registrations.",
-      );
-    } finally {
-      setRegistrationsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    refreshRegistrations();
-  }, []);
-
-  const confirmedRegistration = registrations.find(
-    (registration) => registration.status === "CONFIRMED",
   );
 
   return (
@@ -54,43 +25,17 @@ export function StudentApp({ account }: { account: Account }) {
         }}
         tabs={[
           { key: "home", label: "Home" },
-          { key: "registrations", label: "My Registrations" },
-          { key: "ticket", label: "QR Ticket" },
           { key: "profile", label: "Profile" },
         ]}
       />
       {tab === "home" ? (
         selectedWorkshop ? (
           <WorkshopDetail
-            account={account}
             workshop={selectedWorkshop}
-            registrations={registrations}
-            onRegistered={refreshRegistrations}
             onBack={() => setSelectedWorkshop(null)}
           />
         ) : (
-          <WorkshopList
-            registrations={registrations}
-            onSelectWorkshop={setSelectedWorkshop}
-          />
-        )
-      ) : null}
-      {tab === "registrations" ? (
-        <MyRegistrations
-          registrations={registrations}
-          loading={registrationsLoading}
-          error={registrationsError}
-          onRetry={refreshRegistrations}
-        />
-      ) : null}
-      {tab === "ticket" ? (
-        confirmedRegistration ? (
-          <QrTicket registration={confirmedRegistration} account={account} />
-        ) : (
-          <EmptyState
-            title="No QR ticket yet"
-            body="Confirmed registration tickets will appear here when registration data is available."
-          />
+          <WorkshopList onSelectWorkshop={setSelectedWorkshop} />
         )
       ) : null}
       {tab === "profile" ? <StudentProfile account={account} /> : null}
@@ -99,10 +44,8 @@ export function StudentApp({ account }: { account: Account }) {
 }
 
 function WorkshopList({
-  registrations,
   onSelectWorkshop,
 }: {
-  registrations: Registration[];
   onSelectWorkshop: (workshop: Workshop) => void;
 }) {
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
@@ -113,10 +56,10 @@ function WorkshopList({
     setLoading(true);
     setError(null);
     try {
-      setWorkshops(await getWorkshops());
+      setWorkshops(await getCurrentWeekWorkshops());
     } catch (err) {
       setWorkshops([]);
-      setError(err instanceof Error ? err.message : "Unable to load workshops.");
+      setError(err instanceof Error ? err.message : "Unable to load this week's workshops.");
     } finally {
       setLoading(false);
     }
@@ -139,7 +82,7 @@ function WorkshopList({
     <View style={styles.stack}>
       <Card>
         <View style={styles.rowBetween}>
-          <Text style={styles.title}>Workshop List</Text>
+          <Text style={styles.title}>This Week's Workshops</Text>
           <Button label="Refresh" onPress={refreshWorkshops} variant="secondary" />
         </View>
       </Card>
@@ -149,11 +92,8 @@ function WorkshopList({
           <Button label="Retry" onPress={refreshWorkshops} variant="secondary" />
         </Card>
       ) : workshops.length === 0 ? (
-        <EmptyState title="No workshops found" body="No published workshops are available." />
+        <EmptyState title="No workshops scheduled this week" body="Check again later for newly published sessions." />
       ) : workshops.map((workshop) => {
-        const registration = registrations.find(
-          (item) => item.workshopId === workshop.id,
-        );
         return (
           <Pressable key={workshop.id} onPress={() => onSelectWorkshop(workshop)}>
             <Card>
@@ -167,11 +107,9 @@ function WorkshopList({
                   tone={workshop.feeType === "FREE" ? "success" : "warning"}
                 />
                 <Badge
-                  label={registration?.status ?? workshop.status}
+                  label={workshop.status}
                   tone={
-                    registration?.status === "CONFIRMED"
-                      ? "success"
-                      : workshop.status === "FULL"
+                    workshop.status === "FULL"
                         ? "danger"
                         : "neutral"
                   }
@@ -195,195 +133,35 @@ function WorkshopList({
 }
 
 function WorkshopDetail({
-  account,
   workshop,
-  registrations,
-  onRegistered,
   onBack,
 }: {
-  account: Account;
   workshop: Workshop;
-  registrations: Registration[];
-  onRegistered: () => Promise<void>;
   onBack: () => void;
 }) {
-  const existing = useMemo(
-    () => registrations.find((item) => item.workshopId === workshop.id),
-    [registrations, workshop.id],
-  );
-  const [detail, setDetail] = useState(workshop);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [registering, setRegistering] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoadingDetail(true);
-    setError(null);
-    getWorkshopDetail(workshop.id)
-      .then(setDetail)
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Unable to load workshop detail.");
-      })
-      .finally(() => setLoadingDetail(false));
-  }, [workshop.id]);
-
-  const handleRegister = async () => {
-    if (!detail.sessionId) {
-      setError("This workshop does not have an available session.");
-      return;
-    }
-
-    setRegistering(true);
-    setError(null);
-    try {
-      await registerForWorkshop(detail.sessionId, detail.feeType);
-      const refreshedDetail = await getWorkshopDetail(workshop.id);
-      setDetail(refreshedDetail);
-      await onRegistered();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to register for this workshop.");
-    } finally {
-      setRegistering(false);
-    }
-  };
-
   return (
     <View style={styles.stack}>
       <Button label="Back to workshops" onPress={onBack} variant="secondary" />
       <Card>
-        {loadingDetail ? <Text style={styles.body}>Loading workshop detail...</Text> : null}
         <View style={styles.rowBetween}>
-          <Badge label={detail.feeType} tone={detail.feeType === "FREE" ? "success" : "warning"} />
-          <Badge label={`${detail.remainingSeats} seats left`} />
+          <Badge label={workshop.feeType} tone={workshop.feeType === "FREE" ? "success" : "warning"} />
+          <Badge label={`${workshop.remainingSeats} seats left`} />
         </View>
-        <Text style={styles.detailTitle}>{detail.title}</Text>
-        <Text style={styles.meta}>{detail.speaker}</Text>
-        <Text style={styles.meta}>{detail.speakerTitle}</Text>
+        <Text style={styles.detailTitle}>{workshop.title}</Text>
+        <Text style={styles.meta}>{workshop.speaker}</Text>
+        <Text style={styles.meta}>{workshop.speakerTitle}</Text>
         <Text style={styles.meta}>
-          {detail.date}, {detail.time}
+          {workshop.date}, {workshop.time}
         </Text>
-        <Text style={styles.meta}>Room {detail.room}</Text>
+        <Text style={styles.meta}>Room {workshop.room}</Text>
         <View style={styles.mapBox}>
           <Text style={styles.sectionTitle}>Room / Map</Text>
-          <Text style={styles.body}>{detail.roomHint || "No room note available."}</Text>
+          <Text style={styles.body}>{workshop.roomHint || "No room note available."}</Text>
+          {workshop.roomMapUrl ? <Text style={styles.linkText}>{workshop.roomMapUrl}</Text> : null}
         </View>
         <Text style={styles.sectionTitle}>Description</Text>
-        <Text style={styles.body}>{detail.summary}</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {existing ? (
-          <RegistrationNotice registration={existing} />
-        ) : (
-          <Button
-            label={registering ? "Registering..." : "Register"}
-            onPress={handleRegister}
-            disabled={registering || detail.status === "FULL" || !detail.sessionId}
-          />
-        )}
+        <Text style={styles.body}>{workshop.summary}</Text>
       </Card>
-    </View>
-  );
-}
-
-function MyRegistrations({
-  registrations,
-  loading,
-  error,
-  onRetry,
-}: {
-  registrations: Registration[];
-  loading: boolean;
-  error: string | null;
-  onRetry: () => void;
-}) {
-  if (loading) {
-    return (
-      <Card>
-        <Text style={styles.title}>Loading registrations...</Text>
-        <Text style={styles.body}>Checking your confirmed and pending registrations.</Text>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <Text style={styles.error}>{error}</Text>
-        <Button label="Retry" onPress={onRetry} variant="secondary" />
-      </Card>
-    );
-  }
-
-  if (registrations.length === 0) {
-    return (
-      <EmptyState
-        title="No registrations"
-        body="Your registered workshops and payment states will appear here."
-      />
-    );
-  }
-
-  return (
-    <View style={styles.stack}>
-      {registrations.map((registration) => (
-        <Card key={registration.id}>
-          <Badge
-            label={registration.status}
-            tone={registration.status === "CONFIRMED" ? "success" : "warning"}
-          />
-          <Text style={styles.workshopTitle}>{registration.workshopTitle}</Text>
-          <Text style={styles.body}>{registration.message}</Text>
-          <Text style={styles.notification}>{registration.notification}</Text>
-        </Card>
-      ))}
-    </View>
-  );
-}
-
-function QrTicket({
-  registration,
-  account,
-}: {
-  registration: Registration;
-  account: Account;
-}) {
-  return (
-    <Card>
-      <Badge label="Confirmed ticket" tone="success" />
-      <Text style={styles.detailTitle}>{registration.workshopTitle}</Text>
-      <Text style={styles.body}>Student: {account.name}</Text>
-      <View style={styles.qrBox}>
-        {registration.qrToken ? (
-          <>
-            <Text style={styles.qrText}>QR</Text>
-            <Text style={styles.qrToken}>{registration.qrToken}</Text>
-          </>
-        ) : (
-          <Text style={styles.qrUnavailable}>
-            QR token is not available from the current backend response.
-          </Text>
-        )}
-      </View>
-      <Text style={styles.notification}>{registration.notification}</Text>
-    </Card>
-  );
-}
-
-function RegistrationNotice({ registration }: { registration: Registration }) {
-  return (
-    <View style={styles.stateBox}>
-      <Text
-        style={[
-          styles.stateTitle,
-          registration.status === "CONFIRMED"
-            ? styles.successText
-            : styles.warningText,
-        ]}
-      >
-        {registration.status === "CONFIRMED"
-          ? "Registration confirmed"
-          : "Payment pending"}
-      </Text>
-      <Text style={styles.body}>{registration.message}</Text>
     </View>
   );
 }
@@ -401,13 +179,13 @@ function StudentProfile({ account }: { account: Account }) {
 
 const styles = StyleSheet.create({
   stack: {
-    gap: spacing.md,
+    gap: spacing.xl,
   },
   rowBetween: {
     alignItems: "center",
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.sm,
+    gap: spacing.md,
     justifyContent: "space-between",
   },
   title: {
@@ -419,36 +197,39 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 18,
     fontWeight: "900",
-    marginTop: spacing.md,
+    lineHeight: 24,
+    marginTop: spacing.lg,
   },
   detailTitle: {
     color: colors.ink,
     fontSize: 24,
     fontWeight: "900",
-    marginTop: spacing.md,
+    lineHeight: 30,
+    marginTop: spacing.lg,
   },
   meta: {
     color: colors.muted,
     fontSize: 14,
+    lineHeight: 20,
     marginTop: spacing.xs,
   },
   summary: {
     color: colors.ink,
     fontSize: 14,
     lineHeight: 20,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   seats: {
     color: colors.primaryDark,
     fontSize: 13,
     fontWeight: "900",
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   body: {
     color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   sectionTitle: {
     color: colors.ink,
@@ -458,70 +239,19 @@ const styles = StyleSheet.create({
   mapBox: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: 8,
-    marginVertical: spacing.lg,
-    padding: spacing.lg,
+    marginVertical: spacing.xl,
+    padding: spacing.xl,
   },
   error: {
     color: colors.danger,
     fontSize: 13,
     fontWeight: "800",
-    marginVertical: spacing.md,
-  },
-  stateBox: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 8,
-    marginTop: spacing.lg,
-    padding: spacing.lg,
-  },
-  stateTitle: {
-    fontSize: 17,
-    fontWeight: "900",
-  },
-  successText: {
-    color: colors.success,
-  },
-  warningText: {
-    color: colors.warning,
-  },
-  qrBox: {
-    alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.ink,
-    borderRadius: 8,
-    borderWidth: 2,
-    justifyContent: "center",
-    minHeight: 170,
     marginVertical: spacing.lg,
-    padding: spacing.lg,
   },
-  qrText: {
-    color: colors.ink,
-    fontSize: 48,
-    fontWeight: "900",
-  },
-  qrToken: {
-    color: colors.muted,
-    fontSize: 12,
-    marginTop: spacing.sm,
-    textAlign: "center",
-  },
-  qrUnavailable: {
-    color: colors.muted,
-    fontSize: 14,
-    fontWeight: "800",
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  notification: {
-    color: colors.primaryDark,
+  linkText: {
+    color: colors.accent,
     fontSize: 13,
     fontWeight: "800",
-    lineHeight: 18,
-    marginTop: spacing.md,
-  },
-  unavailable: {
-    color: colors.muted,
-    fontSize: 12,
     lineHeight: 18,
     marginTop: spacing.md,
   },

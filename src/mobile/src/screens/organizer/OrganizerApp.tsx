@@ -247,7 +247,9 @@ function Dashboard({
         <Text style={styles.body}>
           Manage workshop publication, room capacity, and session readiness.
         </Text>
-        <Button label="Create or manage workshops" onPress={onOpenWorkshops} />
+        <View style={styles.singleAction}>
+          <Button label="Create or manage workshops" onPress={onOpenWorkshops} />
+        </View>
       </Card>
       <View style={styles.grid}>
         <StatCard label="Workshops" value={stats.totalWorkshops} />
@@ -494,7 +496,9 @@ function OrganizerWorkshopList({
               Create, edit, publish, and cancel workshop sessions.
             </Text>
           </View>
-          <Button label="Create Workshop" onPress={onCreate} />
+          <View style={styles.headerAction}>
+            <Button label="Create Workshop" onPress={onCreate} />
+          </View>
         </View>
         {message ? (
           <View style={styles.messageRow}>
@@ -635,7 +639,12 @@ function OrganizerWorkshopCard({
       </View>
       <View style={styles.actions}>
         <Button label="View Detail" onPress={onView} variant="secondary" />
-        <Button label="Edit" onPress={onEdit} variant="secondary" />
+        <Button
+          label="Edit"
+          onPress={onEdit}
+          variant="secondary"
+          disabled={workshop.status === "CANCELLED"}
+        />
         {workshop.status === "CANCELLED" ? (
           <View style={styles.cancelledPill}>
             <Text style={styles.cancelledPillText}>Already cancelled</Text>
@@ -677,7 +686,6 @@ function OrganizerWorkshopDetail({
         </View>
         <Text style={styles.detailTitle}>{workshop.title}</Text>
         <Text style={styles.meta}>{workshop.speaker}</Text>
-        <Text style={styles.meta}>{workshop.speakerBio}</Text>
         <Text style={styles.meta}>
           {workshop.date}, {workshop.time} - {workshop.room}
         </Text>
@@ -686,8 +694,6 @@ function OrganizerWorkshopDetail({
           <Text style={styles.sectionTitle}>Room / map note</Text>
           <Text style={styles.body}>{workshop.roomHint || "No room note yet."}</Text>
         </View>
-        <Text style={styles.sectionTitle}>Summary</Text>
-        <Text style={styles.body}>{workshop.summary}</Text>
         <View style={styles.metricGrid}>
           <Metric label="Capacity" value={workshop.capacity} />
           <Metric label="Registered" value={workshop.registrations} />
@@ -698,7 +704,11 @@ function OrganizerWorkshopDetail({
           Revenue estimate: {revenue.toLocaleString("vi-VN")} VND
         </Text>
         <View style={styles.actions}>
-          <Button label="Edit" onPress={onEdit} disabled={actionLoading} />
+          <Button
+            label="Edit"
+            onPress={onEdit}
+            disabled={actionLoading || workshop.status === "CANCELLED"}
+          />
           {workshop.status === "CANCELLED" ? (
             <View style={styles.cancelledPanel}>
               <Text style={styles.cancelledPanelTitle}>Already cancelled</Text>
@@ -962,53 +972,67 @@ function formatLocalDate(date: Date) {
 
 const styles = StyleSheet.create({
   stack: {
-    gap: spacing.md,
+    gap: spacing.xl,
   },
   grid: {
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   rowBetween: {
     alignItems: "flex-start",
     flexDirection: "row",
-    gap: spacing.md,
+    flexWrap: "wrap",
+    gap: spacing.lg,
     justifyContent: "space-between",
   },
   flex: {
     flex: 1,
+    minWidth: 220,
+  },
+  headerAction: {
+    minWidth: 160,
+    width: "100%",
+    maxWidth: 220,
+  },
+  singleAction: {
+    marginTop: spacing.lg,
   },
   title: {
     color: colors.ink,
     fontSize: 22,
     fontWeight: "900",
+    lineHeight: 28,
   },
   detailTitle: {
     color: colors.ink,
     fontSize: 25,
     fontWeight: "900",
-    marginTop: spacing.md,
+    lineHeight: 31,
+    marginTop: spacing.lg,
   },
   body: {
     color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   sectionTitle: {
     color: colors.ink,
     fontSize: 15,
     fontWeight: "900",
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   workshopTitle: {
     color: colors.ink,
     fontSize: 18,
     fontWeight: "900",
-    marginTop: spacing.md,
+    lineHeight: 24,
+    marginTop: spacing.lg,
   },
   itemTitle: {
     color: colors.ink,
     fontSize: 16,
     fontWeight: "900",
+    lineHeight: 22,
   },
   meta: {
     color: colors.muted,
@@ -1017,16 +1041,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   actions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.lg,
+    gap: spacing.md,
+    marginTop: spacing.xl,
   },
   todo: {
     color: colors.warning,
     fontSize: 12,
     lineHeight: 18,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   success: {
     color: colors.success,
@@ -1043,8 +1065,9 @@ const styles = StyleSheet.create({
   messageRow: {
     alignItems: "center",
     flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    flexWrap: "wrap",
+    gap: spacing.md,
+    marginTop: spacing.lg,
   },
   statValue: {
     color: colors.primaryDark,
@@ -1080,41 +1103,44 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 15,
     marginTop: spacing.md,
-    padding: spacing.md,
+    minHeight: 50,
+    padding: spacing.lg,
   },
   filterLabel: {
     color: colors.ink,
     fontSize: 13,
     fontWeight: "900",
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   filterGrid: {
-    gap: spacing.md,
-    marginTop: spacing.md,
+    gap: spacing.lg,
+    marginTop: spacing.lg,
   },
   activeFilter: {
     color: colors.primaryDark,
     fontSize: 12,
     fontWeight: "800",
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   errorInline: {
     color: colors.danger,
     fontSize: 12,
     fontWeight: "800",
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   metricGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.lg,
+    gap: spacing.md,
+    marginTop: spacing.xl,
   },
   metric: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: 8,
+    flexBasis: "30%",
+    flexGrow: 1,
     minWidth: 104,
-    padding: spacing.md,
+    padding: spacing.lg,
   },
   metricValue: {
     color: colors.ink,
@@ -1130,14 +1156,14 @@ const styles = StyleSheet.create({
   mapBox: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: 8,
-    marginTop: spacing.lg,
-    padding: spacing.lg,
+    marginTop: spacing.xl,
+    padding: spacing.xl,
   },
   revenue: {
     color: colors.primaryDark,
     fontSize: 14,
     fontWeight: "900",
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
   },
   cancelledPill: {
     alignItems: "center",

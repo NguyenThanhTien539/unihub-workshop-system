@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { CameraView, type BarcodeScanningResult, useCameraPermissions } from "expo-camera";
+import { StyleSheet, Text, View } from "react-native";
 import {
   CheckinHistoryItem,
   CheckinResult,
@@ -45,15 +46,18 @@ export function CheckinStaffApp({ account }: { account: Account }) {
 }
 
 function ScannerScreen() {
+  const scanLockedRef = useRef(false);
   const [sessions, setSessions] = useState<CheckinSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
-  const [token, setToken] = useState("");
+  const [lastScannedToken, setLastScannedToken] = useState("");
+  const [scannerEnabled, setScannerEnabled] = useState(true);
   const [result, setResult] = useState<CheckinResult | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [queueing, setQueueing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
 
   const refreshSessions = async () => {
     setSessionsLoading(true);
@@ -74,18 +78,32 @@ function ScannerScreen() {
     refreshSessions();
   }, []);
 
-  const scan = async () => {
+  const scan = async (qrToken: string) => {
+    if (!selectedSessionId || loading || queueing || !scannerEnabled || scanLockedRef.current) {
+      return;
+    }
+
+    scanLockedRef.current = true;
+    setScannerEnabled(false);
     setLoading(true);
+    setLastScannedToken(qrToken);
     setResult(null);
     setError(null);
     setMessage(null);
     try {
-      setResult(await verifyCheckin(selectedSessionId, token));
+      setResult(await verifyCheckin(selectedSessionId, qrToken));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Check-in failed.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBarcodeScanned = ({ data }: BarcodeScanningResult) => {
+    if (!data.trim()) {
+      return;
+    }
+    void scan(data);
   };
 
   const queueOffline = async () => {
@@ -94,7 +112,7 @@ function ScannerScreen() {
     setError(null);
     setMessage(null);
     try {
-      await queueOfflineCheckin(selectedSessionId, token);
+      await queueOfflineCheckin(selectedSessionId, lastScannedToken);
       setMessage("Scan queued offline. Open Offline Queue to sync it.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to queue offline scan.");
@@ -103,13 +121,24 @@ function ScannerScreen() {
     }
   };
 
+  const resetScanner = () => {
+    setResult(null);
+    setError(null);
+    setMessage(null);
+    setLastScannedToken("");
+    scanLockedRef.current = false;
+    setScannerEnabled(true);
+  };
+
+  const cameraReady = permission?.granted;
+
   return (
     <View style={styles.stack}>
       <Card>
         <View style={styles.rowBetween}>
           <View>
             <Text style={styles.title}>QR Scanner</Text>
-            <Text style={styles.body}>Enter a QR token to verify check-in.</Text>
+            <Text style={styles.body}>Scan a student check-in QR from their email ticket.</Text>
           </View>
         </View>
         <SelectField
@@ -127,26 +156,38 @@ function ScannerScreen() {
           onChange={setSelectedSessionId}
           onRetry={refreshSessions}
         />
-        <View style={styles.scannerFrame}>
-          <Text style={styles.scannerText}>QR scan area</Text>
-        </View>
-        <TextInput
-          value={token}
-          onChangeText={setToken}
-          autoCapitalize="none"
-          placeholder="QR token"
-          placeholderTextColor="#94a3b8"
-          style={styles.input}
-        />
+        {cameraReady ? (
+          <View style={styles.scannerFrame}>
+            <CameraView
+              facing="back"
+              style={styles.camera}
+              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+              onBarcodeScanned={scannerEnabled ? handleBarcodeScanned : undefined}
+            />
+            <View style={styles.scannerOverlay}>
+              <Text style={styles.scannerText}>
+                {loading ? "Verifying..." : scannerEnabled ? "Align QR inside frame" : "Scan paused"}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.scannerFrame}>
+            <Text style={styles.scannerText}>Camera permission required</Text>
+          </View>
+        )}
+        {!cameraReady ? (
+          <Button label="Allow camera" onPress={requestPermission} disabled={loading || queueing} />
+        ) : null}
         <Button
-          label={loading ? "Verifying..." : "Verify"}
-          onPress={scan}
-          disabled={loading || queueing || !token.trim() || !selectedSessionId}
+          label="Scan another"
+          onPress={resetScanner}
+          disabled={loading || queueing || scannerEnabled}
+          variant="secondary"
         />
         <Button
           label={queueing ? "Queueing..." : "Queue offline"}
           onPress={queueOffline}
-          disabled={loading || queueing || !token.trim() || !selectedSessionId}
+          disabled={loading || queueing || !lastScannedToken || !selectedSessionId}
           variant="secondary"
         />
       </Card>
@@ -339,11 +380,12 @@ function StaffProfile({ account }: { account: Account }) {
 
 const styles = StyleSheet.create({
   stack: {
-    gap: spacing.md,
+    gap: spacing.xl,
   },
   rowBetween: {
     alignItems: "flex-start",
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.md,
     justifyContent: "space-between",
   },
@@ -359,7 +401,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   scannerFrame: {
     alignItems: "center",
@@ -367,28 +409,32 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     height: 220,
     justifyContent: "center",
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
+    overflow: "hidden",
   },
   scannerText: {
     color: "#ffffff",
     fontSize: 18,
     fontWeight: "900",
   },
-  input: {
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.line,
-    borderRadius: 8,
-    borderWidth: 1,
-    color: colors.ink,
-    fontSize: 15,
-    marginVertical: spacing.md,
+  camera: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  scannerOverlay: {
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    bottom: 0,
+    left: 0,
     padding: spacing.md,
+    position: "absolute",
+    right: 0,
   },
   resultTitle: {
     color: colors.ink,
     fontSize: 22,
     fontWeight: "900",
-    marginTop: spacing.md,
+    lineHeight: 28,
+    marginTop: spacing.lg,
   },
   itemTitle: {
     color: colors.ink,
@@ -398,6 +444,7 @@ const styles = StyleSheet.create({
   meta: {
     color: colors.muted,
     fontSize: 13,
+    lineHeight: 18,
     marginTop: spacing.xs,
   },
   error: {
@@ -409,6 +456,7 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontSize: 13,
     fontWeight: "800",
-    marginTop: spacing.md,
+    lineHeight: 18,
+    marginTop: spacing.lg,
   },
 });

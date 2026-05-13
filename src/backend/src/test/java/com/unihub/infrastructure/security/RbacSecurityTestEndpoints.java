@@ -34,6 +34,11 @@ public class RbacSecurityTestEndpoints {
     return ApiResponse.success("registrations");
   }
 
+  @GetMapping("/api/student/workshops/current-week")
+  ApiResponse<String> studentCurrentWeekWorkshops() {
+    return ApiResponse.success("student current week workshops");
+  }
+
   @PostMapping("/api/payments/intents")
   ApiResponse<String> paymentIntent() {
     return ApiResponse.success("payment intent");

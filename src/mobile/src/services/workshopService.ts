@@ -152,41 +152,11 @@ export async function updateWorkshop(
   workshop: ManagedWorkshop,
   values: WorkshopFormValues,
 ): Promise<ManagedWorkshop> {
-  let updated = await apiRequest<BackendWorkshop>(
-    `/api/admin/workshops/${workshop.id}`,
-    {
-      method: "PATCH",
-      body: {
-        title: values.title.trim(),
-        speaker: values.speaker.trim(),
-        description: values.description.trim(),
-      },
-    },
-  );
-
-  const sessionBody = toCreateSessionBody(values);
-  if (workshop.sessionId) {
-    const session = await apiRequest<BackendWorkshopSession>(
-      `/api/admin/sessions/${workshop.sessionId}`,
-      { method: "PATCH", body: sessionBody },
-    );
-    updated = { ...updated, sessions: replaceSession(updated.sessions, session) };
-  } else {
-    const session = await apiRequest<BackendWorkshopSession>(
-      `/api/admin/workshops/${workshop.id}/sessions`,
-      { method: "POST", body: sessionBody },
-    );
-    updated = { ...updated, sessions: [...updated.sessions, session] };
-  }
-
-  if (values.status === "PUBLISHED" && updated.status === "DRAFT") {
-    updated = await apiRequest<BackendWorkshop>(
-      `/api/admin/workshops/${workshop.id}/publish`,
-      { method: "POST" },
-    );
-  }
-
-  return toManagedWorkshop(mapWorkshopDetail(updated));
+  void workshop;
+  void values;
+  // TODO: Wire organizer edit when the backend exposes update endpoints, e.g.
+  // PATCH /api/admin/workshops/{workshopId} and PATCH /api/admin/sessions/{sessionId}.
+  throw new Error("Workshop editing is waiting for backend update endpoints.");
 }
 
 export async function cancelWorkshop(
@@ -292,15 +262,6 @@ function toCreateSessionBody(values: WorkshopFormValues): CreateSessionBody {
     feeAmount: Number(values.feeAmount || "0"),
     currency: "VND",
   };
-}
-
-function replaceSession(
-  sessions: BackendWorkshopSession[],
-  nextSession: BackendWorkshopSession,
-) {
-  return sessions.map((session) =>
-    session.id === nextSession.id ? nextSession : session,
-  );
 }
 
 function formatRoom(roomName?: string, building?: string) {

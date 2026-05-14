@@ -64,15 +64,15 @@ export async function getCsvImportErrors(batchId: string) {
 export function csvImportStatusLabel(status: CsvImportStatus) {
   switch (status) {
     case "PROCESSING":
-      return "Dang xu ly";
+      return "Đang xử lý";
     case "SUCCESS":
-      return "Thanh cong";
+      return "Thành công";
     case "PARTIAL_SUCCESS":
-      return "Mot phan";
+      return "Một phần thành công";
     case "FAILED":
-      return "That bai";
+      return "Thất bại";
     case "MISSED":
-      return "Bi thieu";
+      return "Bị thiếu";
     default:
       return status;
   }

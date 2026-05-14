@@ -6,12 +6,7 @@ import java.util.UUID;
 public record PaymentStatusResult(
     UUID paymentIntentId,
     UUID registrationId,
-    String paymentStatus,
+    String status,
     String registrationStatus,
-    java.math.BigDecimal amount,
-    String currency,
-    String provider,
-    String providerTransactionId,
-    LocalDateTime expiresAt,
     boolean qrAvailable) {
 }

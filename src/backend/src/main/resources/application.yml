@@ -61,6 +61,8 @@ app:
       key1: ${APP_PAYMENT_ZALOPAY_KEY1:}
       key2: ${APP_PAYMENT_ZALOPAY_KEY2:}
       endpoint: ${APP_PAYMENT_ZALOPAY_ENDPOINT:https://sb-openapi.zalopay.vn/v2/create}
+      connect-timeout-ms: ${APP_PAYMENT_ZALOPAY_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${APP_PAYMENT_ZALOPAY_READ_TIMEOUT_MS:5000}
       callback-url: ${APP_PAYMENT_ZALOPAY_CALLBACK_URL:}
       frontend-return-url: ${APP_PAYMENT_ZALOPAY_FRONTEND_RETURN_URL:}
       enabled: ${APP_PAYMENT_ZALOPAY_ENABLED:false}

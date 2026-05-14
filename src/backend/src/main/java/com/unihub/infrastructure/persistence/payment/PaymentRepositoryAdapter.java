@@ -17,23 +17,26 @@ import org.springframework.stereotype.Repository;
 public class PaymentRepositoryAdapter implements PaymentRepository {
   private static final String BASE_SELECT = """
       SELECT id, registration_id, idempotency_key, gateway_ref, status, amount, currency,
-             payment_url, expires_at, paid_at, failure_reason, created_at, updated_at
+             payment_url, expires_at, paid_at, failure_reason, created_at, updated_at,
+             provider, provider_transaction_id
       FROM payment_intents
       """;
 
   private static final String SQL_INSERT = """
       INSERT INTO payment_intents (
-        id, registration_id, idempotency_key, gateway_ref, status, amount, currency,
+        id, registration_id, provider, idempotency_key, gateway_ref, provider_transaction_id, status, amount, currency,
         payment_url, expires_at, paid_at, failure_reason, created_at, updated_at
       ) VALUES (
-        :id, :registrationId, :idempotencyKey, :gatewayRef, :status, :amount, :currency,
+        :id, :registrationId, :provider, :idempotencyKey, :providerTransactionId, :providerTransactionId, :status, :amount, :currency,
         :paymentUrl, :expiresAt, :paidAt, :failureReason, :createdAt, :updatedAt
       )
       """;
 
   private static final String SQL_UPDATE = """
       UPDATE payment_intents
-      SET gateway_ref = :gatewayRef,
+      SET provider = :provider,
+          gateway_ref = :providerTransactionId,
+          provider_transaction_id = :providerTransactionId,
           status = :status,
           payment_url = :paymentUrl,
           expires_at = :expiresAt,
@@ -80,15 +83,31 @@ public class PaymentRepositoryAdapter implements PaymentRepository {
   }
 
   @Override
-  public Optional<PaymentIntent> findByGatewayRef(String gatewayRef) {
-    return querySingle(BASE_SELECT + " WHERE gateway_ref = :gatewayRef LIMIT 1",
-        new MapSqlParameterSource("gatewayRef", gatewayRef));
+  public Optional<PaymentIntent> findByProviderTransactionId(String providerTransactionId) {
+    return querySingle(BASE_SELECT + " WHERE provider_transaction_id = :providerTransactionId LIMIT 1",
+        new MapSqlParameterSource("providerTransactionId", providerTransactionId));
   }
 
   @Override
-  public Optional<PaymentIntent> findByGatewayRefForUpdate(String gatewayRef) {
-    return querySingle(BASE_SELECT + " WHERE gateway_ref = :gatewayRef LIMIT 1 FOR UPDATE",
-        new MapSqlParameterSource("gatewayRef", gatewayRef));
+  public Optional<PaymentIntent> findByProviderTransactionIdForUpdate(String providerTransactionId) {
+    return querySingle(BASE_SELECT + " WHERE provider_transaction_id = :providerTransactionId LIMIT 1 FOR UPDATE",
+        new MapSqlParameterSource("providerTransactionId", providerTransactionId));
+  }
+
+  @Override
+  public List<UUID> findExpiredPendingIds(LocalDateTime now, int limit) {
+    String sql = """
+        SELECT id
+        FROM payment_intents
+        WHERE status IN ('PENDING_GATEWAY', 'PENDING_PAYMENT')
+          AND expires_at <= :now
+        ORDER BY expires_at ASC
+        LIMIT :limit
+        """;
+    MapSqlParameterSource params = new MapSqlParameterSource()
+        .addValue("now", Timestamp.valueOf(now))
+        .addValue("limit", limit);
+    return jdbcTemplate.query(sql, params, (rs, rowNum) -> rs.getObject("id", UUID.class));
   }
 
   private Optional<PaymentIntent> querySingle(String sql, MapSqlParameterSource params) {
@@ -100,8 +119,9 @@ public class PaymentRepositoryAdapter implements PaymentRepository {
     return new MapSqlParameterSource()
         .addValue("id", paymentIntent.id())
         .addValue("registrationId", paymentIntent.registrationId())
+        .addValue("provider", paymentIntent.provider())
         .addValue("idempotencyKey", paymentIntent.idempotencyKey())
-        .addValue("gatewayRef", paymentIntent.gatewayRef())
+        .addValue("providerTransactionId", paymentIntent.providerTransactionId())
         .addValue("status", paymentIntent.status().name())
         .addValue("amount", paymentIntent.amount())
         .addValue("currency", paymentIntent.currency())
@@ -117,8 +137,9 @@ public class PaymentRepositoryAdapter implements PaymentRepository {
     return (rs, rowNum) -> new PaymentIntent(
         rs.getObject("id", UUID.class),
         rs.getObject("registration_id", UUID.class),
+        rs.getString("provider"),
         rs.getString("idempotency_key"),
-        rs.getString("gateway_ref"),
+        rs.getString("provider_transaction_id"),
         PaymentStatus.valueOf(rs.getString("status")),
         rs.getBigDecimal("amount"),
         rs.getString("currency"),

@@ -12,6 +12,8 @@ public record PaymentProperties(
       String key1,
       String key2,
       String endpoint,
+      int connectTimeoutMs,
+      int readTimeoutMs,
       String callbackUrl,
       String frontendReturnUrl,
       boolean enabled,

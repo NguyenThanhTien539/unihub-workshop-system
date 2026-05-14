@@ -48,9 +48,7 @@ public class PaymentController {
       @PathVariable UUID paymentIntentId) {
     ZaloPayCreateOrderResult result = paymentCommandService.createZaloPayPaymentUrl(
         new CreatePaymentUrlCommand(requireUserId(authentication), paymentIntentId));
-    var paymentStatus = paymentQueryService.getPaymentStatus(requireUserId(authentication), paymentIntentId);
-    return ResponseEntity.ok(ApiResponse.success(
-        paymentResponseMapper.toPaymentUrlResponse(paymentIntentId, result, paymentStatus)));
+    return ResponseEntity.ok(ApiResponse.success(paymentResponseMapper.toPaymentUrlResponse(result)));
   }
 
   @PostMapping("/zalopay/callback")

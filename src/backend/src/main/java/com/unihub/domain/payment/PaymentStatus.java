@@ -3,7 +3,7 @@ package com.unihub.domain.payment;
 public enum PaymentStatus {
   PENDING_GATEWAY,
   PENDING_PAYMENT,
-  SUCCEEDED,
+  SUCCESS,
   FAILED,
   EXPIRED,
   CANCELED;

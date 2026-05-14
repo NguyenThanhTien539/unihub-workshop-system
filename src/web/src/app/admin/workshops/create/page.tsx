@@ -50,7 +50,7 @@ export default function CreateWorkshopPage() {
   function addSession() {
     // basic validation
     if (!sRoom || !sStart || !sEnd) {
-      setError('Vui lòng nhập đầy đủ thông tin session (phòng, thời gian).');
+      setError('Vui lòng nhập đầy đủ thông tin buổi học (phòng, thời gian).');
       return;
     }
     // ensure roomId looks like a UUID
@@ -104,7 +104,7 @@ export default function CreateWorkshopPage() {
         body: JSON.stringify(workshopBody),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || "Create workshop failed");
+      if (!res.ok) throw new Error(json?.error?.message || "Tạo workshop thất bại");
       const data = json?.data;
       const id = data?.id ?? data?.workshopId ?? data?.workshopId;
       if (!id) {
@@ -132,7 +132,7 @@ export default function CreateWorkshopPage() {
         const sjson = await sr.json();
         if (!sr.ok) {
           // If session creation fails, show error and stop further creations
-          throw new Error(sjson?.message || 'Create session failed');
+          throw new Error(sjson?.message || 'Tạo buổi học thất bại');
         }
       }
 
@@ -155,11 +155,11 @@ export default function CreateWorkshopPage() {
           <div className="mt-4 space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Tiêu đề *</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="VD: AI & Machine Learning Fundamentals" className="mt-1 w-full rounded-md border px-3 py-2 bg-gray-50" />
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="VD: Nền tảng AI và học máy" className="mt-1 w-full rounded-md border px-3 py-2 bg-gray-50" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Diễn giả *</label>
-              <input value={speaker} onChange={e => setSpeaker(e.target.value)} placeholder="VD: Dr. Nguyễn Văn A" className="mt-1 w-full rounded-md border px-3 py-2 bg-gray-50" />
+              <input value={speaker} onChange={e => setSpeaker(e.target.value)} placeholder="VD: TS. Nguyễn Văn A" className="mt-1 w-full rounded-md border px-3 py-2 bg-gray-50" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Mô tả *</label>
@@ -171,11 +171,11 @@ export default function CreateWorkshopPage() {
         <div className="rounded-lg bg-white p-6 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-medium">Sessions</h3>
+              <h3 className="text-lg font-medium">Buổi học</h3>
               <p className="mt-1 text-sm text-slate-500">Thêm các buổi học cho workshop</p>
             </div>
             <div>
-              <button type="button" onClick={() => setShowAddSession(v => !v)} className="inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm">+ Thêm session</button>
+              <button type="button" onClick={() => setShowAddSession(v => !v)} className="inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm">+ Thêm buổi học</button>
             </div>
           </div>
 
@@ -186,7 +186,7 @@ export default function CreateWorkshopPage() {
                 <select value={sRoom} onChange={e => setSRoom(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2">
                   <option value="">-- Chọn phòng --</option>
                   {rooms.map(r => (
-                    <option key={r.id} value={r.id}>{r.name} — {r.building} (cap: {r.capacity})</option>
+                    <option key={r.id} value={r.id}>{r.name} — {r.building} (sức chứa: {r.capacity})</option>
                   ))}
                 </select>
               </div>
@@ -206,8 +206,8 @@ export default function CreateWorkshopPage() {
                 <div>
                   <label className="block text-sm">Loại phí</label>
                   <select value={sFeeType} onChange={e => setSFeeType(e.target.value as any)} className="mt-1 w-full rounded-md border px-3 py-2">
-                    <option value="FREE">FREE</option>
-                    <option value="PAID">PAID</option>
+                    <option value="FREE">Miễn phí</option>
+                    <option value="PAID">Có phí</option>
                   </select>
                 </div>
               </div>
@@ -228,8 +228,8 @@ export default function CreateWorkshopPage() {
             {sessions.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-slate-400">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="opacity-60"><path d="M3 7h18M3 12h18M3 17h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                <div className="text-sm font-medium">Chưa có session nào</div>
-                <div className="text-xs">Nhấn "Thêm session" để bắt đầu</div>
+                <div className="text-sm font-medium">Chưa có buổi học nào</div>
+                <div className="text-xs">Nhấn "Thêm buổi học" để bắt đầu</div>
               </div>
             ) : (
               <ul className="space-y-3">

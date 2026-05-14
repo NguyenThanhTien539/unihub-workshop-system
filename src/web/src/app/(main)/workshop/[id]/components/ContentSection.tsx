@@ -13,15 +13,15 @@ const ContentSection = () => {
       items: [
         "Các khái niệm cơ bản",
         "Phương pháp tiếp cận",
-        "Best practices từ các chuyên gia"
+        "Kinh nghiệm hay từ các chuyên gia"
       ]
     },
     {
       title: "Module 3: Thực hành",
       items: [
-        "Case study thực tế",
+        "Tình huống thực tế",
         "Bài tập nhóm",
-        "Demo và workshop hands-on"
+        "Minh họa và thực hành trực tiếp"
       ]
     }
   ];

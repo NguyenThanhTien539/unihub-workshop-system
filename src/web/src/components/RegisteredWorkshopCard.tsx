@@ -26,7 +26,7 @@ export const RegisteredWorkshopCard = ({ item }: any) => {
               Đã thanh toán
             </span>
             <span className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-600">
-              Chưa check-in
+              Chưa điểm danh
             </span>
           </div>
 

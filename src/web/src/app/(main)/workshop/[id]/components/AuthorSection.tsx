@@ -8,9 +8,9 @@ const AuthorSection = () => {
   ];
 
   const achievements = [
-    "Top Expert 2025",
-    "Award Winner",
-    "Published Author"
+    "Chuyên gia tiêu biểu 2025",
+    "Diễn giả đạt giải",
+    "Tác giả đã xuất bản"
   ];
 
   return (
@@ -24,10 +24,10 @@ const AuthorSection = () => {
 
         <div className="space-y-1">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Dr. Nguyễn Văn A
+            TS. Nguyễn Văn A
           </h2>
           <p className="text-gray-500 text-sm md:text-base leading-relaxed">
-            Tiến sĩ AI tại Google, 10 năm kinh nghiệm nghiên cứu Machine Learning
+            Tiến sĩ AI tại Google, 10 năm kinh nghiệm nghiên cứu học máy
           </p>
         </div>
       </div>

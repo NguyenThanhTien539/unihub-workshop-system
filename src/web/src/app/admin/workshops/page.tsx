@@ -42,7 +42,7 @@ export default function WorkshopsAdminPage() {
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-medium text-slate-700">Quản lý Workshop</h2>
+          <h2 className="text-lg font-medium text-slate-700">Quản lý workshop</h2>
           <p className="text-sm text-slate-500">Danh sách tất cả workshop trong hệ thống</p>
         </div>
         <div className="flex items-center gap-3">
@@ -58,7 +58,7 @@ export default function WorkshopsAdminPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
         <div className="rounded-lg bg-white p-4 shadow">
-          <div className="text-sm text-slate-500">Tổng Workshop</div>
+          <div className="text-sm text-slate-500">Tổng workshop</div>
           <div className="mt-2 text-2xl font-semibold">{workshops.length}</div>
         </div>
         <div className="rounded-lg bg-white p-4 shadow">
@@ -74,13 +74,13 @@ export default function WorkshopsAdminPage() {
           <div className="mt-2 text-2xl font-semibold text-red-600">{workshops.filter(w => w.status === 'CANCELED' || w.status === 'CANCELLED').length}</div>
         </div>
         <div className="rounded-lg bg-white p-4 shadow">
-          <div className="text-sm text-slate-500">Tổng Sessions</div>
+          <div className="text-sm text-slate-500">Tổng buổi học</div>
           <div className="mt-2 text-2xl font-semibold text-sky-600">{workshops.reduce((acc, w) => acc + (w.sessions?.length ?? 0), 0)}</div>
         </div>
       </div>
 
       <div className="mt-4 rounded-lg bg-white p-6 shadow">
-        {loading && <p>Loading workshops...</p>}
+        {loading && <p>Đang tải workshop...</p>}
         {!loading && workshops.length === 0 && (
           <div className="rounded-lg border bg-white p-4">Không có workshop được công bố. Bạn vẫn có thể tạo workshop mới.</div>
         )}

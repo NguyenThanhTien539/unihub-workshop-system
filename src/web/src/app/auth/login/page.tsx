@@ -31,13 +31,13 @@ export default function LoginPageClient() {
         body: JSON.stringify({ email: identifier, password: password }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Login failed');
+      if (!res.ok) throw new Error(json?.error?.message || 'Đăng nhập thất bại');
 
       // try a few places for tokens
       const data = json?.data ?? json;
       const access = data?.accessToken ?? data?.token?.accessToken ?? data?.token ?? data?.access;
       const refresh = data?.refreshToken ?? data?.token?.refreshToken ?? null;
-      if (!access) throw new Error('No access token returned');
+      if (!access) throw new Error('Không nhận được access token');
       setTokens(String(access), refresh ? String(refresh) : undefined);
       
         // set a short-lived cookie and delay the redirect slightly so it's easy
@@ -78,7 +78,7 @@ export default function LoginPageClient() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm shadow-sm"
-              placeholder={role === 'student' ? 'vd: 123456 hoặc you@example.com' : 'you@organization.com'}
+              placeholder={role === 'student' ? 'VD: 123456 hoặc ban@example.com' : 'ban.to.chuc@example.com'}
             />
           </div>
 

@@ -1,11 +1,13 @@
 "use client";
-import {useEffect, useState} from "react";
-import {ensureAdminAuth, fetchWithAuth} from "../../../../lib/adminAuth";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { ensureAdminAuth, fetchWithAuth } from "../../../../lib/adminAuth";
 
 type Session = any;
 
-export default function WorkshopEditPage({params}: {params: {id: string}}) {
-  const id = params.id;
+export default function WorkshopEditPage() {
+  const params = useParams() as { id?: string } | null;
+  const id = params?.id ?? "";
   const [loading, setLoading] = useState(true);
   const [workshop, setWorkshop] = useState<any | null>(null);
   const [title, setTitle] = useState("");
@@ -16,6 +18,7 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
 
   useEffect(() => {
     (async () => {
+      if (!id || id === 'undefined') { setError('ID workshop không hợp lệ'); setLoading(false); return; }
       const ok = await ensureAdminAuth();
       if (!ok) { window.location.href = '/auth/login?role=organizer'; return; }
 
@@ -51,7 +54,7 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
             setSpeaker(data.speaker ?? "");
             setDescription(data.description ?? "");
           } else {
-            setError('Not available');
+            setError('Không tìm thấy workshop');
           }
         }
       } catch (err) {
@@ -69,14 +72,14 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
     try {
       const res = await fetchWithAuth(`/api/admin/workshops/${id}`, {
         method: "PATCH",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({title, speaker, description}),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, speaker, description }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Update failed");
+      if (!res.ok) throw new Error(json?.message || "Cập nhật thất bại");
       const data = json?.data;
       setWorkshop(data);
-      try { sessionStorage.setItem(`admin:workshop:${id}`, JSON.stringify(data)); } catch {}
+      try { sessionStorage.setItem(`admin:workshop:${id}`, JSON.stringify(data)); } catch { }
     } catch (err: any) {
       setError(String(err?.message ?? err));
     } finally { setSaving(false); }
@@ -85,21 +88,21 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
   async function publish() {
     setSaving(true); setError(null);
     try {
-      const res = await fetchWithAuth(`/api/admin/workshops/${id}/publish`, {method: "POST"});
+      const res = await fetchWithAuth(`/api/admin/workshops/${id}/publish`, { method: "POST" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Publish failed");
+      if (!res.ok) throw new Error(json?.message || "Xuất bản thất bại");
       setWorkshop(json.data);
-      try { sessionStorage.setItem(`admin:workshop:${id}`, JSON.stringify(json.data)); } catch {}
+      try { sessionStorage.setItem(`admin:workshop:${id}`, JSON.stringify(json.data)); } catch { }
     } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
   }
 
   async function cancelWorkshop() {
-    if (!confirm("Confirm cancel this workshop?")) return;
+    if (!confirm("Xác nhận hủy workshop này?")) return;
     setSaving(true); setError(null);
     try {
-      const res = await fetchWithAuth(`/api/admin/workshops/${id}/cancel`, {method: "POST"});
+      const res = await fetchWithAuth(`/api/admin/workshops/${id}/cancel`, { method: "POST" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Cancel failed");
+      if (!res.ok) throw new Error(json?.message || "Hủy workshop thất bại");
       setWorkshop(json.data);
     } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
   }
@@ -125,11 +128,11 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
 
       const res = await fetchWithAuth(`/api/admin/workshops/${id}/sessions`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Create session failed");
+      if (!res.ok) throw new Error(json?.message || "Tạo buổi học thất bại");
       // reload admin detail via returned session response + local fetch
       // simplest: reload page
       window.location.reload();
@@ -139,25 +142,25 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
   async function updateSession(sessionId: string, form: any) {
     setSaving(true); setError(null);
     try {
-      const res = await fetchWithAuth(`/api/admin/sessions/${sessionId}`, {method: "PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(form)});
+      const res = await fetchWithAuth(`/api/admin/sessions/${sessionId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Update session failed");
+      if (!res.ok) throw new Error(json?.message || "Cập nhật buổi học thất bại");
       window.location.reload();
     } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
   }
 
   async function cancelSession(sessionId: string) {
-    if (!confirm("Confirm cancel this session?")) return;
+    if (!confirm("Xác nhận hủy buổi học này?")) return;
     setSaving(true); setError(null);
     try {
-      const res = await fetchWithAuth(`/api/admin/sessions/${sessionId}/cancel`, {method: "POST"});
+      const res = await fetchWithAuth(`/api/admin/sessions/${sessionId}/cancel`, { method: "POST" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Cancel session failed");
+      if (!res.ok) throw new Error(json?.message || "Hủy buổi học thất bại");
       window.location.reload();
     } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
   }
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <p>Đang tải...</p>;
 
   return (
     <section className="space-y-6">
@@ -167,9 +170,9 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
           <p className="text-sm text-slate-600">ID: {id}</p>
         </div>
         <div className="flex gap-2">
-          <a href="/admin/workshops" className="rounded-md border px-3 py-1 text-sm">Back</a>
-          <button onClick={publish} className="rounded-md bg-emerald-600 px-3 py-1 text-sm text-white">Publish</button>
-          <button onClick={cancelWorkshop} className="rounded-md bg-red-600 px-3 py-1 text-sm text-white">Cancel</button>
+          <a href="/admin/workshops" className="rounded-md border px-3 py-1 text-sm">Quay lại</a>
+          <button onClick={publish} className="rounded-md bg-emerald-600 px-3 py-1 text-sm text-white">Xuất bản</button>
+          <button onClick={cancelWorkshop} className="rounded-md bg-red-600 px-3 py-1 text-sm text-white">Hủy</button>
         </div>
       </div>
 
@@ -181,7 +184,7 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
           <input value={title} onChange={e => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Speaker</label>
+          <label className="block text-sm font-medium">Diễn giả</label>
           <input value={speaker} onChange={e => setSpeaker(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" />
         </div>
         <div>
@@ -190,23 +193,23 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
         </div>
 
         <div className="flex gap-2">
-          <button disabled={saving} type="submit" className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white">{saving? 'Saving...' : 'Save'}</button>
+          <button disabled={saving} type="submit" className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white">{saving ? 'Đang lưu...' : 'Lưu'}</button>
         </div>
       </form>
 
       <div className="mt-6">
-        <h2 className="text-lg font-semibold">Sessions</h2>
+        <h2 className="text-lg font-semibold">Buổi học</h2>
         <div className="space-y-4 mt-3">
           {(workshop?.sessions ?? []).map((s: Session) => (
             <div key={s.id} className="rounded-md border bg-white p-3">
               <div className="flex justify-between">
                 <div>
                   <div className="font-medium">{s.roomName} — {new Date(s.startAt).toLocaleString()} → {new Date(s.endAt).toLocaleString()}</div>
-                  <div className="text-sm text-slate-600">Status: {s.status} — Seats: {s.seatCapacity}</div>
+                  <div className="text-sm text-slate-600">Trạng thái: {s.status} — Số chỗ: {s.seatCapacity}</div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => void updateSession(s.id, {roomId: s.roomId, startAt: s.startAt, endAt: s.endAt, seatCapacity: s.seatCapacity})} className="rounded-md border px-3 py-1 text-sm">Quick Save</button>
-                  <button onClick={() => cancelSession(s.id)} className="rounded-md bg-red-600 px-3 py-1 text-sm text-white">Cancel</button>
+                  <button onClick={() => void updateSession(s.id, { roomId: s.roomId, startAt: s.startAt, endAt: s.endAt, seatCapacity: s.seatCapacity })} className="rounded-md border px-3 py-1 text-sm">Lưu nhanh</button>
+                  <button onClick={() => cancelSession(s.id)} className="rounded-md bg-red-600 px-3 py-1 text-sm text-white">Hủy</button>
                 </div>
               </div>
             </div>
@@ -219,7 +222,7 @@ export default function WorkshopEditPage({params}: {params: {id: string}}) {
   );
 }
 
-function CreateSessionForm({onCreate, disabled}:{onCreate:(f:any)=>void, disabled?:boolean}){
+function CreateSessionForm({ onCreate, disabled }: { onCreate: (f: any) => void, disabled?: boolean }) {
   const [roomId, setRoomId] = useState("");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
@@ -227,11 +230,11 @@ function CreateSessionForm({onCreate, disabled}:{onCreate:(f:any)=>void, disable
   const [feeType, setFeeType] = useState("FREE");
   const [feeAmount, setFeeAmount] = useState(0);
   const [currency, setCurrency] = useState("VND");
-  const [rooms, setRooms] = useState<Array<{id:string,name:string,building:string,capacity:number,status:string}>>([]);
+  const [rooms, setRooms] = useState<Array<{ id: string, name: string, building: string, capacity: number, status: string }>>([]);
 
-  function submit(e: React.FormEvent){
+  function submit(e: React.FormEvent) {
     e.preventDefault();
-    onCreate({roomId, startAt, endAt, seatCapacity, feeType, feeAmount, currency});
+    onCreate({ roomId, startAt, endAt, seatCapacity, feeType, feeAmount, currency });
   }
 
   useEffect(() => {
@@ -252,44 +255,44 @@ function CreateSessionForm({onCreate, disabled}:{onCreate:(f:any)=>void, disable
     <form onSubmit={submit} className="rounded-md border p-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm">Room</label>
-          <select value={roomId} onChange={e=>setRoomId(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1">
+          <label className="block text-sm">Phòng</label>
+          <select value={roomId} onChange={e => setRoomId(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1">
             <option value="">-- Chọn phòng --</option>
             {rooms.map(r => (
-              <option key={r.id} value={r.id}>{r.name} — {r.building} (cap: {r.capacity})</option>
+              <option key={r.id} value={r.id}>{r.name} — {r.building} (sức chứa: {r.capacity})</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-sm">Seats</label>
-          <input type="number" value={seatCapacity} onChange={e=>setSeatCapacity(Number(e.target.value))} className="mt-1 w-full rounded-md border px-2 py-1" />
+          <label className="block text-sm">Số chỗ</label>
+          <input type="number" value={seatCapacity} onChange={e => setSeatCapacity(Number(e.target.value))} className="mt-1 w-full rounded-md border px-2 py-1" />
         </div>
         <div>
-          <label className="block text-sm">Start</label>
-          <input type="datetime-local" value={startAt} onChange={e=>setStartAt(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
+          <label className="block text-sm">Bắt đầu</label>
+          <input type="datetime-local" value={startAt} onChange={e => setStartAt(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
         </div>
         <div>
-          <label className="block text-sm">End</label>
-          <input type="datetime-local" value={endAt} onChange={e=>setEndAt(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
+          <label className="block text-sm">Kết thúc</label>
+          <input type="datetime-local" value={endAt} onChange={e => setEndAt(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
         </div>
         <div>
-          <label className="block text-sm">Fee Type</label>
-          <select value={feeType} onChange={e=>setFeeType(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1">
-            <option>FREE</option>
-            <option>PAID</option>
+          <label className="block text-sm">Loại phí</label>
+          <select value={feeType} onChange={e => setFeeType(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1">
+            <option value="FREE">Miễn phí</option>
+            <option value="PAID">Có phí</option>
           </select>
         </div>
         <div>
-          <label className="block text-sm">Fee Amount</label>
-          <input type="number" value={feeAmount} onChange={e=>setFeeAmount(Number(e.target.value))} className="mt-1 w-full rounded-md border px-2 py-1" />
+          <label className="block text-sm">Số tiền</label>
+          <input type="number" value={feeAmount} onChange={e => setFeeAmount(Number(e.target.value))} className="mt-1 w-full rounded-md border px-2 py-1" />
         </div>
         <div>
-          <label className="block text-sm">Currency</label>
-          <input value={currency} onChange={e=>setCurrency(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
+          <label className="block text-sm">Tiền tệ</label>
+          <input value={currency} onChange={e => setCurrency(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
         </div>
       </div>
       <div className="mt-3">
-        <button type="submit" disabled={disabled} className="rounded-md bg-sky-600 px-3 py-1 text-sm text-white">Tạo Session</button>
+        <button type="submit" disabled={disabled} className="rounded-md bg-sky-600 px-3 py-1 text-sm text-white">Tạo buổi học</button>
       </div>
     </form>
   );

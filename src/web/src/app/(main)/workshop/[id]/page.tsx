@@ -47,15 +47,15 @@ const WorkshopDetail = () => {
         <img
           src="https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=2070&auto=format&fit=crop"
           className="w-full h-full object-cover brightness-50"
-          alt="AI Background"
+          alt="Nền AI"
         />
         <div className="absolute inset-0 flex flex-col justify-end p-12 bg-gradient-to-t from-black/60 to-transparent">
           <div className="max-w-7xl mx-auto w-full">
             <span className="bg-white text-black px-3 py-1 rounded-full text-xs font-semibold mb-4 inline-block">
-              Technology
+              Công nghệ
             </span>
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              AI & Machine Learning Fundamentals
+              Nền tảng AI và học máy
             </h1>
             <div className="flex flex-wrap gap-6 text-white/90 text-sm">
               <div className="flex items-center gap-2"><Calendar size={18} /> Thứ Ba, 5 tháng 5</div>
@@ -95,8 +95,8 @@ const WorkshopDetail = () => {
             <p className="text-gray-400 text-sm mb-6">Các workshop khác bạn có thể quan tâm</p>
             <div className="grid md:grid-cols-2 gap-6">
               {[
-                { title: 'Mobile App Development with React Native', date: '6/5/2026', img: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400' },
-                { title: 'Blockchain & Cryptocurrency Basics', date: '7/5/2026', img: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=400' }
+                { title: 'Phát triển ứng dụng di động với React Native', date: '6/5/2026', img: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400' },
+                { title: 'Kiến thức cơ bản về blockchain và tiền mã hóa', date: '7/5/2026', img: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=400' }
               ].map((ws, i) => (
                 <div key={i} className="border border-gray-100 rounded-xl overflow-hidden group cursor-pointer hover:shadow-md transition">
                   <img src={ws.img} className="w-full h-32 object-cover" alt={ws.title} />

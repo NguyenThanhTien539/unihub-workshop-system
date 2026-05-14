@@ -9,33 +9,33 @@ import { RegisteredWorkshopCard } from "@/components/RegisteredWorkshopCard";
 const SAMPLE = [
   {
     id: "1",
-    title: "AI & Machine Learning Fundamentals",
+    title: "Nền tảng AI và học máy",
     description:
-      "Khám phá những kiến thức cơ bản về AI và Machine Learning. Tìm hiểu các thuật toán và ứng dụng thực tế.",
+      "Khám phá những kiến thức cơ bản về AI và học máy. Tìm hiểu các thuật toán và ứng dụng thực tế.",
     date: "Thứ Ba, 5 tháng 5",
     time: "09:00 - 11:00",
     location: "Phòng A101",
     seats: "Còn 15/60 chỗ",
     price: "Miễn phí",
-    tag: "Technology",
+    tag: "Công nghệ",
     image: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=60",
   },
   {
     id: "2",
-    title: "Design Thinking Workshop",
+    title: "Workshop tư duy thiết kế",
     description:
-      "Học cách áp dụng Design Thinking để giải quyết vấn đề và tạo ra ý tưởng sáng tạo.",
+      "Học cách áp dụng tư duy thiết kế để giải quyết vấn đề và tạo ra ý tưởng sáng tạo.",
     date: "Thứ Ba, 5 tháng 5",
     time: "13:00 - 16:00",
     location: "Phòng B203",
     seats: "Còn 2/40 chỗ",
     price: "50.000 đ",
-    tag: "Design",
+    tag: "Thiết kế",
     image: "https://images.unsplash.com/photo-1523978591478-c753949ff840?auto=format&fit=crop&w=1200&q=60",
   },
   {
     id: "3",
-    title: "Career Path in Tech Industry",
+    title: "Lộ trình nghề nghiệp trong ngành công nghệ",
     description:
       "Định hướng nghề nghiệp trong ngành công nghệ. Chia sẻ kinh nghiệm từ các chuyên gia hàng đầu.",
     date: "Thứ Tư, 6 tháng 5",
@@ -43,7 +43,7 @@ const SAMPLE = [
     location: "Hội trường lớn",
     seats: "Còn 44/200 chỗ",
     price: "Miễn phí",
-    tag: "Career",
+    tag: "Nghề nghiệp",
     image: "https://images.unsplash.com/photo-1529070538774-1843cb3265df?auto=format&fit=crop&w=1200&q=60",
   },
 ];
@@ -84,9 +84,9 @@ export default function Home() {
             </div>
             <div className="flex gap-2">
               <button className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm flex items-center gap-2"><FaFilter />Tất cả</button>
-              <button className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm flex items-center gap-2"><FaFilter />Technology</button>
-              <button className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm flex items-center gap-2"><FaFilter />Design</button>
-              <button className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm flex items-center gap-2"><FaFilter />Career</button>
+              <button className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm flex items-center gap-2"><FaFilter />Công nghệ</button>
+              <button className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm flex items-center gap-2"><FaFilter />Thiết kế</button>
+              <button className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm flex items-center gap-2"><FaFilter />Nghề nghiệp</button>
             </div>
           </div>
         </div>

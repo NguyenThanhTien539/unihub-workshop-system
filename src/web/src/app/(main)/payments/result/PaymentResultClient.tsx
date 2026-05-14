@@ -33,18 +33,21 @@ export default function PaymentResultClient() {
   );
 
   const pageTitle = useMemo(() => {
-    if (!payment) return "Trang thai thanh toan";
-    if (payment.registrationStatus === "CONFIRMED" || payment.status === "SUCCEEDED") {
-      return "Dang ky thanh cong";
+    if (!payment) return "Trạng thái thanh toan";
+    if (
+      payment.registrationStatus === "CONFIRMED" ||
+      payment.status === "SUCCEEDED"
+    ) {
+      return "Đăng ký thành công";
     }
     if (payment.status === "FAILED" || payment.status === "EXPIRED") {
-      return "Thanh toan chua hoan tat";
+      return "Thanh toán chưa hoàn tất";
     }
-    return "Dang cho thanh toan";
+    return "Đang chờ thanh toán";
   }, [payment]);
 
   const amountText = useMemo(() => {
-    if (!registration) return "Chua co";
+    if (!registration) return "Chưa có thông tin";
     const amount = registration.amount ?? null;
     const currency = registration.currency ?? "VND";
     return formatMoney(amount, currency ?? "VND");
@@ -60,7 +63,7 @@ export default function PaymentResultClient() {
       if (!paymentIntentId) {
         setNotice({
           tone: "error",
-          message: "Khong tim thay paymentIntentId tren URL.",
+          message: "Không tìm thấy paymentIntentId trên URL.",
         });
         setLoading(false);
         return;
@@ -82,7 +85,7 @@ export default function PaymentResultClient() {
           tone: "error",
           message: getFriendlyErrorMessage(
             err,
-            "Khong lay duoc thong tin thanh toan.",
+            "Không lấy được thông tin thanh toán.",
           ),
         });
       } finally {
@@ -117,8 +120,8 @@ export default function PaymentResultClient() {
             ) : null}
           </div>
           <p className="text-sm text-slate-500">
-            Trang nay chi hien thi thong tin dat cho. Ma QR se duoc cap sau khi
-            thanh toan thanh cong.
+            Trang này chỉ hiển thị thông tin đăng ký. Mã QR sẽ được cấp sau khi
+            thanh toán thành công.
           </p>
         </div>
 
@@ -127,26 +130,20 @@ export default function PaymentResultClient() {
         {payment && registration ? (
           <div className="mt-6 grid gap-5">
             <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm sm:grid-cols-2">
+              <InfoRow label="Trạng thái thanh toán" value={payment.status} />
               <InfoRow
-                label="Trang thai thanh toan"
-                value={payment.status}
-              />
-              <InfoRow
-                label="Trang thai dang ky"
+                label="Trạng thái đăng ký"
                 value={payment.registrationStatus}
               />
-              <InfoRow label="So tien" value={amountText} />
+              <InfoRow label="Số tiền" value={amountText} />
+              <InfoRow label="Mã QR" value={payment.qrTicketId ?? "Chưa có"} />
               <InfoRow
-                label="Ma QR"
-                value={payment.qrTicketId ?? "Chua co"}
-              />
-              <InfoRow
-                label="Ma paymentIntent"
+                label="Mã paymentIntent"
                 value={payment.paymentIntentId}
               />
-              <InfoRow label="Ma dang ky" value={registration.registrationId} />
+              <InfoRow label="Mã đăng ký" value={registration.registrationId} />
               <InfoRow
-                label="Thoi gian tao"
+                label="Thời gian tạo đăng ký"
                 value={formatDateTime(registration.createdAt)}
               />
             </div>

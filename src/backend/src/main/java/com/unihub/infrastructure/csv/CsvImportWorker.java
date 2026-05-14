@@ -27,15 +27,18 @@ public class CsvImportWorker {
     this.csvImportCommandService = csvImportCommandService;
   }
 
-  @Scheduled(cron = "${app.csv-import.cron:0 5 0 * * *}")
+  @Scheduled(
+      cron = "${app.csv-import.cron:0 0 2 * * *}",
+      zone = "${app.csv-import.timezone:Asia/Ho_Chi_Minh}")
   public void runScheduledImport() {
     if (!csvImportProperties.enabled()) {
       return;
     }
 
+    log.info("Scheduled CSV import started");
     Path inputDirectory = Path.of(csvImportProperties.inputDirectory()).toAbsolutePath().normalize();
     String filePattern = csvImportProperties.filePattern() == null || csvImportProperties.filePattern().isBlank()
-        ? "*.csv"
+        ? "students-*.csv"
         : csvImportProperties.filePattern();
 
     try {
@@ -66,6 +69,7 @@ public class CsvImportWorker {
             file.getFileName(),
             result.batch().status());
       }
+      log.info("Scheduled CSV import finished; scanned {} file(s)", files.size());
     } catch (Exception ex) {
       log.warn("Scheduled CSV import failed", ex);
     }

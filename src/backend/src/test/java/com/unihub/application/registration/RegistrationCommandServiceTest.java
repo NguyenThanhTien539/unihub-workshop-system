@@ -99,7 +99,7 @@ class RegistrationCommandServiceTest {
     verify(registrationRepository).save(any(Registration.class));
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 1, 0);
     verify(qrTicketService).ensureQrTicket(any(Registration.class));
-    verify(registrationConfirmationMailService).queueRegistrationConfirmedEmail(result.registrationId());
+    verify(registrationConfirmationMailService).queueRegistrationConfirmedNotifications(result.registrationId());
     verify(paymentRepository, never()).save(any(PaymentIntent.class));
   }
 
@@ -126,7 +126,7 @@ class RegistrationCommandServiceTest {
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 0, 1);
     verify(paymentRepository).save(any(PaymentIntent.class));
     verify(qrTicketService, never()).ensureQrTicket(any());
-    verify(registrationConfirmationMailService, never()).queueRegistrationConfirmedEmail(any());
+    verify(registrationConfirmationMailService, never()).queueRegistrationConfirmedNotifications(any());
   }
 
   @Test

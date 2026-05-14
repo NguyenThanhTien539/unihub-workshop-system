@@ -21,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class RegistrationConfirmationMailServiceTest {
@@ -50,11 +49,14 @@ class RegistrationConfirmationMailServiceTest {
         NotificationStatus.PENDING, null, 0, null, null, LocalDateTime.now(), LocalDateTime.now());
     when(notificationRepository.findEmailByEventId(RegistrationConfirmationMailService.eventId(registrationId)))
         .thenReturn(Optional.of(existing));
+    when(notificationRepository.findByEventIdAndChannel(
+        RegistrationConfirmationMailService.eventId(registrationId),
+        NotificationChannel.IN_APP)).thenReturn(Optional.empty());
     when(registrationRepository.findEmailViewByRegistrationId(registrationId))
         .thenReturn(Optional.of(new RegistrationEmailView(registrationId, UUID.randomUUID(), "student@example.com",
             "Student", UUID.randomUUID(), "Workshop", "Room", "H1", LocalDateTime.now(), LocalDateTime.now())));
 
-    service.queueRegistrationConfirmedEmail(registrationId);
+    service.queueRegistrationConfirmedNotifications(registrationId);
 
     verify(mailQueuePublisher, never()).publish(org.mockito.ArgumentMatchers.any());
   }

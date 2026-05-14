@@ -19,9 +19,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -29,6 +34,7 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class ZaloPayPaymentProvider implements ZaloPayClient {
   private static final DateTimeFormatter APP_TRANS_DATE = DateTimeFormatter.ofPattern("yyMMdd");
+  private static final Logger logger = LoggerFactory.getLogger(ZaloPayPaymentProvider.class);
 
   private final PaymentProperties paymentProperties;
   private final ZaloPayMacSigner macSigner;
@@ -59,7 +65,8 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
     if (props == null || !props.enabled()) {
       throw new PaymentException(PaymentErrorCode.PAYMENT_PROVIDER_DISABLED, HttpStatus.CONFLICT);
     }
-    if (isBlank(props.appId()) || isBlank(props.key1()) || isBlank(props.callbackUrl()) || isBlank(props.frontendReturnUrl())) {
+    if (isBlank(props.appId()) || isBlank(props.key1()) || isBlank(props.callbackUrl())
+        || isBlank(props.frontendReturnUrl())) {
       throw new PaymentException(PaymentErrorCode.PAYMENT_PROVIDER_DISABLED, HttpStatus.CONFLICT);
     }
 
@@ -95,12 +102,23 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
     orderParams.put("mac", signCreateOrderRequest(props.appId(), appTransId, userId.toString(), amount, appTime,
         embedDataJson, itemsJson, props.key1()));
 
+    MultiValueMap<String, String> formParams = new LinkedMultiValueMap<>();
+    orderParams.forEach(formParams::add);
+
     try {
       String responseBody = restClient.post()
-          .uri(props.endpoint() + "?" + toQueryString(orderParams))
+          .uri(props.endpoint())
+          .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+          .body(formParams)
           .retrieve()
           .body(String.class);
+      logger.info("ZaloPay create order response: {}", responseBody);
       ZaloPayCreateOrderResponse response = parseCreateOrderResponse(responseBody);
+      logger.info(
+          "ZaloPay create order parsed: returnCode={}, returnMessage={}, orderUrlPresent={}",
+          response.returnCode(),
+          response.returnMessage(),
+          response.orderUrl() != null && !response.orderUrl().isBlank());
       if (response.returnCode() != 1 || response.orderUrl() == null || response.orderUrl().isBlank()) {
         throw new PaymentException(
             PaymentErrorCode.PAYMENT_PROVIDER_REJECTED,
@@ -130,6 +148,7 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
           PaymentErrorCode.PAYMENT_PROVIDER_UNAVAILABLE,
           HttpStatus.BAD_GATEWAY);
     } catch (RestClientResponseException ex) {
+      logger.warn("ZaloPay create order HTTP error: {}", ex.getResponseBodyAsString());
       throw new PaymentException(
           PaymentErrorCode.PAYMENT_PROVIDER_REJECTED,
           HttpStatus.BAD_GATEWAY,

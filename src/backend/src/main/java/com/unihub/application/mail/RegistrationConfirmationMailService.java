@@ -4,8 +4,10 @@ import com.unihub.domain.notification.Notification;
 import com.unihub.domain.notification.NotificationChannel;
 import com.unihub.domain.notification.NotificationRepository;
 import com.unihub.domain.notification.NotificationStatus;
+import com.unihub.domain.registration.Registration;
 import com.unihub.domain.registration.RegistrationEmailView;
 import com.unihub.domain.registration.RegistrationRepository;
+import com.unihub.domain.registration.RegistrationStatus;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -39,6 +41,15 @@ public class RegistrationConfirmationMailService {
   }
 
   public void queueRegistrationConfirmedNotifications(UUID registrationId) {
+    Registration registration = registrationRepository.findById(registrationId)
+        .orElseThrow(() -> new IllegalStateException("Registration not found"));
+    if (registration.status() != RegistrationStatus.CONFIRMED) {
+      log.info(
+          "Skip registration confirmation notification because status is {} for registration {}",
+          registration.status(),
+          registrationId);
+      return;
+    }
     RegistrationEmailView emailView = registrationRepository.findEmailViewByRegistrationId(registrationId)
         .orElseThrow(() -> new IllegalStateException("Registration email view not found"));
     registerAfterCommit(emailView, registrationId, eventId(registrationId));

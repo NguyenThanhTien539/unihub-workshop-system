@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { ConfirmActionModal } from "../../components/ConfirmActionModal";
 import { DateInput, TimeInput } from "../../components/DateTimeInputs";
+import {
+  getActionErrorMessage,
+  useNotification,
+} from "../../components/NotificationModal";
 import { FeeBadge, WorkshopStatusBadge } from "../../components/StatusBadge";
 import { Badge, Button, Card, EmptyState, TabBar } from "../../components/ui";
 import {
@@ -48,8 +52,8 @@ export function OrganizerApp({ account }: { account: Account }) {
   const [workshops, setWorkshops] = useState<ManagedWorkshop[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { showError, showSuccess } = useNotification();
   const [workshopView, setWorkshopView] = useState<WorkshopView>("list");
   const [selectedWorkshop, setSelectedWorkshop] = useState<ManagedWorkshop | null>(
     null,
@@ -98,14 +102,13 @@ export function OrganizerApp({ account }: { account: Account }) {
     }
     setActionLoading(true);
     setError(null);
-    setMessage(null);
     try {
       const created = await createWorkshop(values);
-      setMessage(`${created.title} created as ${created.status.toLowerCase()}.`);
+      await showSuccess(`${created.title} created as ${created.status.toLowerCase()}.`);
       await refreshDashboard();
       setWorkshopView("list");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Create workshop failed.");
+      await showError(getActionErrorMessage(err, "Create workshop failed."));
     } finally {
       setActionLoading(false);
     }
@@ -117,7 +120,6 @@ export function OrganizerApp({ account }: { account: Account }) {
     }
     setActionLoading(true);
     setError(null);
-    setMessage(null);
     try {
       const updated = await updateWorkshop(selectedWorkshop, values);
       setSelectedWorkshop(updated);
@@ -126,7 +128,7 @@ export function OrganizerApp({ account }: { account: Account }) {
           workshop.id === updated.id ? updated : workshop,
         ),
       );
-      setMessage("Workshop updated successfully");
+      await showSuccess("Workshop updated successfully.");
       const refreshed = await refreshDashboard();
       const refreshedWorkshop = refreshed?.workshops.find(
         (workshop) => workshop.id === updated.id,
@@ -134,7 +136,7 @@ export function OrganizerApp({ account }: { account: Account }) {
       setSelectedWorkshop(refreshedWorkshop ?? updated);
       setWorkshopView("detail");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update workshop failed.");
+      await showError(getActionErrorMessage(err, "Update workshop failed."));
     } finally {
       setActionLoading(false);
     }
@@ -145,22 +147,21 @@ export function OrganizerApp({ account }: { account: Account }) {
       return;
     }
     if (confirmWorkshop.status === "CANCELLED") {
-      setError("This workshop has already been cancelled.");
+      await showError("This workshop has already been cancelled.");
       setConfirmWorkshop(null);
       return;
     }
     setActionLoading(true);
     setError(null);
-    setMessage(null);
     try {
       const result = await cancelWorkshop(confirmWorkshop);
       setSelectedWorkshop(result);
-      setMessage(`${result.title} cancelled.`);
+      await showSuccess(`${result.title} cancelled.`);
       await refreshDashboard();
       setConfirmWorkshop(null);
       setWorkshopView("list");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cancel workshop failed.");
+      await showError(getActionErrorMessage(err, "Cancel workshop failed."));
     } finally {
       setActionLoading(false);
     }
@@ -193,10 +194,8 @@ export function OrganizerApp({ account }: { account: Account }) {
           view={workshopView}
           workshops={workshops}
           selectedWorkshop={selectedWorkshop}
-          message={message}
           error={error}
           actionLoading={actionLoading}
-          onClearMessage={() => setMessage(null)}
           onClearError={() => setError(null)}
           onCreate={() => {
             setSelectedWorkshop(null);
@@ -267,10 +266,8 @@ function WorkshopWorkspace({
   view,
   workshops,
   selectedWorkshop,
-  message,
   error,
   actionLoading,
-  onClearMessage,
   onClearError,
   onCreate,
   onBack,
@@ -284,10 +281,8 @@ function WorkshopWorkspace({
   view: WorkshopView;
   workshops: ManagedWorkshop[];
   selectedWorkshop: ManagedWorkshop | null;
-  message: string | null;
   error: string | null;
   actionLoading: boolean;
-  onClearMessage: () => void;
   onClearError: () => void;
   onCreate: () => void;
   onBack: () => void;
@@ -300,9 +295,7 @@ function WorkshopWorkspace({
   const notice =
     view === "list" ? null : (
       <Notice
-        message={message}
         error={error}
-        onClearMessage={onClearMessage}
         onClearError={onClearError}
       />
     );
@@ -355,9 +348,7 @@ function WorkshopWorkspace({
     <OrganizerWorkshopList
       loading={loading}
       workshops={workshops}
-      message={message}
       error={error}
-      onClearMessage={onClearMessage}
       onClearError={onClearError}
       onCreate={onCreate}
       onView={onView}
@@ -368,34 +359,22 @@ function WorkshopWorkspace({
 }
 
 function Notice({
-  message,
   error,
-  onClearMessage,
   onClearError,
 }: {
-  message: string | null;
   error: string | null;
-  onClearMessage: () => void;
   onClearError: () => void;
 }) {
-  if (!message && !error) {
+  if (!error) {
     return null;
   }
 
   return (
     <Card>
-      {message ? (
-        <View style={styles.messageRow}>
-          <Text style={styles.success}>{message}</Text>
-          <Button label="OK" onPress={onClearMessage} variant="secondary" />
-        </View>
-      ) : null}
-      {error ? (
-        <View style={styles.messageRow}>
-          <Text style={styles.error}>{error}</Text>
-          <Button label="OK" onPress={onClearError} variant="secondary" />
-        </View>
-      ) : null}
+      <View style={styles.messageRow}>
+        <Text style={styles.error}>{error}</Text>
+        <Button label="OK" onPress={onClearError} variant="secondary" />
+      </View>
     </Card>
   );
 }
@@ -403,9 +382,7 @@ function Notice({
 function OrganizerWorkshopList({
   loading,
   workshops,
-  message,
   error,
-  onClearMessage,
   onClearError,
   onCreate,
   onView,
@@ -414,9 +391,7 @@ function OrganizerWorkshopList({
 }: {
   loading: boolean;
   workshops: ManagedWorkshop[];
-  message: string | null;
   error: string | null;
-  onClearMessage: () => void;
   onClearError: () => void;
   onCreate: () => void;
   onView: (workshop: ManagedWorkshop) => void;
@@ -500,12 +475,6 @@ function OrganizerWorkshopList({
             <Button label="Create Workshop" onPress={onCreate} />
           </View>
         </View>
-        {message ? (
-          <View style={styles.messageRow}>
-            <Text style={styles.success}>{message}</Text>
-            <Button label="OK" onPress={onClearMessage} variant="secondary" />
-          </View>
-        ) : null}
         {error ? (
           <View style={styles.messageRow}>
             <Text style={styles.error}>{error}</Text>
@@ -1049,12 +1018,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginTop: spacing.lg,
-  },
-  success: {
-    color: colors.success,
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "800",
   },
   error: {
     color: colors.danger,

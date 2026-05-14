@@ -3,6 +3,10 @@ import { StyleSheet, Text, View } from "react-native";
 import { Account } from "../../models/types";
 import { login } from "../../services/authService";
 import { colors, spacing } from "../../theme/theme";
+import {
+  getActionErrorMessage,
+  useNotification,
+} from "../../components/NotificationModal";
 import { Button, Card, Field } from "../../components/ui";
 
 export function AuthScreens({ onAuthenticated }: { onAuthenticated: (account: Account) => void }) {
@@ -17,15 +21,16 @@ function LoginPanel({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { showError, showSuccess } = useNotification();
 
   const submit = async () => {
     setLoading(true);
-    setError(null);
     try {
-      onAuthenticated(await login(email, password));
+      const account = await login(email, password);
+      await showSuccess(`Signed in as ${account.name}.`);
+      onAuthenticated(account);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
+      await showError(getActionErrorMessage(err, "Login failed."));
     } finally {
       setLoading(false);
     }
@@ -52,7 +57,6 @@ function LoginPanel({
             onChangeText={setPassword}
             secureTextEntry
           />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
           <Button
             label={loading ? "Signing in..." : "Login"}
             onPress={submit}
@@ -82,10 +86,5 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.lg,
     marginTop: spacing.xl,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: "800",
   },
 });

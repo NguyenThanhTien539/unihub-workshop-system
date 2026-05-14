@@ -95,6 +95,23 @@ class CheckinCommandServiceTest {
   }
 
   @Test
+  void validateAcceptedWhenSessionIdIsOmittedAndResolvedFromQrRegistration() {
+    LocalDateTime scannedAt = LocalDateTime.of(2026, 6, 10, 8, 15);
+    when(qrTicketService.verifyQrToken("valid-qr")).thenReturn(verifiedTicket("valid-qr", QrTicketStatus.ACTIVE));
+    when(checkinRepository.findCandidateByRegistrationId(registrationId)).thenReturn(Optional.of(confirmedCandidate()));
+    when(checkinRepository.findByRegistrationId(registrationId)).thenReturn(Optional.empty());
+
+    CheckinValidationResult result = service.validate(
+        userId,
+        new ValidateCheckinCommand(null, "valid-qr", scannedAt));
+
+    assertEquals(CheckinResult.ACCEPTED, result.result());
+    assertEquals(registrationId, result.registrationId());
+    assertEquals(scannedAt, result.checkedInAt());
+    verify(checkinRepository).save(any(CheckinRecord.class));
+  }
+
+  @Test
   void syncProcessesMixedBatchIndependently() {
     String existingSyncEventId = "sync-001";
     String acceptedSyncEventId = "sync-003";
@@ -166,6 +183,25 @@ class CheckinCommandServiceTest {
     assertEquals(acceptedRegistrationId, result.results().get(2).registrationId());
     assertEquals("20000002", result.results().get(2).studentId());
     assertEquals(acceptedAt, result.results().get(2).checkedInAt());
+    verify(checkinRepository).save(any(CheckinRecord.class));
+  }
+
+  @Test
+  void syncAcceptedWhenSessionIdIsOmittedAndResolvedFromQrRegistration() {
+    String syncEventId = "sync-no-session";
+    LocalDateTime scannedAt = LocalDateTime.of(2026, 6, 10, 8, 25);
+    when(checkinRepository.findBySyncEventId(syncEventId)).thenReturn(Optional.empty());
+    when(qrTicketService.verifyQrToken("good-qr")).thenReturn(verifiedTicket("good-qr", QrTicketStatus.ACTIVE));
+    when(checkinRepository.findCandidateByRegistrationId(registrationId)).thenReturn(Optional.of(confirmedCandidate()));
+    when(checkinRepository.findByRegistrationId(registrationId)).thenReturn(Optional.empty());
+
+    CheckinSyncResult result = service.sync(userId, new SyncCheckinCommand(List.of(
+        new CheckinSyncEventCommand(syncEventId, null, "good-qr", scannedAt, "device-1"))));
+
+    assertEquals(1, result.results().size());
+    assertEquals(CheckinResult.ACCEPTED, result.results().get(0).result());
+    assertEquals(registrationId, result.results().get(0).registrationId());
+    assertEquals(scannedAt, result.results().get(0).checkedInAt());
     verify(checkinRepository).save(any(CheckinRecord.class));
   }
 

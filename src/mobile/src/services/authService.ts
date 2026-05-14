@@ -69,7 +69,7 @@ export async function verifyRoleAccess(role: Role) {
     await apiRequest<string>("/api/checkin/auth-test");
     return;
   }
-  await apiRequest<string>("/api/registrations/auth-test");
+  await apiRequest<MeResponse>("/api/auth/me");
 }
 
 function roleLabel(role: Role) {

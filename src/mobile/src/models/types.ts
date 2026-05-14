@@ -65,7 +65,9 @@ export type OfflineQueueItem = {
   studentName: string;
   workshopTitle: string;
   scannedAt: string;
-  status: "PENDING_SYNC" | "SYNCED" | "NEEDS_REVIEW";
+  status: "PENDING_SYNC" | "SYNCING" | "SYNC_FAILED" | "REJECTED";
+  reason?: string | null;
+  retryCount?: number;
 };
 
 export type Account = {

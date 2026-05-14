@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { NotificationProvider } from "./src/components/NotificationModal";
 import { Button } from "./src/components/ui";
 import { Account } from "./src/models/types";
 import { AuthScreens } from "./src/screens/auth/AuthScreens";
@@ -39,39 +40,41 @@ export default function App() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.kicker}>UniHub Workshop</Text>
-          <Text style={styles.title}>{roleTitle}</Text>
-        </View>
-
-        {!account ? (
-          <AuthScreens onAuthenticated={setAccount} />
-        ) : (
-          <View style={styles.stack}>
-            <View style={styles.accountBar}>
-              <View style={styles.accountCopy}>
-                <Text style={styles.accountLabel}>{account.label}</Text>
-                <Text style={styles.accountName}>{account.name}</Text>
-                <Text style={styles.accountEmail}>{account.email}</Text>
-              </View>
-              <Button
-                label="Logout"
-                onPress={signOut}
-                variant="secondary"
-              />
-            </View>
-
-            {account.role === "STUDENT" ? <StudentApp account={account} /> : null}
-            {account.role === "CHECKIN_STAFF" ? (
-              <CheckinStaffApp account={account} />
-            ) : null}
-            {account.role === "ORGANIZER" ? (
-              <OrganizerApp account={account} />
-            ) : null}
+      <NotificationProvider>
+        <ScrollView contentContainerStyle={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.kicker}>UniHub Workshop</Text>
+            <Text style={styles.title}>{roleTitle}</Text>
           </View>
-        )}
-      </ScrollView>
+
+          {!account ? (
+            <AuthScreens onAuthenticated={setAccount} />
+          ) : (
+            <View style={styles.stack}>
+              <View style={styles.accountBar}>
+                <View style={styles.accountCopy}>
+                  <Text style={styles.accountLabel}>{account.label}</Text>
+                  <Text style={styles.accountName}>{account.name}</Text>
+                  <Text style={styles.accountEmail}>{account.email}</Text>
+                </View>
+                <Button
+                  label="Logout"
+                  onPress={signOut}
+                  variant="secondary"
+                />
+              </View>
+
+              {account.role === "STUDENT" ? <StudentApp account={account} /> : null}
+              {account.role === "CHECKIN_STAFF" ? (
+                <CheckinStaffApp account={account} />
+              ) : null}
+              {account.role === "ORGANIZER" ? (
+                <OrganizerApp account={account} />
+              ) : null}
+            </View>
+          )}
+        </ScrollView>
+      </NotificationProvider>
     </SafeAreaView>
   );
 }

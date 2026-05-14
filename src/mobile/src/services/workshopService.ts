@@ -108,6 +108,7 @@ export async function getMyRegistrations(): Promise<Registration[]> {
 
 export async function registerForWorkshop(
   sessionId: string,
+  workshopTitle: string,
   feeType: "FREE" | "PAID" = "FREE",
 ): Promise<Registration> {
   const response = await apiRequest<BackendRegistrationMutation>(
@@ -117,7 +118,7 @@ export async function registerForWorkshop(
     body: { sessionId },
     },
   );
-  return mapRegistrationMutation(response);
+  return mapRegistrationMutation(response, workshopTitle, feeType);
 }
 
 export async function getOrganizerDashboard() {
@@ -267,14 +268,18 @@ function mapRegistration(item: BackendRegistration): Registration {
   };
 }
 
-function mapRegistrationMutation(item: BackendRegistrationMutation): Registration {
+function mapRegistrationMutation(
+  item: BackendRegistrationMutation,
+  workshopTitle: string,
+  registrationType: "FREE" | "PAID",
+): Registration {
   const status = normalizeRegistrationStatus(item.registrationStatus);
   return {
     id: item.registrationId,
     workshopId: item.workshopId,
-    workshopTitle: "Registered workshop",
+    workshopTitle,
     status,
-    message: registrationMessage(status, "FREE", item.paymentStatus),
+    message: registrationMessage(status, registrationType, item.paymentStatus),
     notification: item.qrAvailable
       ? "Registration confirmed. Check your email for the check-in ticket."
       : "Complete payment to confirm this registration.",

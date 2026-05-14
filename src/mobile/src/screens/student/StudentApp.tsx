@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Account, Workshop } from "../../models/types";
+import { Account, Registration, Workshop } from "../../models/types";
 import {
   getCurrentWeekWorkshops,
+  getMyRegistrations,
+  registerForWorkshop,
 } from "../../services/workshopService";
 import { colors, spacing } from "../../theme/theme";
+import {
+  getActionErrorMessage,
+  useNotification,
+} from "../../components/NotificationModal";
 import { Badge, Button, Card, EmptyState, TabBar } from "../../components/ui";
 
-type StudentTab = "home" | "profile";
+type StudentTab = "home" | "registrations" | "profile";
 
 export function StudentApp({ account }: { account: Account }) {
   const [tab, setTab] = useState<StudentTab>("home");
@@ -25,6 +31,7 @@ export function StudentApp({ account }: { account: Account }) {
         }}
         tabs={[
           { key: "home", label: "Home" },
+          { key: "registrations", label: "My Seats" },
           { key: "profile", label: "Profile" },
         ]}
       />
@@ -38,6 +45,7 @@ export function StudentApp({ account }: { account: Account }) {
           <WorkshopList onSelectWorkshop={setSelectedWorkshop} />
         )
       ) : null}
+      {tab === "registrations" ? <RegistrationList /> : null}
       {tab === "profile" ? <StudentProfile account={account} /> : null}
     </View>
   );
@@ -139,6 +147,28 @@ function WorkshopDetail({
   workshop: Workshop;
   onBack: () => void;
 }) {
+  const [submitting, setSubmitting] = useState(false);
+  const { showError, showSuccess } = useNotification();
+
+  const register = async () => {
+    if (!workshop.sessionId || submitting) {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await registerForWorkshop(
+        workshop.sessionId,
+        workshop.title,
+        workshop.feeType,
+      );
+      await showSuccess(`${result.workshopTitle}: ${result.message}`);
+    } catch (err) {
+      await showError(getActionErrorMessage(err, "Registration failed."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <View style={styles.stack}>
       <Button label="Back to workshops" onPress={onBack} variant="secondary" />
@@ -161,7 +191,85 @@ function WorkshopDetail({
         </View>
         <Text style={styles.sectionTitle}>Description</Text>
         <Text style={styles.body}>{workshop.summary}</Text>
+        {!workshop.sessionId ? (
+          <Text style={styles.error}>This workshop does not have an open session.</Text>
+        ) : null}
+        <View style={styles.singleAction}>
+          <Button
+            label={submitting ? "Registering..." : "Register"}
+            onPress={register}
+            disabled={
+              submitting ||
+              !workshop.sessionId ||
+              workshop.status === "FULL" ||
+              workshop.status === "CANCELLED"
+            }
+          />
+        </View>
       </Card>
+    </View>
+  );
+}
+
+function RegistrationList() {
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshRegistrations = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setRegistrations(await getMyRegistrations());
+    } catch (err) {
+      setRegistrations([]);
+      setError(err instanceof Error ? err.message : "Unable to load registrations.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshRegistrations();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <Text style={styles.title}>Loading registrations...</Text>
+        <Text style={styles.body}>Checking your latest workshop seats.</Text>
+      </Card>
+    );
+  }
+
+  return (
+    <View style={styles.stack}>
+      <Card>
+        <View style={styles.rowBetween}>
+          <Text style={styles.title}>My Registrations</Text>
+          <Button label="Refresh" onPress={refreshRegistrations} variant="secondary" />
+        </View>
+      </Card>
+      {error ? (
+        <Card>
+          <Text style={styles.error}>{error}</Text>
+          <Button label="Retry" onPress={refreshRegistrations} variant="secondary" />
+        </Card>
+      ) : registrations.length === 0 ? (
+        <EmptyState title="No registrations yet" body="Register for a workshop to see your seat here." />
+      ) : (
+        registrations.map((registration) => (
+          <Card key={registration.id}>
+            <Badge
+              label={registration.status}
+              tone={registration.status === "CONFIRMED" ? "success" : "warning"}
+            />
+            <Text style={styles.workshopTitle}>{registration.workshopTitle}</Text>
+            <Text style={styles.body}>{registration.message}</Text>
+            <Text style={styles.meta}>{registration.notification}</Text>
+          </Card>
+        ))
+      )}
     </View>
   );
 }
@@ -230,6 +338,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: spacing.md,
+  },
+  singleAction: {
+    marginTop: spacing.xl,
   },
   sectionTitle: {
     color: colors.ink,

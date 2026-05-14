@@ -36,7 +36,7 @@ export type CheckinValidateResponse = {
 
 export type CheckinSyncEventPayload = {
   syncEventId: string;
-  sessionId: string;
+  sessionId?: string | null;
   qrToken: string;
   scannedAt: string;
   deviceId?: string;
@@ -74,7 +74,7 @@ export async function listCheckinSessions(accessToken: string) {
 
 export async function validateCheckin(
   accessToken: string,
-  payload: { sessionId: string; qrToken: string; scannedAt: string },
+  payload: { sessionId?: string | null; qrToken: string; scannedAt: string },
 ) {
   return apiRequest<CheckinValidateResponse>(
     "/api/checkin/validate",

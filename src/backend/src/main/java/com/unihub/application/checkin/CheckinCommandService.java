@@ -178,7 +178,7 @@ public class CheckinCommandService {
     if (candidate.registrationStatus() != RegistrationStatus.CONFIRMED) {
       throw new CheckinException(CheckinErrorCode.CHECKIN_REGISTRATION_NOT_CONFIRMED, HttpStatus.CONFLICT);
     }
-    if (!candidate.sessionId().equals(requestedSessionId)) {
+    if (requestedSessionId != null && !candidate.sessionId().equals(requestedSessionId)) {
       throw new CheckinException(CheckinErrorCode.CHECKIN_SESSION_MISMATCH, HttpStatus.CONFLICT);
     }
     if (!isSessionOpenForCheckin(candidate.workshopStatus(), candidate.sessionStatus(),

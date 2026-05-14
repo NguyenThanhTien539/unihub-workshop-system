@@ -2,11 +2,27 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowLeft, Calendar, Clock, LoaderCircle, MapPin, UserRound, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  LoaderCircle,
+  MapPin,
+  UserRound,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getFriendlyErrorMessage, getRetryAfterSeconds } from "../../../../lib/apiClient";
-import { getCurrentUser, hasStoredSession, normalizeRoles, type AuthUser } from "../../../../lib/auth";
+import {
+  getFriendlyErrorMessage,
+  getRetryAfterSeconds,
+} from "../../../../lib/apiClient";
+import {
+  getCurrentUser,
+  hasStoredSession,
+  normalizeRoles,
+  type AuthUser,
+} from "../../../../lib/auth";
 import {
   clearPaidRegistrationIdempotencyKey,
   createPaymentUrl,
@@ -34,20 +50,34 @@ type Notice = {
   message: string;
 };
 
-export default function WorkshopDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function WorkshopDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const resolvedParams = use(params);
   const router = useRouter();
   const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [registrations, setRegistrations] = useState<RegistrationResponse[]>([]);
+  const [registrations, setRegistrations] = useState<RegistrationResponse[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busySessionId, setBusySessionId] = useState<string | null>(null);
-  const [confirmSession, setConfirmSession] = useState<WorkshopSession | null>(null);
+  const [confirmSession, setConfirmSession] = useState<WorkshopSession | null>(
+    null,
+  );
   const [confirmMode, setConfirmMode] = useState<"FREE" | "PAID" | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null,
+  );
 
-  const roles = useMemo(() => normalizeRoles(currentUser?.roles), [currentUser?.roles]);
+  const roles = useMemo(
+    () => normalizeRoles(currentUser?.roles),
+    [currentUser?.roles],
+  );
   const isStudent = roles.includes("student");
 
   useEffect(() => {
@@ -56,7 +86,13 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
   }, [resolvedParams.id]);
 
   const registrationsBySession = useMemo(
-    () => new Map(registrations.map((registration) => [registration.sessionId, registration])),
+    () =>
+      new Map(
+        registrations.map((registration) => [
+          registration.sessionId,
+          registration,
+        ]),
+      ),
     [registrations],
   );
 
@@ -67,6 +103,9 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
     try {
       const workshopDetail = await getPublicWorkshop(resolvedParams.id);
       setWorkshop(workshopDetail);
+      setSelectedSessionId(
+        (prev) => prev ?? workshopDetail.sessions[0]?.id ?? null,
+      );
 
       if (!hasStoredSession()) {
         setCurrentUser(null);
@@ -132,10 +171,15 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
       await loadPage();
     } catch (err) {
       const retryAfter = getRetryAfterSeconds(err);
-      const message = getFriendlyErrorMessage(err, "Khong dang ky duoc buoi nay.");
+      const message = getFriendlyErrorMessage(
+        err,
+        "Khong dang ky duoc buoi nay.",
+      );
       setNotice({
         tone: "error",
-        message: retryAfter ? `${message} Thu lai sau ${retryAfter} giay.` : message,
+        message: retryAfter
+          ? `${message} Thu lai sau ${retryAfter} giay.`
+          : message,
       });
     } finally {
       setBusySessionId(null);
@@ -154,18 +198,23 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
         window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
         setNotice({
           tone: "info",
-          message: "Da mo lien ket thanh toan moi. Sau khi thanh toan, hay quay lai va kiem tra trang thai.",
+          message:
+            "Da mo lien ket thanh toan moi. Sau khi thanh toan, hay quay lai va kiem tra trang thai.",
         });
       } else {
         setNotice({
           tone: "info",
-          message: "Dang ky dang cho thanh toan, nhung backend chua tra paymentUrl.",
+          message:
+            "Dang ky dang cho thanh toan, nhung backend chua tra paymentUrl.",
         });
       }
     } catch (err) {
       setNotice({
         tone: "error",
-        message: getFriendlyErrorMessage(err, "Khong tao duoc lien ket thanh toan."),
+        message: getFriendlyErrorMessage(
+          err,
+          "Khong tao duoc lien ket thanh toan.",
+        ),
       });
     } finally {
       setBusySessionId(null);
@@ -173,7 +222,9 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
   }
 
   if (loading) {
-    return <div className="min-h-[520px] animate-pulse rounded-3xl bg-white shadow-sm" />;
+    return (
+      <div className="min-h-[520px] animate-pulse rounded-3xl bg-white shadow-sm" />
+    );
   }
 
   if (error || !workshop) {
@@ -187,7 +238,9 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
           <ArrowLeft size={16} />
           Back to workshops
         </button>
-        <h1 className="text-xl font-semibold text-red-900">Unable to open this workshop</h1>
+        <h1 className="text-xl font-semibold text-red-900">
+          Unable to open this workshop
+        </h1>
         <p className="mt-2 text-sm text-red-700">
           {error ?? "Workshop does not exist or is not published yet."}
         </p>
@@ -196,6 +249,9 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
   }
 
   const firstSession = getFirstSession(workshop);
+  const quickFactsSession =
+    workshop.sessions.find((session) => session.id === selectedSessionId) ??
+    firstSession;
 
   return (
     <>
@@ -221,9 +277,18 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
             <div className="relative z-10 flex min-h-[360px] flex-col justify-end p-6 sm:p-10">
               <div className="mb-4 flex flex-wrap gap-2">
                 <Chip>{statusLabel(workshop.status)}</Chip>
-                {firstSession ? <Chip tone="dark">{formatMoney(firstSession.feeAmount, firstSession.currency ?? "VND")}</Chip> : null}
+                {firstSession ? (
+                  <Chip tone="dark">
+                    {formatMoney(
+                      firstSession.feeAmount,
+                      firstSession.currency ?? "VND",
+                    )}
+                  </Chip>
+                ) : null}
               </div>
-              <h1 className="max-w-4xl text-3xl font-bold sm:text-5xl">{workshop.title}</h1>
+              <h1 className="max-w-4xl text-3xl font-bold sm:text-5xl">
+                {workshop.title}
+              </h1>
               <div className="mt-5 flex flex-wrap gap-5 text-sm text-white/90">
                 <span className="inline-flex items-center gap-2">
                   <UserRound size={17} />
@@ -235,7 +300,10 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <Clock size={17} />
-                  {formatSessionTime(firstSession?.startAt, firstSession?.endAt)}
+                  {formatSessionTime(
+                    firstSession?.startAt,
+                    firstSession?.endAt,
+                  )}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <MapPin size={17} />
@@ -252,19 +320,27 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
           <div className="space-y-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-950">Overview</h2>
-              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">{workshop.description}</p>
+              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">
+                {workshop.description}
+              </p>
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-950">Sessions and registration</h2>
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    Sessions and registration
+                  </h2>
                   <p className="text-sm text-slate-500">
-                    Live seat counts, payment state, and registration actions are synced from backend APIs.
+                    Live seat counts, payment state, and registration actions
+                    are synced from backend APIs.
                   </p>
                 </div>
                 {isStudent ? (
-                  <Link href="/registrations" className="text-sm font-medium text-sky-700 hover:text-sky-900">
+                  <Link
+                    href="/registrations"
+                    className="text-sm font-medium text-sky-700 hover:text-sky-900"
+                  >
                     Open My Registrations
                   </Link>
                 ) : null}
@@ -283,30 +359,65 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
                     });
 
                     return (
-                      <article key={session.id} className="rounded-2xl border border-slate-200 p-5">
+                      <article
+                        key={session.id}
+                        onClick={() => setSelectedSessionId(session.id)}
+                        className={
+                          session.id === selectedSessionId
+                            ? "rounded-2xl border border-sky-200 bg-sky-50/40 p-5 shadow-sm"
+                            : "rounded-2xl border border-slate-200 p-5"
+                        }
+                      >
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <div className="font-medium text-slate-950">{formatSessionDate(session.startAt)}</div>
+                            <div className="font-medium text-slate-950">
+                              {formatSessionDate(session.startAt)}
+                            </div>
                             <div className="mt-1 text-sm text-slate-600">
-                              {formatSessionTime(session.startAt, session.endAt)} at {formatLocation(session)}
+                              {formatSessionTime(
+                                session.startAt,
+                                session.endAt,
+                              )}{" "}
+                              at {formatLocation(session)}
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
-                              <InlineTag>{statusLabel(session.status)}</InlineTag>
-                              <InlineTag>{session.feeType === "FREE" ? "Free session" : "Paid session"}</InlineTag>
-                              <InlineTag>{formatMoney(session.feeAmount, session.currency ?? "VND")}</InlineTag>
-                              {registration ? <InlineTag tone="sky">{registration.registrationStatus}</InlineTag> : null}
+                              <InlineTag>
+                                {statusLabel(session.status)}
+                              </InlineTag>
+                              <InlineTag>
+                                {session.feeType === "FREE"
+                                  ? "Free session"
+                                  : "Paid session"}
+                              </InlineTag>
+                              <InlineTag>
+                                {formatMoney(
+                                  session.feeAmount,
+                                  session.currency ?? "VND",
+                                )}
+                              </InlineTag>
+                              {registration ? (
+                                <InlineTag tone="sky">
+                                  {registration.registrationStatus}
+                                </InlineTag>
+                              ) : null}
                             </div>
                           </div>
 
                           <button
                             type="button"
                             disabled={action.disabled}
-                            onClick={() => handleAction(action.kind, session, registration)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleAction(action.kind, session, registration);
+                            }}
                             className={buttonClass(action)}
                           >
                             {busySessionId === session.id ? (
                               <>
-                                <LoaderCircle size={16} className="animate-spin" />
+                                <LoaderCircle
+                                  size={16}
+                                  className="animate-spin"
+                                />
                                 Processing...
                               </>
                             ) : (
@@ -325,7 +436,9 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
                     );
                   })
                 ) : (
-                  <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">This workshop has no sessions yet.</div>
+                  <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                    This workshop has no sessions yet.
+                  </div>
                 )}
               </div>
             </section>
@@ -333,11 +446,16 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
 
           <aside className="space-y-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-950">Registration status</h2>
+              <h2 className="text-lg font-semibold text-slate-950">
+                Registration status
+              </h2>
               <div className="mt-4 space-y-3 text-sm text-slate-600">
                 {!currentUser ? (
                   <>
-                    <p>Sign in as a student to register, pay, and open your QR ticket.</p>
+                    <p>
+                      Sign in as a student to register, pay, and open your QR
+                      ticket.
+                    </p>
                     <Link
                       href="/auth/login?role=student"
                       className="inline-flex rounded-full bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
@@ -348,24 +466,55 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
                 ) : isStudent ? (
                   <>
                     <p>You are signed in as {currentUser.fullName}.</p>
-                    <p>Each session button below reflects current seat availability and your own registration state.</p>
-                    <Link href="/registrations" className="inline-flex text-sm font-medium text-sky-700 hover:text-sky-900">
+                    <p>
+                      Each session button below reflects current seat
+                      availability and your own registration state.
+                    </p>
+                    <Link
+                      href="/registrations"
+                      className="inline-flex text-sm font-medium text-sky-700 hover:text-sky-900"
+                    >
                       Manage my registrations
                     </Link>
                   </>
                 ) : (
-                  <p>Only student accounts can register for workshops. Organizer and check-in accounts can browse details but cannot book seats.</p>
+                  <p>
+                    Only student accounts can register for workshops. Organizer
+                    and check-in accounts can browse details but cannot book
+                    seats.
+                  </p>
                 )}
               </div>
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-950">Quick facts</h2>
+              <h2 className="text-lg font-semibold text-slate-950">
+                Quick facts
+              </h2>
               <div className="mt-4 space-y-4 text-sm text-slate-700">
-                <InfoRow icon={<Calendar size={18} />} label="Date" value={formatSessionDate(firstSession?.startAt)} />
-                <InfoRow icon={<Clock size={18} />} label="Time" value={formatSessionTime(firstSession?.startAt, firstSession?.endAt)} />
-                <InfoRow icon={<MapPin size={18} />} label="Location" value={formatLocation(firstSession)} />
-                <InfoRow icon={<Users size={18} />} label="Seats" value={formatSeatSummary(firstSession)} />
+                <InfoRow
+                  icon={<Calendar size={18} />}
+                  label="Date"
+                  value={formatSessionDate(quickFactsSession?.startAt)}
+                />
+                <InfoRow
+                  icon={<Clock size={18} />}
+                  label="Time"
+                  value={formatSessionTime(
+                    quickFactsSession?.startAt,
+                    quickFactsSession?.endAt,
+                  )}
+                />
+                <InfoRow
+                  icon={<MapPin size={18} />}
+                  label="Location"
+                  value={formatLocation(quickFactsSession)}
+                />
+                <InfoRow
+                  icon={<Users size={18} />}
+                  label="Seats"
+                  value={formatSeatSummary(quickFactsSession)}
+                />
               </div>
             </section>
           </aside>
@@ -447,7 +596,11 @@ function getSessionAction({
   }
 
   if (!isStudent) {
-    return { kind: "INFO", label: "Chi sinh vien duoc dang ky", disabled: true };
+    return {
+      kind: "INFO",
+      label: "Chi sinh vien duoc dang ky",
+      disabled: true,
+    };
   }
 
   if (session.status !== "OPEN") {
@@ -502,20 +655,26 @@ function ConfirmationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
       <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
         <h2 className="text-xl font-semibold text-slate-950">
-          {mode === "FREE" ? "Confirm free registration" : "Confirm paid registration"}
+          {mode === "FREE"
+            ? "Confirm free registration"
+            : "Confirm paid registration"}
         </h2>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
           <p>{formatSessionDate(session.startAt)}</p>
           <p>
-            {formatSessionTime(session.startAt, session.endAt)} at {formatLocation(session)}
+            {formatSessionTime(session.startAt, session.endAt)} at{" "}
+            {formatLocation(session)}
           </p>
           <p>
-            Seats: {formatSeatSummary(session)} · Fee: {formatMoney(session.feeAmount, session.currency ?? "VND")}
+            Seats: {formatSeatSummary(session)} · Fee:{" "}
+            {formatMoney(session.feeAmount, session.currency ?? "VND")}
           </p>
           {mode === "PAID" ? (
             <p>QR code will only be available after payment is confirmed.</p>
           ) : (
-            <p>QR code will be available immediately after registration succeeds.</p>
+            <p>
+              QR code will be available immediately after registration succeeds.
+            </p>
           )}
         </div>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
@@ -533,7 +692,9 @@ function ConfirmationModal({
             disabled={submitting}
             className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:bg-slate-400"
           >
-            {submitting ? <LoaderCircle size={16} className="animate-spin" /> : null}
+            {submitting ? (
+              <LoaderCircle size={16} className="animate-spin" />
+            ) : null}
             {submitting ? "Submitting..." : "Confirm"}
           </button>
         </div>
@@ -550,10 +711,22 @@ function NoticeBanner({ notice }: { notice: Notice }) {
         ? "border-red-200 bg-red-50 text-red-700"
         : "border-sky-200 bg-sky-50 text-sky-700";
 
-  return <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>{notice.message}</div>;
+  return (
+    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>
+      {notice.message}
+    </div>
+  );
 }
 
-function InfoRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function InfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex gap-3 border-b border-slate-100 pb-4 last:border-0 last:pb-0">
       <div className="text-sky-600">{icon}</div>
@@ -565,7 +738,13 @@ function InfoRow({ icon, label, value }: { icon: ReactNode; label: string; value
   );
 }
 
-function Chip({ children, tone = "light" }: { children: ReactNode; tone?: "light" | "dark" }) {
+function Chip({
+  children,
+  tone = "light",
+}: {
+  children: ReactNode;
+  tone?: "light" | "dark";
+}) {
   return (
     <span
       className={
@@ -579,7 +758,13 @@ function Chip({ children, tone = "light" }: { children: ReactNode; tone?: "light
   );
 }
 
-function InlineTag({ children, tone = "slate" }: { children: ReactNode; tone?: "slate" | "sky" }) {
+function InlineTag({
+  children,
+  tone = "slate",
+}: {
+  children: ReactNode;
+  tone?: "slate" | "sky";
+}) {
   return (
     <span
       className={

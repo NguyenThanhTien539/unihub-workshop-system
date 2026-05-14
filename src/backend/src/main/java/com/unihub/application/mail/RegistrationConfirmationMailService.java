@@ -18,7 +18,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Service
 public class RegistrationConfirmationMailService {
   private static final Logger log = LoggerFactory.getLogger(RegistrationConfirmationMailService.class);
-  private static final String EVENT_TYPE = "REGISTRATION_CONFIRMED_EMAIL";
+  private static final String EMAIL_EVENT_TYPE = "REGISTRATION_CONFIRMED_EMAIL";
+  private static final String IN_APP_EVENT_TYPE = "REGISTRATION_CONFIRMED";
   private static final String TEMPLATE_KEY = "registration-confirmed";
 
   private final RegistrationRepository registrationRepository;
@@ -37,31 +38,27 @@ public class RegistrationConfirmationMailService {
     this.clock = clock;
   }
 
-  public void queueRegistrationConfirmedEmail(UUID registrationId) {
+  public void queueRegistrationConfirmedNotifications(UUID registrationId) {
     RegistrationEmailView emailView = registrationRepository.findEmailViewByRegistrationId(registrationId)
         .orElseThrow(() -> new IllegalStateException("Registration email view not found"));
-
-    String eventId = eventId(registrationId);
-    Notification existing = notificationRepository.findEmailByEventId(eventId).orElse(null);
-    if (existing != null) {
-      return;
-    }
-
-    Notification notification = createNotification(emailView, eventId);
-    registerAfterCommit(notification, emailView, registrationId);
+    registerAfterCommit(emailView, registrationId, eventId(registrationId));
   }
 
   public static String eventId(UUID registrationId) {
     return "registration-confirmed:" + registrationId;
   }
 
-  private Notification createNotification(RegistrationEmailView emailView, String eventId) {
+  public void queueRegistrationConfirmedEmail(UUID registrationId) {
+    queueRegistrationConfirmedNotifications(registrationId);
+  }
+
+  private Notification createEmailNotification(RegistrationEmailView emailView, String eventId) {
     LocalDateTime now = LocalDateTime.now(clock);
-    Notification notification = new Notification(
+    return new Notification(
         UUID.randomUUID(),
         emailView.recipientUserId(),
         eventId,
-        EVENT_TYPE,
+        EMAIL_EVENT_TYPE,
         NotificationChannel.EMAIL,
         TEMPLATE_KEY,
         "Registration confirmed",
@@ -73,21 +70,65 @@ public class RegistrationConfirmationMailService {
         null,
         now,
         now);
-    return notificationRepository.save(notification);
   }
 
-  private void registerAfterCommit(Notification notification, RegistrationEmailView emailView, UUID registrationId) {
+  private Notification createInAppNotification(RegistrationEmailView emailView, String eventId) {
+    LocalDateTime now = LocalDateTime.now(clock);
+    return new Notification(
+        UUID.randomUUID(),
+        emailView.recipientUserId(),
+        eventId,
+        IN_APP_EVENT_TYPE,
+        NotificationChannel.IN_APP,
+        TEMPLATE_KEY,
+        "Registration confirmed",
+        "Your registration for " + emailView.workshopTitle() + " has been confirmed.",
+        NotificationStatus.SENT,
+        null,
+        0,
+        null,
+        null,
+        now,
+        now);
+  }
+
+  private void registerAfterCommit(RegistrationEmailView emailView, UUID registrationId, String eventId) {
     if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-      publish(notification, emailView, registrationId);
+      createNotificationsAndPublish(emailView, registrationId, eventId);
       return;
     }
 
     TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
       @Override
       public void afterCommit() {
-        publish(notification, emailView, registrationId);
+        createNotificationsAndPublish(emailView, registrationId, eventId);
       }
     });
+  }
+
+  private void createNotificationsAndPublish(RegistrationEmailView emailView, UUID registrationId, String eventId) {
+    ensureInAppNotification(emailView, eventId);
+    EmailNotification emailNotification = ensureEmailNotification(emailView, eventId);
+    if (emailNotification.newlyCreated()) {
+      publish(emailNotification.notification(), emailView, registrationId);
+    }
+  }
+
+  private void ensureInAppNotification(RegistrationEmailView emailView, String eventId) {
+    Notification existing = notificationRepository.findByEventIdAndChannel(eventId, NotificationChannel.IN_APP)
+        .orElse(null);
+    if (existing != null) {
+      return;
+    }
+    notificationRepository.save(createInAppNotification(emailView, eventId));
+  }
+
+  private EmailNotification ensureEmailNotification(RegistrationEmailView emailView, String eventId) {
+    Notification existing = notificationRepository.findEmailByEventId(eventId).orElse(null);
+    if (existing != null) {
+      return new EmailNotification(existing, false);
+    }
+    return new EmailNotification(notificationRepository.save(createEmailNotification(emailView, eventId)), true);
   }
 
   private void publish(Notification notification, RegistrationEmailView emailView, UUID registrationId) {
@@ -102,5 +143,8 @@ public class RegistrationConfirmationMailService {
     } catch (Exception ex) {
       log.warn("Failed to publish registration confirmation email job for registration {}", registrationId, ex);
     }
+  }
+
+  private record EmailNotification(Notification notification, boolean newlyCreated) {
   }
 }

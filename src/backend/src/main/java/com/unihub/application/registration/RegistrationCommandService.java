@@ -82,7 +82,7 @@ public class RegistrationCommandService {
     }
     registrationRepository.updateSessionSeatCounters(session.sessionId(), 1, 0);
     qrTicketService.ensureQrTicket(registration);
-    registrationConfirmationMailService.queueRegistrationConfirmedEmail(registration.id());
+    registrationConfirmationMailService.queueRegistrationConfirmedNotifications(registration.id());
 
     return new RegistrationResult(
         registration.id(),
@@ -129,6 +129,7 @@ public class RegistrationCommandService {
     PaymentIntent paymentIntent = new PaymentIntent(
         UUID.randomUUID(),
         registration.id(),
+        "ZALOPAY",
         "payment-intent:" + registration.id(),
         null,
         PaymentStatus.PENDING_GATEWAY,

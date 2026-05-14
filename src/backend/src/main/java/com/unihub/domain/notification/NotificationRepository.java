@@ -5,7 +5,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface NotificationRepository {
-  Optional<Notification> findEmailByEventId(String eventId);
+  Optional<Notification> findByEventIdAndChannel(String eventId, NotificationChannel channel);
+
+  default Optional<Notification> findEmailByEventId(String eventId) {
+    return findByEventIdAndChannel(eventId, NotificationChannel.EMAIL);
+  }
 
   Notification save(Notification notification);
 

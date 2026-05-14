@@ -65,6 +65,12 @@ app:
       frontend-return-url: ${APP_PAYMENT_ZALOPAY_FRONTEND_RETURN_URL:}
       enabled: ${APP_PAYMENT_ZALOPAY_ENABLED:false}
       sandbox-mode: ${APP_PAYMENT_ZALOPAY_SANDBOX_MODE:true}
+  csv-import:
+    enabled: ${APP_CSV_IMPORT_ENABLED:false}
+    input-directory: ${APP_CSV_IMPORT_INPUT_DIRECTORY:./data}
+    file-pattern: ${APP_CSV_IMPORT_FILE_PATTERN:*.csv}
+    cron: ${APP_CSV_IMPORT_CRON:0 5 0 * * *}
+    record-missing-batch: ${APP_CSV_IMPORT_RECORD_MISSING_BATCH:false}
 
 server:
   port: ${PORT:8080}

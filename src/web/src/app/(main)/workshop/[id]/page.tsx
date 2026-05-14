@@ -129,7 +129,7 @@ export default function WorkshopDetailPage({
       }
     } catch (err) {
       setWorkshop(null);
-      setError(getFriendlyErrorMessage(err, "Khong tai duoc workshop."));
+      setError(getFriendlyErrorMessage(err, "Không tải được workshop."));
     } finally {
       setLoading(false);
     }
@@ -148,7 +148,7 @@ export default function WorkshopDetailPage({
         setNotice({
           tone: "success",
           message:
-            "Dang ky thanh cong. Ma QR da duoc tao. Email xac nhan da duoc gui neu cau hinh email hoat dong.",
+            "Đăng ký thành công. Mã QR đã được tạo. Email xác nhận sẽ được gửi nếu cấu hình email đang hoạt động.",
         });
       } else {
         const response = await registerPaid(
@@ -161,8 +161,8 @@ export default function WorkshopDetailPage({
         setNotice({
           tone: "success",
           message: response.paymentIntentId
-            ? "Dang ky co phi da duoc tao. Hay thanh toan de nhan ma QR."
-            : "Dang ky co phi da duoc tao va dang cho thanh toan.",
+            ? "Đăng ký có phí đã được tạo. Hãy thanh toán để nhận mã QR."
+            : "Đăng ký có phí đã được tạo và đang chờ thanh toán.",
         });
       }
 
@@ -173,12 +173,12 @@ export default function WorkshopDetailPage({
       const retryAfter = getRetryAfterSeconds(err);
       const message = getFriendlyErrorMessage(
         err,
-        "Khong dang ky duoc buoi nay.",
+        "Không đăng ký được buổi này.",
       );
       setNotice({
         tone: "error",
         message: retryAfter
-          ? `${message} Thu lai sau ${retryAfter} giay.`
+          ? `${message} Thử lại sau ${retryAfter} giây.`
           : message,
       });
     } finally {
@@ -199,13 +199,13 @@ export default function WorkshopDetailPage({
         setNotice({
           tone: "info",
           message:
-            "Da mo lien ket thanh toan moi. Sau khi thanh toan, hay quay lai va kiem tra trang thai.",
+            "Đã mở liên kết thanh toán mới. Sau khi thanh toán, hãy quay lại và kiểm tra trạng thái.",
         });
       } else {
         setNotice({
           tone: "info",
           message:
-            "Dang ky dang cho thanh toan, nhung backend chua tra paymentUrl.",
+            "Đăng ký đang chờ thanh toán, nhưng backend chưa trả paymentUrl.",
         });
       }
     } catch (err) {
@@ -213,7 +213,7 @@ export default function WorkshopDetailPage({
         tone: "error",
         message: getFriendlyErrorMessage(
           err,
-          "Khong tao duoc lien ket thanh toan.",
+          "Không tạo được liên kết thanh toán.",
         ),
       });
     } finally {
@@ -236,13 +236,13 @@ export default function WorkshopDetailPage({
           className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-red-700"
         >
           <ArrowLeft size={16} />
-          Back to workshops
+          Quay lại danh sách workshop
         </button>
         <h1 className="text-xl font-semibold text-red-900">
-          Unable to open this workshop
+          Không mở được workshop này
         </h1>
         <p className="mt-2 text-sm text-red-700">
-          {error ?? "Workshop does not exist or is not published yet."}
+          {error ?? "Workshop không tồn tại hoặc chưa được xuất bản."}
         </p>
       </section>
     );
@@ -271,7 +271,7 @@ export default function WorkshopDetailPage({
               className="absolute right-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm backdrop-blur hover:bg-white/25"
             >
               <ArrowLeft size={16} />
-              Back
+              Quay lại
             </button>
 
             <div className="relative z-10 flex min-h-[360px] flex-col justify-end p-6 sm:p-10">
@@ -319,7 +319,9 @@ export default function WorkshopDetailPage({
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div className="space-y-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-950">Overview</h2>
+              <h2 className="text-lg font-semibold text-slate-950">
+                Tổng quan
+              </h2>
               <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">
                 {workshop.description}
               </p>
@@ -329,11 +331,11 @@ export default function WorkshopDetailPage({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-950">
-                    Sessions and registration
+                    Buổi học và đăng ký
                   </h2>
                   <p className="text-sm text-slate-500">
-                    Live seat counts, payment state, and registration actions
-                    are synced from backend APIs.
+                    Số chỗ, trạng thái thanh toán và thao tác đăng ký được đồng
+                    bộ từ API backend.
                   </p>
                 </div>
                 {isStudent ? (
@@ -341,7 +343,7 @@ export default function WorkshopDetailPage({
                     href="/registrations"
                     className="text-sm font-medium text-sky-700 hover:text-sky-900"
                   >
-                    Open My Registrations
+                    Xem đăng ký của tôi
                   </Link>
                 ) : null}
               </div>
@@ -378,7 +380,7 @@ export default function WorkshopDetailPage({
                                 session.startAt,
                                 session.endAt,
                               )}{" "}
-                              at {formatLocation(session)}
+                              tại {formatLocation(session)}
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                               <InlineTag>
@@ -386,8 +388,8 @@ export default function WorkshopDetailPage({
                               </InlineTag>
                               <InlineTag>
                                 {session.feeType === "FREE"
-                                  ? "Free session"
-                                  : "Paid session"}
+                                  ? "Miễn phí"
+                                  : "Có phí"}
                               </InlineTag>
                               <InlineTag>
                                 {formatMoney(
@@ -418,7 +420,7 @@ export default function WorkshopDetailPage({
                                   size={16}
                                   className="animate-spin"
                                 />
-                                Processing...
+                                Đang xử lý...
                               </>
                             ) : (
                               action.label
@@ -428,16 +430,16 @@ export default function WorkshopDetailPage({
 
                         <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-4">
                           <span>{formatSeatSummary(session)}</span>
-                          <span>Confirmed: {session.seatsConfirmed}</span>
-                          <span>Reserved: {session.seatsReserved}</span>
-                          <span>Capacity: {session.seatCapacity}</span>
+                          <span>Đã xác nhận: {session.seatsConfirmed}</span>
+                          <span>Tạm giữ: {session.seatsReserved}</span>
+                          <span>Sức chứa: {session.seatCapacity}</span>
                         </div>
                       </article>
                     );
                   })
                 ) : (
                   <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                    This workshop has no sessions yet.
+                    Workshop này chưa có buổi học.
                   </div>
                 )}
               </div>
@@ -447,41 +449,41 @@ export default function WorkshopDetailPage({
           <aside className="space-y-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-950">
-                Registration status
+                Trạng thái đăng ký
               </h2>
               <div className="mt-4 space-y-3 text-sm text-slate-600">
                 {!currentUser ? (
                   <>
                     <p>
-                      Sign in as a student to register, pay, and open your QR
-                      ticket.
+                      Đăng nhập bằng tài khoản sinh viên để đăng ký, thanh toán
+                      và xem vé QR.
                     </p>
                     <Link
                       href="/auth/login?role=student"
                       className="inline-flex rounded-full bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
                     >
-                      Sign in as student
+                      Đăng nhập sinh viên
                     </Link>
                   </>
                 ) : isStudent ? (
                   <>
-                    <p>You are signed in as {currentUser.fullName}.</p>
+                    <p>Bạn đang đăng nhập với tên {currentUser.fullName}.</p>
                     <p>
-                      Each session button below reflects current seat
-                      availability and your own registration state.
+                      Mỗi nút buổi học bên dưới phản ánh số chỗ hiện tại và
+                      trạng thái đăng ký của bạn.
                     </p>
                     <Link
                       href="/registrations"
                       className="inline-flex text-sm font-medium text-sky-700 hover:text-sky-900"
                     >
-                      Manage my registrations
+                      Quản lý đăng ký của tôi
                     </Link>
                   </>
                 ) : (
                   <p>
-                    Only student accounts can register for workshops. Organizer
-                    and check-in accounts can browse details but cannot book
-                    seats.
+                    Chỉ tài khoản sinh viên được đăng ký workshop. Ban tổ chức
+                    và nhân sự check-in có thể xem chi tiết nhưng không thể giữ
+                    chỗ.
                   </p>
                 )}
               </div>
@@ -489,17 +491,17 @@ export default function WorkshopDetailPage({
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-950">
-                Quick facts
+                Thông tin nhanh
               </h2>
               <div className="mt-4 space-y-4 text-sm text-slate-700">
                 <InfoRow
                   icon={<Calendar size={18} />}
-                  label="Date"
+                  label="Ngày"
                   value={formatSessionDate(quickFactsSession?.startAt)}
                 />
                 <InfoRow
                   icon={<Clock size={18} />}
-                  label="Time"
+                  label="Thời gian"
                   value={formatSessionTime(
                     quickFactsSession?.startAt,
                     quickFactsSession?.endAt,
@@ -507,12 +509,12 @@ export default function WorkshopDetailPage({
                 />
                 <InfoRow
                   icon={<MapPin size={18} />}
-                  label="Location"
+                  label="Địa điểm"
                   value={formatLocation(quickFactsSession)}
                 />
                 <InfoRow
                   icon={<Users size={18} />}
-                  label="Seats"
+                  label="Số chỗ"
                   value={formatSeatSummary(quickFactsSession)}
                 />
               </div>
@@ -584,38 +586,38 @@ function getSessionAction({
   busy: boolean;
 }): SessionAction {
   if (registration?.registrationStatus === "CONFIRMED") {
-    return { kind: "INFO", label: "Da dang ky", disabled: true };
+    return { kind: "INFO", label: "Đã đăng ký", disabled: true };
   }
 
   if (registration?.registrationStatus === "PENDING_PAYMENT") {
-    return { kind: "PAY", label: "Thanh toan", disabled: busy };
+    return { kind: "PAY", label: "Thanh toán", disabled: busy };
   }
 
   if (!isLoggedIn) {
-    return { kind: "LOGIN", label: "Dang nhap de dang ky", disabled: false };
+    return { kind: "LOGIN", label: "Đăng nhập để đăng ký", disabled: false };
   }
 
   if (!isStudent) {
     return {
       kind: "INFO",
-      label: "Chi sinh vien duoc dang ky",
+      label: "Chỉ sinh viên được đăng ký",
       disabled: true,
     };
   }
 
   if (session.status !== "OPEN") {
-    return { kind: "INFO", label: "Da dong dang ky", disabled: true };
+    return { kind: "INFO", label: "Đã đóng đăng ký", disabled: true };
   }
 
   if (session.remainingSeats <= 0) {
-    return { kind: "INFO", label: "Het cho", disabled: true };
+    return { kind: "INFO", label: "Hết chỗ", disabled: true };
   }
 
   if (session.feeType === "FREE") {
-    return { kind: "FREE", label: "Dang ky mien phi", disabled: busy };
+    return { kind: "FREE", label: "Đăng ký miễn phí", disabled: busy };
   }
 
-  return { kind: "PAID", label: "Dang ky co phi", disabled: busy };
+  return { kind: "PAID", label: "Đăng ký có phí", disabled: busy };
 }
 
 function buttonClass(action: SessionAction) {
@@ -656,25 +658,23 @@ function ConfirmationModal({
       <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
         <h2 className="text-xl font-semibold text-slate-950">
           {mode === "FREE"
-            ? "Confirm free registration"
-            : "Confirm paid registration"}
+            ? "Xác nhận đăng ký miễn phí"
+            : "Xác nhận đăng ký có phí"}
         </h2>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
           <p>{formatSessionDate(session.startAt)}</p>
           <p>
-            {formatSessionTime(session.startAt, session.endAt)} at{" "}
+            {formatSessionTime(session.startAt, session.endAt)} tại{" "}
             {formatLocation(session)}
           </p>
           <p>
-            Seats: {formatSeatSummary(session)} · Fee:{" "}
+            Số chỗ: {formatSeatSummary(session)} · Phí:{" "}
             {formatMoney(session.feeAmount, session.currency ?? "VND")}
           </p>
           {mode === "PAID" ? (
-            <p>QR code will only be available after payment is confirmed.</p>
+            <p>Mã QR chỉ khả dụng sau khi thanh toán được xác nhận.</p>
           ) : (
-            <p>
-              QR code will be available immediately after registration succeeds.
-            </p>
+            <p>Mã QR sẽ khả dụng ngay sau khi đăng ký thành công.</p>
           )}
         </div>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
@@ -684,7 +684,7 @@ function ConfirmationModal({
             disabled={submitting}
             className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
           >
-            Cancel
+            Hủy
           </button>
           <button
             type="button"
@@ -695,7 +695,7 @@ function ConfirmationModal({
             {submitting ? (
               <LoaderCircle size={16} className="animate-spin" />
             ) : null}
-            {submitting ? "Submitting..." : "Confirm"}
+            {submitting ? "Đang gửi..." : "Xác nhận"}
           </button>
         </div>
       </div>

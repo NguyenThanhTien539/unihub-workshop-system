@@ -12,12 +12,12 @@ export default function LoginPageClient() {
   });
   const roleLabel =
     role === "organizer"
-      ? "Organizer"
+      ? "Ban tổ chức"
       : role === "student"
-        ? "Student"
+        ? "Sinh viên"
         : role === "checkin"
-          ? "Check-in staff"
-          : "User";
+          ? "Nhân sự check-in"
+          : "Người dùng";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,17 +35,17 @@ export default function LoginPageClient() {
 
       if (role === "organizer" && !roles.includes("organizer")) {
         clearTokens();
-        throw new Error("This account does not have organizer access.");
+        throw new Error("Tài khoản này không có quyền ban tổ chức.");
       }
 
       if (role === "checkin" && !roles.includes("checkin_staff")) {
         clearTokens();
-        throw new Error("This account does not have check-in access.");
+        throw new Error("Tài khoản này không có quyền check-in.");
       }
 
       if (role === "student" && !roles.includes("student")) {
         clearTokens();
-        throw new Error("This account does not have student access.");
+        throw new Error("Tài khoản này không có quyền sinh viên.");
       }
 
       if (role === "organizer") {
@@ -104,10 +104,10 @@ export default function LoginPageClient() {
               className="rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
               disabled={loading}
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
             <a href="/auth" className="text-sm text-slate-600 hover:underline">
-              Back
+              Quay lại
             </a>
           </div>
         </form>

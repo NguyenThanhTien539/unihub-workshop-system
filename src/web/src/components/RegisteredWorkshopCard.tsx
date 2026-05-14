@@ -46,17 +46,17 @@ export function RegisteredWorkshopCard({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-950">{title}</h3>
-              <p className="mt-1 text-sm text-slate-500">Dang ky luc: {formatDateTime(createdAt)}</p>
-              {confirmedAt ? <p className="mt-1 text-sm text-emerald-600">Xac nhan luc: {formatDateTime(confirmedAt)}</p> : null}
+              <p className="mt-1 text-sm text-slate-500">Đăng ký lúc: {formatDateTime(createdAt)}</p>
+              {confirmedAt ? <p className="mt-1 text-sm text-emerald-600">Xác nhận lúc: {formatDateTime(confirmedAt)}</p> : null}
             </div>
 
             <div className="flex flex-wrap gap-2">
               <Badge tone="slate">{registrationStatus}</Badge>
               <Badge tone={registrationType === "PAID" ? "amber" : "sky"}>
-                {registrationType === "PAID" ? `PAID · ${formatMoney(amount, currency ?? "VND")}` : "FREE"}
+                {registrationType === "PAID" ? `Có phí · ${formatMoney(amount, currency ?? "VND")}` : "Miễn phí"}
               </Badge>
               {paymentStatus ? <Badge tone={paymentStatus === "SUCCEEDED" ? "green" : "amber"}>{paymentStatus}</Badge> : null}
-              <Badge tone={qrAvailable ? "green" : "slate"}>{qrAvailable ? "QR san sang" : "Chua co QR"}</Badge>
+              <Badge tone={qrAvailable ? "green" : "slate"}>{qrAvailable ? "QR sẵn sàng" : "Chưa có QR"}</Badge>
             </div>
           </div>
 
@@ -76,7 +76,7 @@ export function RegisteredWorkshopCard({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               {qrLoading ? <LoaderCircle size={16} className="animate-spin" /> : <QrCode size={16} />}
-              {qrLoading ? "Dang tai QR..." : "Xem ma QR"}
+              {qrLoading ? "Đang tải QR..." : "Xem mã QR"}
             </button>
           ) : null}
 

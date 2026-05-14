@@ -6,6 +6,9 @@ public record Student(
     UUID id,
     UUID userId,
     String studentCode,
+    String faculty,
+    String major,
+    String className,
     StudentStatus status
 ) {
 }

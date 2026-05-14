@@ -43,13 +43,14 @@ Detailed schema, fields, constraints, and indexes are documented in [`../databas
 ### Main Flow 1: Create Payment Intent for Pending Registration
 
 1. Student starts paid registration from the web app.
-2. Registration flow creates a local `PENDING_PAYMENT` registration and reserves a seat.
+2. Registration flow creates a local `PENDING_PAYMENT` registration and reserves a seat through `POST /api/registrations/paid`.
 3. Registration flow creates a local `payment_intents` record with status `PENDING_GATEWAY`.
 4. Backend commits the database transaction before calling the external gateway.
-5. Backend calls the payment gateway through a `PaymentProvider` adapter.
-6. Payment gateway returns a gateway reference and payment URL/token.
-7. Backend updates the local `payment_intents` record with the gateway reference and status `PENDING_PAYMENT`.
-8. Backend returns the payment URL/token to the student.
+5. Student calls `POST /api/payments/intents/{paymentIntentId}/zalopay` to request a ZaloPay checkout URL for the existing local payment intent.
+6. Backend calls the payment gateway through a `PaymentProvider` adapter.
+7. Payment gateway returns a gateway reference and payment URL/token.
+8. Backend updates the local `payment_intents` record with the gateway reference and status `PENDING_PAYMENT`.
+9. Backend returns the payment URL/token to the student.
 
 Important rule: the database transaction that creates the pending registration and local payment intent must not remain open while calling the external payment gateway.
 
@@ -68,8 +69,10 @@ sequenceDiagram
     API->>DB: Reserve seat
     API->>DB: Create payment_intent=PENDING_GATEWAY
     API->>DB: Commit transaction
+    API-->>S: registrationId + paymentIntentId
+    S->>API: POST /api/payments/intents/{paymentIntentId}/zalopay
     API->>P: Create gateway payment intent
-    P-->>API: gatewayRef + paymentUrl
+    P-->>API: appTransId + paymentUrl
     API->>DB: Update payment_intent=PENDING_PAYMENT
     API-->>S: paymentIntentId + paymentUrl
 ```
@@ -211,10 +214,10 @@ sequenceDiagram
 
 ## API Contract
 
-### Create Payment Intent
+### Create Pending Paid Registration
 
 ```http
-POST /api/payments/intents
+POST /api/registrations/paid
 ```
 
 Required role: `student`.
@@ -223,8 +226,8 @@ Request body:
 
 ```json
 {
-  "registrationId": "r-002",
-  "idempotencyKey": "pay-req-456"
+  "sessionId": "s-102",
+  "idempotencyKey": "paid-reg-req-123"
 }
 ```
 
@@ -236,9 +239,12 @@ Success response:
   "data": {
     "paymentIntentId": "pi-001",
     "registrationId": "r-002",
-    "status": "PENDING_PAYMENT",
-    "gatewayRef": "gw-abc",
-    "paymentUrl": "https://gateway.example/pay/abc",
+    "workshopId": "w-001",
+    "sessionId": "s-102",
+    "registrationStatus": "PENDING_PAYMENT",
+    "paymentStatus": "PENDING_GATEWAY",
+    "amount": 199000,
+    "currency": "VND",
     "expiresAt": "2026-05-01T12:30:00Z"
   }
 }
@@ -246,11 +252,41 @@ Success response:
 
 Rules:
 
-- Student can only create payment intent for their own pending paid registration.
+- Student can only create a paid registration for their own pending paid session.
 - Request must include an idempotency key.
 - Repeating the same request with the same idempotency key must return the same payment intent result.
 - Reusing the same idempotency key with different request data must be rejected.
-- If the registration already has a valid payment intent, the API should return the existing one instead of creating another.
+- If the student already has a valid pending paid registration for the same session, the API should return the existing payment intent instead of creating another.
+
+### Create ZaloPay URL for Existing Payment Intent
+
+```http
+POST /api/payments/intents/{paymentIntentId}/zalopay
+```
+
+Required role: `student`.
+
+Success response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "paymentIntentId": "pi-001",
+    "provider": "ZALOPAY",
+    "paymentUrl": "https://gateway.example/pay/abc",
+    "appTransId": "250514_123456789",
+    "status": "PENDING_PAYMENT",
+    "expiresAt": "2026-05-01T12:30:00Z"
+  }
+}
+```
+
+Rules:
+
+- Student can only create a ZaloPay URL for their own payment intent.
+- If the payment intent already has a reusable ZaloPay checkout URL, the API may return the existing URL instead of creating a new provider order.
+- The database transaction that creates the local registration and local payment intent must already be committed before this external gateway call happens.
 
 ### Get Payment Status
 
@@ -270,7 +306,8 @@ Success response:
     "registrationId": "r-002",
     "status": "SUCCEEDED",
     "registrationStatus": "CONFIRMED",
-    "qrTicketId": "qr-001"
+    "qrTicketId": "qr-001",
+    "qrAvailable": true
   }
 }
 ```
@@ -283,7 +320,7 @@ Rules:
 ### Payment Callback / Webhook
 
 ```http
-POST /api/payments/webhook
+POST /api/payments/zalopay/callback
 ```
 
 Required role: Gateway signature or shared secret.
@@ -305,10 +342,8 @@ Success response:
 
 ```json
 {
-  "success": true,
-  "data": {
-    "received": true
-  }
+  "return_code": 1,
+  "return_message": "success"
 }
 ```
 
@@ -334,9 +369,10 @@ Example endpoint policies:
 
 | Method | Endpoint                                 | Required role                   | Purpose                          |
 | ------ | ---------------------------------------- | ------------------------------- | -------------------------------- |
-| POST   | `/api/payments/intents`                  | `student`                       | Create or reuse a payment intent |
+| POST   | `/api/registrations/paid`                | `student`                       | Create or reuse a paid registration and local payment intent |
+| POST   | `/api/payments/intents/{paymentIntentId}/zalopay` | `student`             | Create or reuse a ZaloPay checkout URL |
 | GET    | `/api/payments/{paymentIntentId}/status` | `student`                       | View own payment status          |
-| POST   | `/api/payments/webhook`                  | Gateway signature/shared secret | Receive gateway callback         |
+| POST   | `/api/payments/zalopay/callback`         | Gateway signature/shared secret | Receive gateway callback         |
 
 ---
 

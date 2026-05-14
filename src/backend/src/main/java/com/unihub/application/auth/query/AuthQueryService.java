@@ -46,9 +46,15 @@ public class AuthQueryService {
         : null;
     CurrentUser.StudentProfile profile = student == null
         ? null
-        : new CurrentUser.StudentProfile(student.id(), student.studentCode(), student.status().name());
+        : new CurrentUser.StudentProfile(
+            student.id(),
+            student.studentCode(),
+            student.faculty(),
+            student.major(),
+            student.className(),
+            student.status().name());
 
-    return new CurrentUser(user.id(), user.email(), user.fullName(), roles, profile);
+    return new CurrentUser(user.id(), user.email(), user.fullName(), user.accountStatus().name(), roles, profile);
   }
 }
 

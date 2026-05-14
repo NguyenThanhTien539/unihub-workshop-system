@@ -24,9 +24,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class AuthCommandService {
+  private static final Logger log = LoggerFactory.getLogger(AuthCommandService.class);
+
   private final UserRepository userRepository;
   private final RefreshTokenRepository refreshTokenRepository;
   private final PasswordEncoder passwordEncoder;
@@ -58,17 +62,12 @@ public class AuthCommandService {
     String normalizedEmail = normalizeEmail(command.email());
 
     User user = userRepository.findByEmail(normalizedEmail)
-        .orElseThrow(() -> new AuthException(UserErrorCode.AUTH_EMAIL_NOT_FOUND, HttpStatus.UNAUTHORIZED));
+        .orElseThrow(() -> new AuthException(UserErrorCode.AUTH_INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED));
 
-    if (user.accountStatus() == UserStatus.DISABLED) {
-      throw new AuthException(UserErrorCode.AUTH_ACCOUNT_DISABLED, HttpStatus.FORBIDDEN);
-    }
-    if (user.accountStatus() == UserStatus.LOCKED) {
-      throw new AuthException(UserErrorCode.AUTH_ACCOUNT_LOCKED, HttpStatus.FORBIDDEN);
-    }
+    rejectInactiveAccount(user);
 
     if (!passwordEncoder.matches(command.password(), user.passwordHash())) {
-      throw new AuthException(UserErrorCode.AUTH_PASSWORD_INCORRECT, HttpStatus.UNAUTHORIZED);
+      throw new AuthException(UserErrorCode.AUTH_INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
     }
 
     CurrentUser currentUser = authQueryService.buildCurrentUser(user);
@@ -85,11 +84,12 @@ public class AuthCommandService {
     }
 
     String tokenHash = hashRefreshToken(command.refreshToken());
-    RefreshToken oldToken = refreshTokenRepository.findByTokenHash(tokenHash)
+    RefreshToken oldToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
         .orElseThrow(() -> new AuthException(UserErrorCode.AUTH_REFRESH_TOKEN_INVALID, HttpStatus.UNAUTHORIZED));
 
     Instant now = Instant.now(clock);
     if (oldToken.isRevoked()) {
+      log.warn("Rejected refresh token reuse for token id {}", oldToken.id());
       throw new AuthException(UserErrorCode.AUTH_REFRESH_TOKEN_REVOKED, HttpStatus.UNAUTHORIZED);
     }
     if (oldToken.isExpired(now)) {
@@ -99,15 +99,16 @@ public class AuthCommandService {
     User user = userRepository.findById(oldToken.userId())
         .orElseThrow(() -> new AuthException(UserErrorCode.AUTH_REFRESH_TOKEN_INVALID, HttpStatus.UNAUTHORIZED));
 
-    if (!user.accountStatus().canLogin()) {
-      throw new AuthException(UserErrorCode.AUTH_FORBIDDEN, HttpStatus.FORBIDDEN);
+    rejectInactiveAccount(user);
+
+    if (!refreshTokenRepository.revokeIfActive(oldToken.id(), now)) {
+      log.warn("Rejected refresh token reuse for token id {}", oldToken.id());
+      throw new AuthException(UserErrorCode.AUTH_REFRESH_TOKEN_REVOKED, HttpStatus.UNAUTHORIZED);
     }
 
     CurrentUser currentUser = authQueryService.buildCurrentUser(user);
     TokenPair newPair = tokenProvider.issueTokenPair(currentUser);
-
     RefreshToken newRefresh = persistRefreshToken(user, newPair.refreshToken());
-    refreshTokenRepository.revoke(oldToken.id(), now);
     refreshTokenRepository.setReplacedByTokenId(oldToken.id(), newRefresh.id());
 
     return newPair;
@@ -132,6 +133,15 @@ public class AuthCommandService {
 
   private String normalizeEmail(String email) {
     return email == null ? "" : email.trim().toLowerCase();
+  }
+
+  private void rejectInactiveAccount(User user) {
+    if (user.accountStatus() == UserStatus.DISABLED) {
+      throw new AuthException(UserErrorCode.AUTH_ACCOUNT_DISABLED, HttpStatus.FORBIDDEN);
+    }
+    if (user.accountStatus() == UserStatus.LOCKED) {
+      throw new AuthException(UserErrorCode.AUTH_ACCOUNT_LOCKED, HttpStatus.FORBIDDEN);
+    }
   }
 
   private String hashRefreshToken(String refreshToken) {

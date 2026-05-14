@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ensureAdminAuth, clearTokens } from "../../lib/adminAuth";
+import { ensureAdminAuth, clearTokens, logout } from "../../lib/adminAuth";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -10,19 +10,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       const ok = await ensureAdminAuth();
       if (!mounted) return;
+
       if (!ok) {
-        // ensure tokens cleared and send to shared auth page
         clearTokens();
-        router.replace('/auth/login?role=organizer');
+        router.replace("/auth/login?role=organizer");
         return;
       }
+
       setChecking(false);
     })();
-    return () => { mounted = false };
+
+    return () => {
+      mounted = false;
+    };
   }, [router]);
+
+  async function handleSwitchRole() {
+    await logout();
+    router.replace("/auth");
+  }
 
   if (checking) {
     return (
@@ -42,7 +52,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <p className="mt-1 text-sm text-purple-100">Quản lý và theo dõi hoạt động workshop</p>
             </div>
             <div>
-              <button className="rounded-md bg-white/20 px-3 py-1 text-sm font-medium text-white hover:bg-white/30">Đổi vai trò</button>
+              <button
+                onClick={handleSwitchRole}
+                className="rounded-md bg-white/20 px-3 py-1 text-sm font-medium text-white hover:bg-white/30"
+              >
+                Đổi vai trò
+              </button>
             </div>
           </div>
         </div>

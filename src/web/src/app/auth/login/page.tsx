@@ -1,61 +1,66 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setTokens } from "../../../lib/adminAuth";
-import { apiFetch } from "../../../lib/api";
+import { clearTokens, login, normalizeRoles } from "../../../lib/auth";
 
 export default function LoginPageClient() {
   const router = useRouter();
-  const [role, setRole] = useState<string>("");
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setRole(params.get("role") ?? "");
-  }, []);
-  const roleLabel = role === "organizer" ? "Ban tổ chức" : role === "student" ? "Sinh viên" : "Người dùng";
+  const [role] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("role") ?? "";
+  });
+  const roleLabel =
+    role === "organizer"
+      ? "Ban tổ chức"
+      : role === "student"
+        ? "Sinh viên"
+        : role === "checkin"
+          ? "Nhân sự check-in"
+          : "Người dùng";
 
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
-      console.log("Fetch API");
-      const res = await apiFetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: identifier, password: password }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || 'Đăng nhập thất bại');
+      const payload = await login(email, password);
+      const roles = normalizeRoles(payload.user?.roles);
 
-      // try a few places for tokens
-      const data = json?.data ?? json;
-      const access = data?.accessToken ?? data?.token?.accessToken ?? data?.token ?? data?.access;
-      const refresh = data?.refreshToken ?? data?.token?.refreshToken ?? null;
-      if (!access) throw new Error('Không nhận được access token');
-      setTokens(String(access), refresh ? String(refresh) : undefined);
-      
-        // set a short-lived cookie and delay the redirect slightly so it's easy
-        // to inspect localStorage/cookies in DevTools during debugging
-        try {
-          document.cookie = `admin_access_set=1; path=/`;
-        } catch (e) {
-          // ignore
-        }
-        await new Promise((r) => setTimeout(r, 300));
-
-      if (role === 'organizer' || role === 'admin') {
-        router.replace('/admin/workshops');
-      } else {
-        router.replace('/');
+      if (role === "organizer" && !roles.includes("organizer")) {
+        clearTokens();
+        throw new Error("Tài khoản này không có quyền ban tổ chức.");
       }
-    } catch (err: any) {
-      setError(String(err?.message ?? err));
+
+      if (role === "checkin" && !roles.includes("checkin_staff")) {
+        clearTokens();
+        throw new Error("Tài khoản này không có quyền check-in.");
+      }
+
+      if (role === "student" && !roles.includes("student")) {
+        clearTokens();
+        throw new Error("Tài khoản này không có quyền sinh viên.");
+      }
+
+      if (role === "organizer") {
+        router.replace("/admin/workshops");
+        return;
+      }
+
+      if (role === "checkin") {
+        router.replace("/checkin");
+        return;
+      }
+
+      router.replace("/");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -71,14 +76,13 @@ export default function LoginPageClient() {
 
         <form className="mt-6 space-y-4" onSubmit={submit}>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              {role === 'student' ? 'Mã sinh viên hoặc Email' : 'Email'}
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
             <input
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
               className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm shadow-sm"
-              placeholder={role === 'student' ? 'VD: 123456 hoặc ban@example.com' : 'ban.to.chuc@example.com'}
+              placeholder="you@example.com"
+              type="email"
             />
           </div>
 
@@ -87,19 +91,24 @@ export default function LoginPageClient() {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm shadow-sm"
               placeholder="••••••••"
             />
           </div>
 
-          {error && <div className="text-sm text-red-600">{error}</div>}
+          {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
           <div className="flex items-center justify-between">
-            <button className="rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700" disabled={loading}>
-              {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            <button
+              className="rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+              disabled={loading}
+            >
+              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
-            <a href="/auth" className="text-sm text-slate-600 hover:underline">Quay lại</a>
+            <a href="/auth" className="text-sm text-slate-600 hover:underline">
+              Quay lại
+            </a>
           </div>
         </form>
       </div>

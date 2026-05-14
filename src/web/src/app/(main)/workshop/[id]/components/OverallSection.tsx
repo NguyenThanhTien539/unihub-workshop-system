@@ -1,4 +1,4 @@
-import { Share2, Bookmark, Info, CheckCircle2 } from "lucide-react"
+import { Info, CheckCircle2 } from "lucide-react"
 
 export const OverallSection = () => {
   return (

@@ -14,7 +14,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class StudentRepositoryAdapter implements StudentRepository {
   private static final String SQL_FIND_BY_USER_ID = """
-      SELECT id, user_id, student_code, status
+      SELECT id, user_id, student_code, faculty, major, class_name, status
       FROM students
       WHERE user_id = :userId
       LIMIT 1
@@ -38,6 +38,9 @@ public class StudentRepositoryAdapter implements StudentRepository {
         rs.getObject("id", UUID.class),
         rs.getObject("user_id", UUID.class),
         rs.getString("student_code"),
+        rs.getString("faculty"),
+        rs.getString("major"),
+        rs.getString("class_name"),
         StudentStatus.valueOf(rs.getString("status"))
     );
   }

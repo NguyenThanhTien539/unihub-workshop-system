@@ -1,299 +1,466 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { ensureAdminAuth, fetchWithAuth } from "../../../../lib/adminAuth";
 
-type Session = any;
+import { useEffect, useState, use } from "react";
+import Link from "next/link";
+import {
+  Ban,
+  CalendarPlus,
+  CheckCircle2,
+  Save,
+  Trash2,
+} from "lucide-react";
+import { ensureAdminAuth } from "../../../../lib/adminAuth";
+import {
+  cancelWorkshop,
+  cancelWorkshopSession,
+  createWorkshopSession,
+  formatLocation,
+  formatMoney,
+  formatSeatSummary,
+  formatSessionDate,
+  formatSessionTime,
+  getAdminWorkshop,
+  listRooms,
+  publishWorkshop,
+  statusLabel,
+  toApiDateTime,
+  toDateTimeInputValue,
+  updateWorkshop,
+  updateWorkshopSession,
+  type FeeType,
+  type Room,
+  type WorkshopDetail,
+  type WorkshopSession,
+} from "../../../../lib/workshops";
 
-export default function WorkshopEditPage() {
-  const params = useParams() as { id?: string } | null;
-  const id = params?.id ?? "";
-  const [loading, setLoading] = useState(true);
-  const [workshop, setWorkshop] = useState<any | null>(null);
+type SessionForm = {
+  roomId: string;
+  startAt: string;
+  endAt: string;
+  seatCapacity: number;
+  feeType: FeeType;
+  feeAmount: number;
+  currency: string;
+};
+
+export default function WorkshopEditPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
+  const id = resolvedParams.id;
+  const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [title, setTitle] = useState("");
   const [speaker, setSpeaker] = useState("");
   const [description, setDescription] = useState("");
+  const [newSession, setNewSession] = useState<SessionForm>(emptySession());
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      if (!id || id === 'undefined') { setError('ID workshop không hợp lệ'); setLoading(false); return; }
-      const ok = await ensureAdminAuth();
-      if (!ok) { window.location.href = '/auth/login?role=organizer'; return; }
+    let mounted = true;
 
-      // try sessionStorage (created just now) then fallback to public GET
-      const cached = sessionStorage.getItem(`admin:workshop:${id}`);
-      if (cached) {
-        const data = JSON.parse(cached);
-        setWorkshop(data);
-        setTitle(data.title ?? "");
-        setSpeaker(data.speaker ?? "");
-        setDescription(data.description ?? "");
-        setLoading(false);
+    async function load() {
+      const ok = await ensureAdminAuth();
+      if (!ok) {
+        window.location.href = "/auth/login?role=organizer";
         return;
       }
 
       try {
-        const r = await fetchWithAuth(`/api/admin/workshops/${id}`);
-        if (r.ok) {
-          const json = await r.json();
-          const data = json?.data;
-          setWorkshop(data);
-          setTitle(data.title ?? "");
-          setSpeaker(data.speaker ?? "");
-          setDescription(data.description ?? "");
-        } else {
-          // fallback to public detail if available
-          const r2 = await fetchWithAuth(`/api/workshops/${id}`);
-          if (r2.ok) {
-            const json2 = await r2.json();
-            const data = json2?.data;
-            setWorkshop(data);
-            setTitle(data.title ?? "");
-            setSpeaker(data.speaker ?? "");
-            setDescription(data.description ?? "");
-          } else {
-            setError('Không tìm thấy workshop');
-          }
-        }
+        const [detail, roomData] = await Promise.all([getAdminWorkshop(id), listRooms()]);
+        if (!mounted) return;
+        setWorkshop(detail);
+        setRooms(roomData);
+        setTitle(detail.title);
+        setSpeaker(detail.speaker);
+        setDescription(detail.description);
+        setNewSession({ ...emptySession(), roomId: roomData[0]?.id || "" });
       } catch (err) {
-        setError(String(err));
+        if (mounted) setError(err instanceof Error ? err.message : "Không tải được workshop");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
-    })();
+    }
+
+    void load();
+    return () => {
+      mounted = false;
+    };
   }, [id]);
 
-  async function saveWorkshop(e?: React.FormEvent) {
-    if (e) e.preventDefault();
+  async function reloadWorkshop() {
+    const detail = await getAdminWorkshop(id);
+    setWorkshop(detail);
+    setTitle(detail.title);
+    setSpeaker(detail.speaker);
+    setDescription(detail.description);
+    return detail;
+  }
+
+  async function handleSaveWorkshop(event: React.FormEvent) {
+    event.preventDefault();
     setSaving(true);
     setError(null);
+
     try {
-      const res = await fetchWithAuth(`/api/admin/workshops/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, speaker, description }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Cập nhật thất bại");
-      const data = json?.data;
-      setWorkshop(data);
-      try { sessionStorage.setItem(`admin:workshop:${id}`, JSON.stringify(data)); } catch { }
-    } catch (err: any) {
-      setError(String(err?.message ?? err));
-    } finally { setSaving(false); }
+      const detail = await updateWorkshop(id, { title, speaker, description });
+      setWorkshop(detail);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không lưu được workshop");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function publish() {
-    setSaving(true); setError(null);
+  async function handlePublish() {
+    setSaving(true);
+    setError(null);
+
     try {
-      const res = await fetchWithAuth(`/api/admin/workshops/${id}/publish`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Xuất bản thất bại");
-      setWorkshop(json.data);
-      try { sessionStorage.setItem(`admin:workshop:${id}`, JSON.stringify(json.data)); } catch { }
-    } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
+      const detail = await publishWorkshop(id);
+      setWorkshop(detail);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không xuất bản được workshop");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function cancelWorkshop() {
-    if (!confirm("Xác nhận hủy workshop này?")) return;
-    setSaving(true); setError(null);
+  async function handleCancelWorkshop() {
+    if (!window.confirm("Hủy workshop này và tất cả buổi học đang hoạt động?")) return;
+    setSaving(true);
+    setError(null);
+
     try {
-      const res = await fetchWithAuth(`/api/admin/workshops/${id}/cancel`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Hủy workshop thất bại");
-      setWorkshop(json.data);
-    } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
+      const detail = await cancelWorkshop(id);
+      setWorkshop(detail);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không hủy được workshop");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function createSession(form: any) {
-    setSaving(true); setError(null);
+  async function handleCreateSession(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+
     try {
-      function normalizeLocal(v: string) {
-        if (!v) return v;
-        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return v + ':00';
-        return v.replace(/\.\d+Z$/, '').replace(/Z$/, '');
-      }
-
-      const payload = {
-        roomId: form.roomId,
-        startAt: normalizeLocal(form.startAt),
-        endAt: normalizeLocal(form.endAt),
-        seatCapacity: form.seatCapacity,
-        feeType: form.feeType,
-        feeAmount: form.feeAmount,
-        currency: form.currency ?? 'VND'
-      };
-
-      const res = await fetchWithAuth(`/api/admin/workshops/${id}/sessions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Tạo buổi học thất bại");
-      // reload admin detail via returned session response + local fetch
-      // simplest: reload page
-      window.location.reload();
-    } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
+      await createWorkshopSession(id, normalizeSession(newSession));
+      await reloadWorkshop();
+      setNewSession({ ...emptySession(), roomId: rooms[0]?.id || "" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không tạo được buổi học");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function updateSession(sessionId: string, form: any) {
-    setSaving(true); setError(null);
+  async function handleUpdateSession(sessionId: string, form: SessionForm) {
+    setSaving(true);
+    setError(null);
+
     try {
-      const res = await fetchWithAuth(`/api/admin/sessions/${sessionId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Cập nhật buổi học thất bại");
-      window.location.reload();
-    } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
+      await updateWorkshopSession(sessionId, normalizeSession(form));
+      await reloadWorkshop();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không lưu được buổi học");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function cancelSession(sessionId: string) {
-    if (!confirm("Xác nhận hủy buổi học này?")) return;
-    setSaving(true); setError(null);
+  async function handleCancelSession(sessionId: string) {
+    if (!window.confirm("Hủy buổi học này?")) return;
+    setSaving(true);
+    setError(null);
+
     try {
-      const res = await fetchWithAuth(`/api/admin/sessions/${sessionId}/cancel`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Hủy buổi học thất bại");
-      window.location.reload();
-    } catch (err: any) { setError(String(err?.message ?? err)); } finally { setSaving(false); }
+      await cancelWorkshopSession(sessionId);
+      await reloadWorkshop();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không hủy được buổi học");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  if (loading) return <p>Đang tải...</p>;
+  if (loading) {
+    return <div className="min-h-96 animate-pulse rounded-lg bg-white" />;
+  }
+
+  if (!workshop) {
+    return (
+      <section className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        {error ?? "Không tìm thấy workshop."}
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Quản lý workshop</h1>
-          <p className="text-sm text-slate-600">ID: {id}</p>
+          <Link href="/admin/workshops" className="text-sm font-medium text-sky-700 hover:text-sky-900">
+            Quay lại danh sách
+          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-semibold text-slate-950">{workshop.title}</h2>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              {statusLabel(workshop.status)}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">ID: {workshop.id}</p>
         </div>
-        <div className="flex gap-2">
-          <a href="/admin/workshops" className="rounded-md border px-3 py-1 text-sm">Quay lại</a>
-          <button onClick={publish} className="rounded-md bg-emerald-600 px-3 py-1 text-sm text-white">Xuất bản</button>
-          <button onClick={cancelWorkshop} className="rounded-md bg-red-600 px-3 py-1 text-sm text-white">Hủy</button>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handlePublish}
+            disabled={saving || workshop.status !== "DRAFT"}
+            className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            <CheckCircle2 size={16} />
+            Xuất bản
+          </button>
+          <button
+            type="button"
+            onClick={handleCancelWorkshop}
+            disabled={saving || workshop.status === "CANCELED"}
+            className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            <Ban size={16} />
+            Hủy workshop
+          </button>
         </div>
       </div>
 
-      {error && <div className="text-red-600">{error}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
-      <form onSubmit={saveWorkshop} className="space-y-4 max-w-3xl">
-        <div>
-          <label className="block text-sm font-medium">Tiêu đề</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Diễn giả</label>
-          <input value={speaker} onChange={e => setSpeaker(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Mô tả</label>
-          <textarea value={description} onChange={e => setDescription(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" rows={6} />
-        </div>
-
-        <div className="flex gap-2">
-          <button disabled={saving} type="submit" className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white">{saving ? 'Đang lưu...' : 'Lưu'}</button>
-        </div>
-      </form>
-
-      <div className="mt-6">
-        <h2 className="text-lg font-semibold">Buổi học</h2>
-        <div className="space-y-4 mt-3">
-          {(workshop?.sessions ?? []).map((s: Session) => (
-            <div key={s.id} className="rounded-md border bg-white p-3">
-              <div className="flex justify-between">
-                <div>
-                  <div className="font-medium">{s.roomName} — {new Date(s.startAt).toLocaleString()} → {new Date(s.endAt).toLocaleString()}</div>
-                  <div className="text-sm text-slate-600">Trạng thái: {s.status} — Số chỗ: {s.seatCapacity}</div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => void updateSession(s.id, { roomId: s.roomId, startAt: s.startAt, endAt: s.endAt, seatCapacity: s.seatCapacity })} className="rounded-md border px-3 py-1 text-sm">Lưu nhanh</button>
-                  <button onClick={() => cancelSession(s.id)} className="rounded-md bg-red-600 px-3 py-1 text-sm text-white">Hủy</button>
-                </div>
-              </div>
+      <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+        <div className="space-y-6">
+          <form onSubmit={handleSaveWorkshop} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-950">Thông tin workshop</h3>
+            <div className="mt-5 space-y-4">
+              <Field label="Tiêu đề">
+                <input value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none" />
+              </Field>
+              <Field label="Diễn giả">
+                <input value={speaker} onChange={(event) => setSpeaker(event.target.value)} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none" />
+              </Field>
+              <Field label="Mô tả">
+                <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={6} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none" />
+              </Field>
             </div>
-          ))}
+            <button
+              type="submit"
+              disabled={saving || workshop.status === "CANCELED"}
+              className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:bg-slate-300"
+            >
+              <Save size={16} />
+              Lưu thông tin
+            </button>
+          </form>
 
-          <CreateSessionForm onCreate={createSession} disabled={saving} />
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-950">Buổi học hiện có</h3>
+            <div className="mt-4 space-y-4">
+              {workshop.sessions.length > 0 ? (
+                workshop.sessions.map((session) => (
+                  <SessionEditor
+                    key={`${session.id}:${session.roomId}:${session.startAt}:${session.endAt}:${session.seatCapacity}:${session.feeType}:${session.feeAmount}:${session.status}`}
+                    session={session}
+                    rooms={rooms}
+                    disabled={saving || workshop.status === "CANCELED"}
+                    onSave={(form) => handleUpdateSession(session.id, form)}
+                    onCancel={() => handleCancelSession(session.id)}
+                  />
+                ))
+              ) : (
+                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Workshop chưa có buổi học.</div>
+              )}
+            </div>
+          </section>
         </div>
+
+        <aside className="space-y-6">
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-950">Thêm buổi học</h3>
+            <form onSubmit={handleCreateSession} className="mt-5 space-y-4">
+              <SessionFormFields form={newSession} rooms={rooms} onChange={setNewSession} />
+              <button
+                type="submit"
+                disabled={saving || workshop.status === "CANCELED"}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:bg-slate-300"
+              >
+                <CalendarPlus size={16} />
+                Thêm buổi học
+              </button>
+            </form>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-950">Tóm tắt</h3>
+            <div className="mt-4 space-y-3 text-sm text-slate-600">
+              <div>Tổng buổi học: {workshop.sessions.length}</div>
+              <div>Buổi học đang mở: {workshop.sessions.filter((item) => item.status === "OPEN").length}</div>
+              <div>Tổng chỗ còn lại: {workshop.sessions.reduce((total, item) => total + item.remainingSeats, 0)}</div>
+            </div>
+          </section>
+        </aside>
       </div>
     </section>
   );
 }
 
-function CreateSessionForm({ onCreate, disabled }: { onCreate: (f: any) => void, disabled?: boolean }) {
-  const [roomId, setRoomId] = useState("");
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
-  const [seatCapacity, setSeatCapacity] = useState(30);
-  const [feeType, setFeeType] = useState("FREE");
-  const [feeAmount, setFeeAmount] = useState(0);
-  const [currency, setCurrency] = useState("VND");
-  const [rooms, setRooms] = useState<Array<{ id: string, name: string, building: string, capacity: number, status: string }>>([]);
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    onCreate({ roomId, startAt, endAt, seatCapacity, feeType, feeAmount, currency });
-  }
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetchWithAuth('/api/admin/rooms');
-        if (r.ok) {
-          const j = await r.json();
-          setRooms(j?.data ?? []);
-        }
-      } catch (e) {
-        // ignore
-      }
-    })();
-  }, []);
+function SessionEditor({
+  session,
+  rooms,
+  disabled,
+  onSave,
+  onCancel,
+}: {
+  session: WorkshopSession;
+  rooms: Room[];
+  disabled: boolean;
+  onSave: (form: SessionForm) => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState<SessionForm>(() => ({
+    roomId: session.roomId,
+    startAt: toDateTimeInputValue(session.startAt),
+    endAt: toDateTimeInputValue(session.endAt),
+    seatCapacity: session.seatCapacity,
+    feeType: session.feeType,
+    feeAmount: Number(session.feeAmount ?? 0),
+    currency: session.currency || "VND",
+  }));
 
   return (
-    <form onSubmit={submit} className="rounded-md border p-3">
-      <div className="grid grid-cols-2 gap-3">
+    <div className="rounded-lg border border-slate-200 p-4">
+      <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <label className="block text-sm">Phòng</label>
-          <select value={roomId} onChange={e => setRoomId(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1">
-            <option value="">-- Chọn phòng --</option>
-            {rooms.map(r => (
-              <option key={r.id} value={r.id}>{r.name} — {r.building} (sức chứa: {r.capacity})</option>
-            ))}
-          </select>
+          <div className="font-medium text-slate-950">{formatSessionDate(session.startAt)}</div>
+          <div className="mt-1 text-sm text-slate-500">
+            {formatSessionTime(session.startAt, session.endAt)} tại {formatLocation(session)}
+          </div>
+          <div className="mt-1 text-sm text-slate-500">
+            {formatSeatSummary(session)}, {formatMoney(Number(session.feeAmount), session.currency ?? "VND")}
+          </div>
         </div>
-        <div>
-          <label className="block text-sm">Số chỗ</label>
-          <input type="number" value={seatCapacity} onChange={e => setSeatCapacity(Number(e.target.value))} className="mt-1 w-full rounded-md border px-2 py-1" />
-        </div>
-        <div>
-          <label className="block text-sm">Bắt đầu</label>
-          <input type="datetime-local" value={startAt} onChange={e => setStartAt(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
-        </div>
-        <div>
-          <label className="block text-sm">Kết thúc</label>
-          <input type="datetime-local" value={endAt} onChange={e => setEndAt(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
-        </div>
-        <div>
-          <label className="block text-sm">Loại phí</label>
-          <select value={feeType} onChange={e => setFeeType(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1">
-            <option value="FREE">Miễn phí</option>
-            <option value="PAID">Có phí</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm">Số tiền</label>
-          <input type="number" value={feeAmount} onChange={e => setFeeAmount(Number(e.target.value))} className="mt-1 w-full rounded-md border px-2 py-1" />
-        </div>
-        <div>
-          <label className="block text-sm">Tiền tệ</label>
-          <input value={currency} onChange={e => setCurrency(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1" />
-        </div>
+        <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+          {statusLabel(session.status)}
+        </span>
       </div>
-      <div className="mt-3">
-        <button type="submit" disabled={disabled} className="rounded-md bg-sky-600 px-3 py-1 text-sm text-white">Tạo buổi học</button>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SessionFormFields form={form} rooms={rooms} onChange={setForm} compact />
       </div>
-    </form>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onSave(form)}
+          disabled={disabled || session.status === "CANCELED"}
+          className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
+        >
+          <Save size={16} />
+          Lưu buổi học
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={disabled || session.status === "CANCELED"}
+          className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-slate-400"
+        >
+          <Trash2 size={16} />
+          Hủy buổi học
+        </button>
+      </div>
+    </div>
   );
+}
+
+function SessionFormFields({
+  form,
+  rooms,
+  onChange,
+  compact = false,
+}: {
+  form: SessionForm;
+  rooms: Room[];
+  onChange: React.Dispatch<React.SetStateAction<SessionForm>>;
+  compact?: boolean;
+}) {
+  return (
+    <>
+      <Field label="Phòng">
+        <select value={form.roomId} onChange={(event) => onChange((current) => ({ ...current, roomId: event.target.value }))} className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none">
+          <option value="">Chọn phòng</option>
+          {rooms.map((room) => (
+            <option key={room.id} value={room.id}>
+              {room.name}, {room.building} - {room.capacity} chỗ
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Sức chứa">
+        <input type="number" min={1} value={form.seatCapacity} onChange={(event) => onChange((current) => ({ ...current, seatCapacity: Number(event.target.value) }))} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none" />
+      </Field>
+      <Field label="Bắt đầu">
+        <input type="datetime-local" value={form.startAt} onChange={(event) => onChange((current) => ({ ...current, startAt: event.target.value }))} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none" />
+      </Field>
+      <Field label="Kết thúc">
+        <input type="datetime-local" value={form.endAt} onChange={(event) => onChange((current) => ({ ...current, endAt: event.target.value }))} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none" />
+      </Field>
+      <Field label="Loại phí">
+        <select value={form.feeType} onChange={(event) => onChange((current) => ({ ...current, feeType: parseFeeType(event.target.value), feeAmount: 0 }))} className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none">
+          <option value="FREE">Miễn phí</option>
+          <option value="PAID">Có phí</option>
+        </select>
+      </Field>
+      {form.feeType === "PAID" && (
+        <Field label="Số tiền">
+          <input type="number" min={0} value={form.feeAmount} onChange={(event) => onChange((current) => ({ ...current, feeAmount: Number(event.target.value) }))} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none" />
+        </Field>
+      )}
+      {!compact && <div />}
+    </>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function emptySession(): SessionForm {
+  return {
+    roomId: "",
+    startAt: "",
+    endAt: "",
+    seatCapacity: 30,
+    feeType: "FREE",
+    feeAmount: 0,
+    currency: "VND",
+  };
+}
+
+function normalizeSession(session: SessionForm) {
+  return {
+    ...session,
+    startAt: toApiDateTime(session.startAt),
+    endAt: toApiDateTime(session.endAt),
+    feeAmount: session.feeType === "FREE" ? 0 : Number(session.feeAmount),
+    currency: session.currency || "VND",
+  };
+}
+
+function parseFeeType(value: string): FeeType {
+  return value === "PAID" ? "PAID" : "FREE";
 }

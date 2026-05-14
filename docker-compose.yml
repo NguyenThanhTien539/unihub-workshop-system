@@ -1,15 +1,18 @@
 version: "3.9"
 
 services:
-  unihub-web:
-    build:
-      context: ./src/web
-      dockerfile: Dockerfile
-    container_name: unihub-web
+  redis:
+    image: redis:7-alpine
+    container_name: unihub-redis
     ports:
-      - "3000:3000"
-    depends_on:
-      - unihub-backend
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   unihub-backend:
     build:
@@ -20,26 +23,26 @@ services:
       - "8080:8080"
     env_file:
       - ./src/backend/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
-  # redis:
-  #   image: redis:7
-  #   container_name: unihub-redis
-  #   ports:
-  #     - "6379:6379"
-
-  # minio:
-  #   image: minio/minio:latest
-  #   container_name: unihub-minio
-  #   command: server /data --console-address ":9001"
-  #   ports:
-  #     - "9000:9000"
-  #     - "9001:9001"
-  #   environment:
-  #     MINIO_ROOT_USER: minio
-  #     MINIO_ROOT_PASSWORD: minio_password
-  #   volumes:
-  #     - minio_data:/data
+  unihub-web:
+    build:
+      context: ./src/web
+      dockerfile: Dockerfile
+    container_name: unihub-web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    depends_on:
+      - unihub-backend
+    restart: unless-stopped
 
 volumes:
-  minio_data:
+  redis_data:

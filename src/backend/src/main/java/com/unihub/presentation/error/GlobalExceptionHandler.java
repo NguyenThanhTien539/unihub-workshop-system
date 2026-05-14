@@ -1,6 +1,10 @@
 package com.unihub.presentation.error;
 
 import com.unihub.application.auth.exception.AuthException;
+import com.unihub.application.checkin.CheckinException;
+import com.unihub.application.csvimport.CsvImportException;
+import com.unihub.application.payment.exception.PaymentException;
+import com.unihub.application.registration.exception.RegistrationException;
 import com.unihub.application.workshop.exception.WorkshopException;
 import com.unihub.domain.workshop.WorkshopErrorCode;
 import com.unihub.domain.user.UserErrorCode;
@@ -29,6 +33,30 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(ex.getStatus()).body(body);
   }
 
+  @ExceptionHandler(RegistrationException.class)
+  public ResponseEntity<ApiResponse<Void>> handleRegistrationException(RegistrationException ex) {
+    ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
+    return ResponseEntity.status(ex.getStatus()).body(body);
+  }
+
+  @ExceptionHandler(PaymentException.class)
+  public ResponseEntity<ApiResponse<Void>> handlePaymentException(PaymentException ex) {
+    ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
+    return ResponseEntity.status(ex.getStatus()).body(body);
+  }
+
+  @ExceptionHandler(CheckinException.class)
+  public ResponseEntity<ApiResponse<Void>> handleCheckinException(CheckinException ex) {
+    ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
+    return ResponseEntity.status(ex.getStatus()).body(body);
+  }
+
+  @ExceptionHandler(CsvImportException.class)
+  public ResponseEntity<ApiResponse<Void>> handleCsvImportException(CsvImportException ex) {
+    ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
+    return ResponseEntity.status(ex.getStatus()).body(body);
+  }
+
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ApiResponse<Void>> handleValidationException(
       MethodArgumentNotValidException ex,
@@ -38,6 +66,13 @@ public class GlobalExceptionHandler {
           UserErrorCode.AUTH_REFRESH_TOKEN_MISSING.code(),
           UserErrorCode.AUTH_REFRESH_TOKEN_MISSING.defaultMessage());
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
+    if (request.getRequestURI().startsWith("/api/auth/")) {
+      ApiResponse<Void> body = ApiResponse.error(
+          UserErrorCode.AUTH_VALIDATION_ERROR.code(),
+          UserErrorCode.AUTH_VALIDATION_ERROR.defaultMessage());
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
     String message = ex.getBindingResult().getFieldErrors().stream()

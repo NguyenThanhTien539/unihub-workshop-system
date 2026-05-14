@@ -1,13 +1,13 @@
+import Link from "next/link";
+
 export default function AdminPage() {
   return (
     <section className="space-y-6">
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-orange-700">
-          Quản trị
+          Admin
         </p>
-        <h1 className="text-3xl font-semibold text-slate-900">
-          Bảng điều hành
-        </h1>
+        <h1 className="text-3xl font-semibold text-slate-900">Bảng điều hành</h1>
         <p className="max-w-2xl text-sm leading-6 text-slate-600">
           Khu vực dành cho các công cụ của ban tổ chức như điểm danh, thanh toán
           và quản lý workshop.
@@ -30,7 +30,7 @@ export default function AdminPage() {
           <h2 className="text-base font-semibold text-slate-900">Quản lý workshop</h2>
           <p className="mt-2 text-sm text-slate-600">Tạo, chỉnh sửa, xuất bản, hủy workshop và quản lý các buổi học.</p>
           <div className="mt-3">
-            <a href="/admin/workshops" className="inline-flex items-center rounded-md bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-700">Mở trang quản lý workshop</a>
+            <Link href="/admin/workshops" className="inline-flex items-center rounded-md bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-700">Mở trang quản lý workshop</Link>
           </div>
         </div>
       </div>

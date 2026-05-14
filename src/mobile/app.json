@@ -25,6 +25,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "UniHub needs camera access to scan check-in QR codes."
+        }
+      ],
+      "expo-sqlite",
+      "expo-secure-store"
+    ]
   }
 }

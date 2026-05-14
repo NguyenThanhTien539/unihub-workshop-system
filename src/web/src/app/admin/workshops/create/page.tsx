@@ -1,145 +1,102 @@
 "use client";
-import {useEffect, useState} from "react";
-import {ensureAdminAuth, fetchWithAuth} from "../../../../lib/adminAuth";
 
-type SessionForm = {
-  roomId: string;
-  startAt: string;
-  endAt: string;
-  seatCapacity: number;
-  feeType: "FREE" | "PAID";
-  feeAmount: number;
-};
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { CalendarPlus, Trash2 } from "lucide-react";
+import { ensureAdminAuth } from "../../../../lib/adminAuth";
+import {
+  createWorkshop,
+  formatMoney,
+  formatSessionDate,
+  formatSessionTime,
+  listRooms,
+  toApiDateTime,
+  type CreateWorkshopSessionPayload,
+  type FeeType,
+  type Room,
+} from "../../../../lib/workshops";
+
+type SessionDraft = CreateWorkshopSessionPayload;
 
 export default function CreateWorkshopPage() {
+  const router = useRouter();
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [title, setTitle] = useState("");
   const [speaker, setSpeaker] = useState("");
   const [description, setDescription] = useState("");
-  const [sessions, setSessions] = useState<SessionForm[]>([]);
-
-  const [showAddSession, setShowAddSession] = useState(false);
-  const [sRoom, setSRoom] = useState("");
-  const [rooms, setRooms] = useState<Array<{id:string,name:string,building:string,capacity:number,status:string}>>([]);
-  const [sStart, setSStart] = useState("");
-  const [sEnd, setSEnd] = useState("");
-  const [sCapacity, setSCapacity] = useState<number>(30);
-  const [sFeeType, setSFeeType] = useState<"FREE"|"PAID">("FREE");
-  const [sFee, setSFee] = useState<number>(0);
-
+  const [sessions, setSessions] = useState<SessionDraft[]>([]);
+  const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySession());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function resetSessionForm() {
-    setSRoom(""); setSStart(""); setSEnd(""); setSCapacity(30); setSFeeType("FREE"); setSFee(0);
-  }
-
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetchWithAuth('/api/admin/rooms');
-        if (r.ok) {
-          const j = await r.json();
-          setRooms(j?.data ?? []);
-        }
-      } catch (e) {
-        // ignore, rooms dropdown will be empty
-      }
-    })();
-  }, []);
+    let mounted = true;
 
-  function addSession() {
-    // basic validation
-    if (!sRoom || !sStart || !sEnd) {
-      setError('Vui lòng nhập đầy đủ thông tin buổi học (phòng, thời gian).');
-      return;
-    }
-    // ensure roomId looks like a UUID
-    const uuidRe = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-    if (!uuidRe.test(sRoom)) {
-      setError('roomId không hợp lệ. Vui lòng sử dụng UUID của phòng.');
-      return;
-    }
-    function normalizeLocal(v: string) {
-      if (!v) return v;
-      // datetime-local inputs are like 2026-05-05T16:22 (no seconds)
-      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return v + ':00';
-      // strip timezone Z and milliseconds if present
-      return v.replace(/\.\d+Z$/, '').replace(/Z$/, '');
-    }
-
-    const sf: SessionForm = {
-      roomId: sRoom,
-      startAt: normalizeLocal(sStart),
-      endAt: normalizeLocal(sEnd),
-      seatCapacity: Number(sCapacity) || 0,
-      feeType: sFeeType,
-      feeAmount: Number(sFee) || 0,
-    };
-    setSessions(prev => [...prev, sf]);
-    resetSessionForm();
-    setShowAddSession(false);
-    setError(null);
-  }
-
-  function removeSession(idx: number) {
-    setSessions(prev => prev.filter((_, i) => i !== idx));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
+    async function loadRooms() {
       const ok = await ensureAdminAuth();
-      if (!ok) { window.location.href = '/auth/login?role=organizer'; return; }
-
-      // Create workshop first (backend creates sessions when provided,
-      // but server also exposes per-workshop session creation. We'll create
-      // the workshop, then create each session via POST /api/admin/workshops/{id}/sessions
-      const workshopBody = { title, speaker, description, status: 'DRAFT' };
-
-      const res = await fetchWithAuth("/api/admin/workshops", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(workshopBody),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message || "Tạo workshop thất bại");
-      const data = json?.data;
-      const id = data?.id ?? data?.workshopId ?? data?.workshopId;
-      if (!id) {
-        setError("Không xác định được id workshop vừa tạo");
+      if (!ok) {
+        window.location.href = "/auth/login?role=organizer";
         return;
       }
 
-      // create sessions one-by-one using the per-workshop sessions API
-      for (const s of sessions) {
-        const sessionPayload = {
-          roomId: s.roomId,
-          startAt: s.startAt,
-          endAt: s.endAt,
-          seatCapacity: s.seatCapacity,
-          feeType: s.feeType,
-          feeAmount: s.feeAmount,
-          currency: 'VND'
-        };
-
-        const sr = await fetchWithAuth(`/api/admin/workshops/${id}/sessions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sessionPayload),
-        });
-        const sjson = await sr.json();
-        if (!sr.ok) {
-          // If session creation fails, show error and stop further creations
-          throw new Error(sjson?.message || 'Tạo buổi học thất bại');
+      try {
+        const data = await listRooms();
+        if (mounted) {
+          setRooms(data);
+          setSessionDraft((current) => ({ ...current, roomId: current.roomId || data[0]?.id || "" }));
         }
+      } catch (err) {
+        if (mounted) setError(err instanceof Error ? err.message : "Không tải được danh sách phòng");
+      }
+    }
+
+    void loadRooms();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  function addSession() {
+    if (!sessionDraft.roomId || !sessionDraft.startAt || !sessionDraft.endAt) {
+      setError("Vui lòng chọn phòng, thời gian bắt đầu và thời gian kết thúc.");
+      return;
+    }
+
+    const payload = normalizeSession(sessionDraft);
+    if (new Date(payload.endAt).getTime() <= new Date(payload.startAt).getTime()) {
+      setError("Thời gian kết thúc phải sau thời gian bắt đầu.");
+      return;
+    }
+
+    setSessions((current) => [...current, payload]);
+    setSessionDraft({ ...emptySession(), roomId: rooms[0]?.id || "" });
+    setError(null);
+  }
+
+  function removeSession(index: number) {
+    setSessions((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      if (!title.trim() || !speaker.trim() || !description.trim()) {
+        throw new Error("Vui lòng nhập đủ tiêu đề, diễn giả và mô tả.");
       }
 
-      try { sessionStorage.setItem(`admin:workshop:${id}`, JSON.stringify(data)); } catch {}
-      window.location.href = `/admin/workshops/${id}`;
-    } catch (err: any) {
-      setError(err?.message ?? String(err));
+      const workshop = await createWorkshop({
+        title,
+        speaker,
+        description,
+        sessions,
+      });
+      router.replace(`/admin/workshops/${workshop.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không tạo được workshop");
     } finally {
       setSubmitting(false);
     }
@@ -147,115 +104,200 @@ export default function CreateWorkshopPage() {
 
   return (
     <section className="space-y-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-lg bg-white p-6 shadow">
-          <h3 className="text-lg font-medium">Thông tin Workshop</h3>
-          <p className="mt-1 text-sm text-slate-500">Nhập thông tin cơ bản về workshop</p>
-
-          <div className="mt-4 space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium">Tiêu đề *</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="VD: Nền tảng AI và học máy" className="mt-1 w-full rounded-md border px-3 py-2 bg-gray-50" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">Diễn giả *</label>
-              <input value={speaker} onChange={e => setSpeaker(e.target.value)} placeholder="VD: TS. Nguyễn Văn A" className="mt-1 w-full rounded-md border px-3 py-2 bg-gray-50" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">Mô tả *</label>
-              <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Mô tả chi tiết về nội dung workshop..." className="mt-1 w-full rounded-md border px-3 py-2 bg-gray-50" rows={5} />
-            </div>
-          </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold text-slate-950">Tạo workshop</h2>
+          <p className="mt-1 text-sm text-slate-500">Workshop sẽ được tạo ở trạng thái nháp cho đến khi bạn xuất bản.</p>
         </div>
+        <Link href="/admin/workshops" className="w-fit rounded-md border border-slate-200 px-4 py-2 text-sm font-medium">
+          Hủy
+        </Link>
+      </div>
 
-        <div className="rounded-lg bg-white p-6 shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-medium">Buổi học</h3>
-              <p className="mt-1 text-sm text-slate-500">Thêm các buổi học cho workshop</p>
+      <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1fr_420px]">
+        <div className="space-y-6">
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-950">Thông tin cơ bản</h3>
+            <div className="mt-5 space-y-4">
+              <Field label="Tiêu đề">
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="VD: Nền tảng API với Spring Boot"
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500"
+                />
+              </Field>
+              <Field label="Diễn giả">
+                <input
+                  value={speaker}
+                  onChange={(event) => setSpeaker(event.target.value)}
+                  placeholder="VD: Thầy Trần Minh Khoa"
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500"
+                />
+              </Field>
+              <Field label="Mô tả">
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Mô tả nội dung, mục tiêu và yêu cầu tham gia"
+                  rows={7}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500"
+                />
+              </Field>
             </div>
-            <div>
-              <button type="button" onClick={() => setShowAddSession(v => !v)} className="inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm">+ Thêm buổi học</button>
-            </div>
-          </div>
+          </section>
 
-          {showAddSession && (
-            <div className="mt-4 space-y-3 border-t pt-4">
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm">Phòng</label>
-                <select value={sRoom} onChange={e => setSRoom(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2">
-                  <option value="">-- Chọn phòng --</option>
-                  {rooms.map(r => (
-                    <option key={r.id} value={r.id}>{r.name} — {r.building} (sức chứa: {r.capacity})</option>
+                <h3 className="text-lg font-medium text-slate-950">Buổi học</h3>
+                <p className="mt-1 text-sm text-slate-500">Thêm một hoặc nhiều lịch học cho workshop.</p>
+              </div>
+              <button type="button" onClick={addSession} className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white">
+                <CalendarPlus size={16} />
+                Thêm buổi học
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <Field label="Phòng">
+                <select
+                  value={sessionDraft.roomId}
+                  onChange={(event) => setSessionDraft((current) => ({ ...current, roomId: event.target.value }))}
+                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                >
+                  <option value="">Chọn phòng</option>
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name}, {room.building} - {room.capacity} chỗ
+                    </option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm">Bắt đầu</label>
-                <input type="datetime-local" value={sStart} onChange={e => setSStart(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm">Kết thúc</label>
-                <input type="datetime-local" value={sEnd} onChange={e => setSEnd(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm">Sức chứa</label>
-                  <input type="number" value={sCapacity} onChange={e => setSCapacity(Number(e.target.value))} className="mt-1 w-full rounded-md border px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm">Loại phí</label>
-                  <select value={sFeeType} onChange={e => setSFeeType(e.target.value as any)} className="mt-1 w-full rounded-md border px-3 py-2">
-                    <option value="FREE">Miễn phí</option>
-                    <option value="PAID">Có phí</option>
-                  </select>
-                </div>
-              </div>
-              {sFeeType === 'PAID' && (
-                <div>
-                  <label className="block text-sm">Số tiền</label>
-                  <input type="number" value={sFee} onChange={e => setSFee(Number(e.target.value))} className="mt-1 w-full rounded-md border px-3 py-2" />
-                </div>
+              </Field>
+              <Field label="Sức chứa">
+                <input
+                  type="number"
+                  min={1}
+                  value={sessionDraft.seatCapacity}
+                  onChange={(event) => setSessionDraft((current) => ({ ...current, seatCapacity: Number(event.target.value) }))}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none"
+                />
+              </Field>
+              <Field label="Bắt đầu">
+                <input
+                  type="datetime-local"
+                  value={sessionDraft.startAt}
+                  onChange={(event) => setSessionDraft((current) => ({ ...current, startAt: event.target.value }))}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none"
+                />
+              </Field>
+              <Field label="Kết thúc">
+                <input
+                  type="datetime-local"
+                  value={sessionDraft.endAt}
+                  onChange={(event) => setSessionDraft((current) => ({ ...current, endAt: event.target.value }))}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none"
+                />
+              </Field>
+              <Field label="Loại phí">
+                <select
+                  value={sessionDraft.feeType}
+                  onChange={(event) => setSessionDraft((current) => ({ ...current, feeType: parseFeeType(event.target.value), feeAmount: 0 }))}
+                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                >
+                  <option value="FREE">Miễn phí</option>
+                  <option value="PAID">Có phí</option>
+                </select>
+              </Field>
+              {sessionDraft.feeType === "PAID" && (
+                <Field label="Số tiền">
+                  <input
+                    type="number"
+                    min={0}
+                    value={sessionDraft.feeAmount ?? 0}
+                    onChange={(event) => setSessionDraft((current) => ({ ...current, feeAmount: Number(event.target.value) }))}
+                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none"
+                  />
+                </Field>
               )}
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={addSession} className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white">Thêm</button>
-                <button type="button" onClick={() => { resetSessionForm(); setShowAddSession(false); }} className="rounded-md border px-4 py-2 text-sm">Hủy</button>
-              </div>
             </div>
-          )}
-
-          <div className="mt-6">
-            {sessions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-slate-400">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="opacity-60"><path d="M3 7h18M3 12h18M3 17h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                <div className="text-sm font-medium">Chưa có buổi học nào</div>
-                <div className="text-xs">Nhấn "Thêm buổi học" để bắt đầu</div>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {sessions.map((s, i) => (
-                  <li key={i} className="flex items-center justify-between rounded-md border px-4 py-3">
-                    <div>
-                      <div className="text-sm font-semibold">{new Date(s.startAt).toLocaleString()} — {new Date(s.endAt).toLocaleString()}</div>
-                      <div className="text-xs text-slate-600">Phòng: {s.roomId} • Sức chứa: {s.seatCapacity} • {s.feeType}{s.feeType==='PAID'?` • ${s.feeAmount}`:''}</div>
-                    </div>
-                    <div>
-                      <button type="button" onClick={() => removeSession(i)} className="text-sm text-red-600">Xóa</button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          </section>
         </div>
-      </div>
 
-      <div className="flex items-center justify-end gap-3">
-        <a href="/admin/workshops" className="inline-flex items-center rounded-md border px-4 py-2 text-sm">Hủy</a>
-        <button onClick={handleSubmit} disabled={submitting} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white">{submitting ? 'Đang tạo...' : 'Tạo workshop'}</button>
-      </div>
+        <aside className="space-y-6">
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-950">Buổi học đã thêm</h3>
+            <div className="mt-4 space-y-3">
+              {sessions.length === 0 ? (
+                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Chưa có buổi học nào.</div>
+              ) : (
+                sessions.map((session, index) => (
+                  <div key={`${session.roomId}-${session.startAt}-${index}`} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-slate-950">{formatSessionDate(session.startAt)}</div>
+                        <div className="mt-1 text-sm text-slate-600">{formatSessionTime(session.startAt, session.endAt)}</div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {session.seatCapacity} chỗ, {formatMoney(session.feeAmount, session.currency ?? "VND")}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => removeSession(index)} className="rounded-md p-2 text-red-600 hover:bg-red-50">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            {error && <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              {submitting ? "Đang tạo..." : "Tạo workshop"}
+            </button>
+          </section>
+        </aside>
+      </form>
     </section>
   );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function emptySession(): SessionDraft {
+  return {
+    roomId: "",
+    startAt: "",
+    endAt: "",
+    seatCapacity: 30,
+    feeType: "FREE",
+    feeAmount: 0,
+    currency: "VND",
+  };
+}
+
+function normalizeSession(session: SessionDraft): SessionDraft {
+  return {
+    ...session,
+    startAt: toApiDateTime(session.startAt),
+    endAt: toApiDateTime(session.endAt),
+    feeAmount: session.feeType === "FREE" ? 0 : Number(session.feeAmount ?? 0),
+    currency: session.currency || "VND",
+  };
+}
+
+function parseFeeType(value: string): FeeType {
+  return value === "PAID" ? "PAID" : "FREE";
 }

@@ -5,37 +5,78 @@ export default function AdminPage() {
     <section className="space-y-6">
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-orange-700">
-          Quản trị
+          Quan tri
         </p>
         <h1 className="text-3xl font-semibold text-slate-900">
-          Bảng điều hành
+          Bang dieu hanh
         </h1>
         <p className="max-w-2xl text-sm leading-6 text-slate-600">
-          Khu vực dành cho các công cụ của ban tổ chức như điểm danh, thanh toán
-          và quản lý workshop.
+          Khu vuc danh cho cac cong cu cua ban to chuc nhu diem danh, thanh
+          toan, import sinh vien va quan ly workshop.
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-black/10 bg-white/70 p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Điểm danh</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Quản lý điểm danh và hoạt động của nhân sự.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-black/10 bg-white/70 p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Thanh toán</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Theo dõi giao dịch và hoàn tiền sau khi tính năng được triển khai.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-black/10 bg-white/70 p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Quản lý workshop</h2>
-          <p className="mt-2 text-sm text-slate-600">Tạo, chỉnh sửa, xuất bản, hủy workshop và quản lý các buổi học.</p>
-          <div className="mt-3">
-            <a href="/admin/workshops" className="inline-flex items-center rounded-md bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-700">Mở trang quản lý workshop</a>
-          </div>
-        </div>
+        <AdminTile
+          title="Diem danh"
+          description="Quan ly diem danh va hoat dong cua nhan su."
+        />
+        <AdminTile
+          title="Thanh toan"
+          description="Theo doi giao dich va hoan tien sau khi tinh nang duoc trien khai."
+        />
+        <AdminTile
+          title="Quan ly workshop"
+          description="Tao, chinh sua, xuat ban, huy workshop va quan ly cac buoi hoc."
+          href="/admin/workshops"
+          action="Mo trang quan ly workshop"
+          tone="sky"
+        />
+        <AdminTile
+          title="Bao cao import CSV"
+          description="Theo doi batch import sinh vien, dong hop le va loi can xu ly."
+          href="/admin/csv-imports"
+          action="Mo bao cao CSV"
+          tone="emerald"
+        />
       </div>
     </section>
+  );
+}
+
+function AdminTile({
+  title,
+  description,
+  href,
+  action,
+  tone = "slate",
+}: {
+  title: string;
+  description: string;
+  href?: string;
+  action?: string;
+  tone?: "slate" | "sky" | "emerald";
+}) {
+  const buttonClass =
+    tone === "emerald"
+      ? "bg-emerald-600 hover:bg-emerald-700"
+      : tone === "sky"
+        ? "bg-sky-600 hover:bg-sky-700"
+        : "bg-slate-700 hover:bg-slate-800";
+
+  return (
+    <div className="rounded-lg border border-black/10 bg-white/70 p-5 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+      <p className="mt-2 text-sm text-slate-600">{description}</p>
+      {href && action && (
+        <div className="mt-3">
+          <Link
+            href={href}
+            className={`inline-flex items-center rounded-md px-3 py-1 text-sm font-medium text-white ${buttonClass}`}
+          >
+            {action}
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }

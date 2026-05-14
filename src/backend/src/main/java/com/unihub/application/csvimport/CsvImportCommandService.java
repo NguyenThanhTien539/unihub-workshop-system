@@ -6,6 +6,7 @@ import com.unihub.domain.csvimport.CsvImportRepository;
 import com.unihub.domain.csvimport.CsvImportRowError;
 import com.unihub.domain.csvimport.CsvImportStatus;
 import com.unihub.domain.csvimport.StudentRosterRow;
+import com.unihub.infrastructure.config.CsvImportProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -36,8 +38,23 @@ public class CsvImportCommandService {
   private final CsvStudentRosterParser parser;
   private final TransactionTemplate transactionTemplate;
   private final Clock clock;
+  private final int batchSize;
 
+  @Autowired
   public CsvImportCommandService(
+      CsvImportRepository csvImportRepository,
+      CsvStudentRosterParser parser,
+      TransactionTemplate transactionTemplate,
+      Clock clock,
+      CsvImportProperties properties) {
+    this.csvImportRepository = csvImportRepository;
+    this.parser = parser;
+    this.transactionTemplate = transactionTemplate;
+    this.clock = clock;
+    this.batchSize = properties.effectiveBatchSize();
+  }
+
+  CsvImportCommandService(
       CsvImportRepository csvImportRepository,
       CsvStudentRosterParser parser,
       TransactionTemplate transactionTemplate,
@@ -46,6 +63,7 @@ public class CsvImportCommandService {
     this.parser = parser;
     this.transactionTemplate = transactionTemplate;
     this.clock = clock;
+    this.batchSize = 500;
   }
 
   public CsvImportResult importFile(Path file) {
@@ -99,7 +117,9 @@ public class CsvImportCommandService {
     try {
       transactionTemplate.executeWithoutResult(status -> {
         if (!preparedRows.validRows().isEmpty()) {
-          csvImportRepository.upsertStudents(preparedRows.validRows(), batch.id(), now());
+          for (List<StudentRosterRow> chunk : chunks(preparedRows.validRows(), batchSize)) {
+            csvImportRepository.upsertStudents(chunk, batch.id(), now());
+          }
         }
         if (!preparedRows.errors().isEmpty()) {
           csvImportRepository.saveErrors(batch.id(), preparedRows.errors(), now());
@@ -193,13 +213,13 @@ public class CsvImportCommandService {
     List<CsvImportRowError> errors = new ArrayList<>();
     String studentCode = normalizeStudentCode(row.studentCode());
     if (studentCode == null) {
-      errors.add(error(row, "student_id", CsvImportErrorCode.CSV_IMPORT_REQUIRED_FIELD_MISSING, "student_id is required"));
+      errors.add(error(row, "student_id", CsvImportErrorCode.CSV_REQUIRED_FIELD_MISSING, "student_id is required"));
     } else if (studentCode.length() > 50) {
       errors.add(error(row, "student_id", CsvImportErrorCode.CSV_IMPORT_FIELD_TOO_LONG, "student_id must be 50 characters or fewer"));
     }
 
     if (row.fullName() == null || row.fullName().isBlank()) {
-      errors.add(error(row, "full_name", CsvImportErrorCode.CSV_IMPORT_REQUIRED_FIELD_MISSING, "full_name is required"));
+      errors.add(error(row, "full_name", CsvImportErrorCode.CSV_REQUIRED_FIELD_MISSING, "full_name is required"));
     } else if (row.fullName().trim().length() > 255) {
       errors.add(error(row, "full_name", CsvImportErrorCode.CSV_IMPORT_FIELD_TOO_LONG, "full_name must be 255 characters or fewer"));
     }
@@ -209,7 +229,7 @@ public class CsvImportCommandService {
       if (email.length() > 255) {
         errors.add(error(row, "email", CsvImportErrorCode.CSV_IMPORT_FIELD_TOO_LONG, "email must be 255 characters or fewer"));
       } else if (!EMAIL_PATTERN.matcher(email).matches()) {
-        errors.add(error(row, "email", CsvImportErrorCode.CSV_IMPORT_INVALID_EMAIL, "Email format is invalid"));
+        errors.add(error(row, "email", CsvImportErrorCode.CSV_INVALID_EMAIL, "Email format is invalid"));
       }
     }
 
@@ -218,7 +238,7 @@ public class CsvImportCommandService {
     validateMaxLength(row, "class_name", row.className(), 100, errors);
 
     if (row.status() == null) {
-      errors.add(error(row, "status", CsvImportErrorCode.CSV_IMPORT_INVALID_STATUS, "status must be ACTIVE, INACTIVE, GRADUATED, or SUSPENDED"));
+      errors.add(error(row, "status", CsvImportErrorCode.CSV_INVALID_STATUS, "status must be ACTIVE, INACTIVE, GRADUATED, or SUSPENDED"));
     }
 
     return errors;
@@ -248,10 +268,18 @@ public class CsvImportCommandService {
     if (preparedRows.errors().isEmpty()) {
       return CsvImportStatus.SUCCESS;
     }
-    if (preparedRows.validRows().isEmpty()) {
-      return CsvImportStatus.FAILED;
-    }
     return CsvImportStatus.PARTIAL_SUCCESS;
+  }
+
+  private List<List<StudentRosterRow>> chunks(List<StudentRosterRow> rows, int size) {
+    if (rows.size() <= size) {
+      return List.of(rows);
+    }
+    List<List<StudentRosterRow>> chunks = new ArrayList<>();
+    for (int start = 0; start < rows.size(); start += size) {
+      chunks.add(rows.subList(start, Math.min(start + size, rows.size())));
+    }
+    return chunks;
   }
 
   private int countErrorRows(List<CsvImportRowError> errors) {

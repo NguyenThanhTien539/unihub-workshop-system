@@ -47,3 +47,57 @@ Focused Auth/RBAC tests:
 ```bash
 mvn -Dtest=AuthCommandServiceTest,AuthControllerTest,RbacSecurityTest test
 ```
+
+## Nightly student CSV import
+
+The CSV import worker reads nightly roster exports from the legacy Student Management System
+and updates the local `students` table. It records every attempt in `csv_import_batches` and
+stores row-level validation issues in `csv_import_errors`.
+
+Expected CSV columns:
+
+```csv
+student_id,full_name,email,faculty,major,class_name,status
+S001,Nguyen An,an@example.com,Engineering,Software,SE-01,ACTIVE
+```
+
+Required columns are `student_id` (or `student_code`) and `full_name`. Optional columns are
+`email`, `faculty`, `major`, `class_name`, and `status`. Missing `status` defaults to `ACTIVE`.
+Allowed status values are `ACTIVE`, `INACTIVE`, `GRADUATED`, and `SUSPENDED`.
+
+Configuration:
+
+```env
+APP_CSV_IMPORT_ENABLED=false
+APP_CSV_IMPORT_INPUT_DIRECTORY=./data/import
+APP_CSV_IMPORT_FILE_PATTERN=students-*.csv
+APP_CSV_IMPORT_CRON=0 0 2 * * *
+APP_CSV_IMPORT_TIMEZONE=Asia/Ho_Chi_Minh
+APP_CSV_IMPORT_ENCODING=UTF-8
+APP_CSV_IMPORT_DELIMITER=,
+APP_CSV_IMPORT_BATCH_SIZE=500
+APP_CSV_IMPORT_RECORD_MISSING_BATCH=false
+```
+
+Status meanings:
+
+- `PROCESSING`: batch record was created and import is running.
+- `SUCCESS`: file structure and all rows were valid.
+- `PARTIAL_SUCCESS`: file structure was valid, but row errors or duplicate student IDs were recorded.
+- `FAILED`: file structure was invalid, unreadable, or the import transaction failed.
+- `MISSED`: scheduled import found no matching file and missing-batch recording was enabled.
+
+Duplicate `student_id` rows are resolved by keeping the last valid row in the file and recording
+`CSV_IMPORT_DUPLICATE_ROWS`. Structurally invalid files are rejected before `students` is updated,
+so registration can continue using the last successful student dataset.
+
+Organizer report APIs:
+
+```http
+GET /api/admin/csv-imports
+GET /api/admin/csv-imports/{batchId}
+GET /api/admin/csv-imports/{batchId}/errors
+```
+
+All three endpoints require the `organizer` role. Student and check-in staff tokens receive
+`403 AUTH_FORBIDDEN`.

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.unihub.domain.csvimport.CsvImportErrorCode;
 import com.unihub.domain.student.StudentStatus;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
@@ -70,5 +71,48 @@ class CsvStudentRosterParserTest {
 
     assertTrue(result.hasFailure());
     assertEquals(CsvImportErrorCode.CSV_IMPORT_INVALID_ENCODING, result.failure().errorCode());
+  }
+
+  @Test
+  void supportsConfiguredDelimiter() {
+    CsvStudentRosterParser semicolonParser = new CsvStudentRosterParser(StandardCharsets.UTF_8, ';');
+    String csv = """
+        student_id;full_name;email
+        S001;Alice Nguyen;alice@example.edu
+        """;
+
+    CsvStudentRosterParser.ParseResult result = semicolonParser.parse(csv.getBytes(StandardCharsets.UTF_8));
+
+    assertFalse(result.hasFailure());
+    assertEquals(1, result.rows().size());
+    assertEquals("S001", result.rows().getFirst().studentCode());
+  }
+
+  @Test
+  void reportsMissingRequiredColumnWhenDelimiterIsWrong() {
+    CsvStudentRosterParser semicolonParser = new CsvStudentRosterParser(StandardCharsets.UTF_8, ';');
+    String csv = """
+        student_id,full_name,email
+        S001,Alice Nguyen,alice@example.edu
+        """;
+
+    CsvStudentRosterParser.ParseResult result = semicolonParser.parse(csv.getBytes(StandardCharsets.UTF_8));
+
+    assertTrue(result.hasFailure());
+    assertEquals(CsvImportErrorCode.CSV_IMPORT_REQUIRED_COLUMN_MISSING, result.failure().errorCode());
+  }
+
+  @Test
+  void supportsConfiguredEncoding() {
+    CsvStudentRosterParser latinParser = new CsvStudentRosterParser(Charset.forName("ISO-8859-1"), ',');
+    String csv = """
+        student_id,full_name
+        S001,Nguyen An
+        """;
+
+    CsvStudentRosterParser.ParseResult result = latinParser.parse(csv.getBytes(Charset.forName("ISO-8859-1")));
+
+    assertFalse(result.hasFailure());
+    assertEquals(1, result.rows().size());
   }
 }

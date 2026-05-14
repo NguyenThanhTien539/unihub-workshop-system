@@ -64,7 +64,11 @@ public class RbacSecurityTest {
     void organizerCanAccessAdminButCannotAccessRegistrationsOrCheckin() throws Exception {
         mockMvc.perform(get("/api/admin/auth-test").with(roleJwt("organizer")))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/csv-imports").with(roleJwt("organizer")))
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/admin/csv-imports/10000000-0000-0000-0000-000000000001").with(roleJwt("organizer")))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/csv-imports/10000000-0000-0000-0000-000000000001/errors").with(roleJwt("organizer")))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/registrations/auth-test").with(roleJwt("organizer")))
                 .andExpect(status().isForbidden());
@@ -81,6 +85,10 @@ public class RbacSecurityTest {
         mockMvc.perform(post("/api/checkin/sync").with(roleJwt("checkin_staff")))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/admin/auth-test").with(roleJwt("checkin_staff")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/csv-imports").with(roleJwt("checkin_staff")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/csv-imports/10000000-0000-0000-0000-000000000001/errors").with(roleJwt("checkin_staff")))
                 .andExpect(status().isForbidden());
     }
 

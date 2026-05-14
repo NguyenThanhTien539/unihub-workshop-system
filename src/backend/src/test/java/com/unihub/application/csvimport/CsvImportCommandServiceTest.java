@@ -83,7 +83,7 @@ class CsvImportCommandServiceTest {
     assertEquals(2, repository.errors.size());
     assertEquals(CsvImportErrorCode.CSV_IMPORT_DUPLICATE_ROWS, repository.errors.get(0).errorCode());
     assertEquals(3, repository.errors.get(0).rowNumber());
-    assertEquals(CsvImportErrorCode.CSV_IMPORT_INVALID_EMAIL, repository.errors.get(1).errorCode());
+    assertEquals(CsvImportErrorCode.CSV_INVALID_EMAIL, repository.errors.get(1).errorCode());
     assertEquals(5, repository.errors.get(1).rowNumber());
   }
 
@@ -133,11 +133,68 @@ class CsvImportCommandServiceTest {
 
     CsvImportResult result = service.importFile(file);
 
-    assertEquals(CsvImportStatus.FAILED, result.batch().status());
+    assertEquals(CsvImportStatus.PARTIAL_SUCCESS, result.batch().status());
     assertEquals(0, repository.students.size());
     assertEquals(1, repository.errors.size());
     assertEquals(CsvImportErrorCode.CSV_IMPORT_FIELD_TOO_LONG, repository.errors.get(0).errorCode());
     assertEquals(50, repository.errors.get(0).studentCode().length());
+  }
+
+  @Test
+  void structurallyValidFileWithOnlyInvalidRowsIsPartialAndKeepsExistingStudents(@TempDir Path tempDir)
+      throws Exception {
+    repository.students.put("S001", new StudentRosterRow(
+        2,
+        "S001",
+        "Existing Student",
+        "existing@example.edu",
+        null,
+        null,
+        null,
+        StudentStatus.ACTIVE));
+    Path file = tempDir.resolve("students.csv");
+    Files.writeString(file, """
+        student_id,full_name,email,status
+        ,Missing Id,missing@example.edu,ACTIVE
+        S002,Invalid Status,invalid@example.edu,PAUSED
+        S003,Invalid Email,not-an-email,ACTIVE
+        """, StandardCharsets.UTF_8);
+
+    CsvImportResult result = service.importFile(file);
+
+    assertEquals(CsvImportStatus.PARTIAL_SUCCESS, result.batch().status());
+    assertEquals(3, result.batch().totalRows());
+    assertEquals(0, result.batch().successCount());
+    assertEquals(3, result.batch().errorCount());
+    assertEquals(1, repository.students.size());
+    assertEquals("Existing Student", repository.students.get("S001").fullName());
+    assertEquals(CsvImportErrorCode.CSV_REQUIRED_FIELD_MISSING, repository.errors.get(0).errorCode());
+    assertEquals(CsvImportErrorCode.CSV_INVALID_STATUS, repository.errors.get(1).errorCode());
+    assertEquals(CsvImportErrorCode.CSV_INVALID_EMAIL, repository.errors.get(2).errorCode());
+  }
+
+  @Test
+  void missingRequiredColumnCreatesFailedBatchAndDoesNotUpdateStudents(@TempDir Path tempDir) throws Exception {
+    repository.students.put("S001", new StudentRosterRow(
+        2,
+        "S001",
+        "Existing Student",
+        "existing@example.edu",
+        null,
+        null,
+        null,
+        StudentStatus.ACTIVE));
+    Path file = tempDir.resolve("students.csv");
+    Files.writeString(file, """
+        full_name,email
+        Alice Nguyen,alice@example.edu
+        """, StandardCharsets.UTF_8);
+
+    CsvImportResult result = service.importFile(file);
+
+    assertEquals(CsvImportStatus.FAILED, result.batch().status());
+    assertEquals(1, repository.students.size());
+    assertEquals("Existing Student", repository.students.get("S001").fullName());
   }
 
   private static class FakeCsvImportRepository implements CsvImportRepository {

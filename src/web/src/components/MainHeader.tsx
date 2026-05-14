@@ -51,14 +51,14 @@ export default function MainHeader() {
             UniHub Workshop
           </Link>
           <p className="mt-2 text-sm text-slate-600">
-            Workshop, registration, QR ticket, and check-in sync in one place.
+            Workshop, đăng ký, vé QR và check-in đồng bộ trong một nền tảng duy nhất.
           </p>
         </div>
 
         <div className="flex flex-col gap-4 lg:items-end">
           <nav className="flex flex-wrap gap-2 text-sm font-medium">
             <NavLink href="/">Workshops</NavLink>
-            {isStudent ? <NavLink href="/registrations">My Registrations</NavLink> : null}
+            {isStudent ? <NavLink href="/registrations">Các lượt đăng ký của tôi</NavLink> : null}
             {isCheckinStaff ? <NavLink href="/checkin">Check-in</NavLink> : null}
             {isOrganizer ? <NavLink href="/admin/workshops">Organizer</NavLink> : null}
           </nav>

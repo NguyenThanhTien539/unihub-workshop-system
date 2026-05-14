@@ -37,30 +37,148 @@ type Notice = {
 export default function WorkshopDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [registrations, setRegistrations] = useState<RegistrationResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [busySessionId, setBusySessionId] = useState<string | null>(null);
+  const [confirmSession, setConfirmSession] = useState<WorkshopSession | null>(null);
+  const [confirmMode, setConfirmMode] = useState<"FREE" | "PAID" | null>(null);
 
-  const tabs = [
-    { id: 'overview', label: 'Tổng quan' },
-    { id: 'content', label: 'Nội dung' },
-    { id: 'author', label: 'Diễn giả' },
-  ];
+  const roles = useMemo(() => normalizeRoles(currentUser?.roles), [currentUser?.roles]);
+  const isStudent = roles.includes("student");
 
-  // Hàm render nội dung tương ứng với Tab
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'overview':
-        return <div className="animate-in fade-in duration-300"> <OverallSection /> </div>;
-      case 'content':
-        return <div className="animate-in fade-in duration-300">  <ContentSection /> </div>;
-      case 'author':
-        return <div className="animate-in fade-in duration-300">  <AuthorSection />  </div>;
+  useEffect(() => {
+    void loadPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedParams.id]);
+
+  const registrationsBySession = useMemo(
+    () => new Map(registrations.map((registration) => [registration.sessionId, registration])),
+    [registrations],
+  );
+
+  async function loadPage() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const workshopDetail = await getPublicWorkshop(resolvedParams.id);
+      setWorkshop(workshopDetail);
+
+      if (!hasStoredSession()) {
+        setCurrentUser(null);
+        setRegistrations([]);
+        return;
+      }
+
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+
+      if (normalizeRoles(user.roles).includes("student")) {
+        const ownRegistrations = await listMyRegistrations();
+        for (const registration of ownRegistrations) {
+          if (registration.registrationStatus !== "PENDING_PAYMENT") {
+            clearPaidRegistrationIdempotencyKey(registration.sessionId);
+          }
+        }
+        setRegistrations(ownRegistrations);
+      } else {
+        setRegistrations([]);
+      }
+    } catch (err) {
+      setWorkshop(null);
+      setError(getFriendlyErrorMessage(err, "Không tải được workshop."));
+    } finally {
+      setLoading(false);
     }
-  };
+  }
 
-  return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
-      {/* Hero Section */}
-      <div className="relative h-[400px] w-full overflow-hidden">
+  async function handleRegister() {
+    if (!confirmSession || !confirmMode) return;
+
+    setBusySessionId(confirmSession.id);
+    setNotice(null);
+
+    try {
+      if (confirmMode === "FREE") {
+        await registerFree(confirmSession.id);
+        clearPaidRegistrationIdempotencyKey(confirmSession.id);
+        setNotice({
+          tone: "success",
+          message:
+            "Đăng ký thành công. Mã QR đã được tạo. Email xác nhận sẽ được gửi nếu cấu hình email đang hoạt động.",
+        });
+      } else {
+        const response = await registerPaid(
+          confirmSession.id,
+          getOrCreatePaidRegistrationIdempotencyKey(confirmSession.id),
+        );
+        if (response.registrationStatus !== "PENDING_PAYMENT") {
+          clearPaidRegistrationIdempotencyKey(confirmSession.id);
+        }
+        setNotice({
+          tone: "success",
+          message: response.paymentIntentId
+            ? "Đăng ký có phí đã được tạo. Hãy thanh toán để nhận mã QR."
+            : "Đăng ký có phí đã được tạo và đang chờ thanh toán.",
+        });
+      }
+
+      setConfirmSession(null);
+      setConfirmMode(null);
+      await loadPage();
+    } catch (err) {
+      const retryAfter = getRetryAfterSeconds(err);
+      const message = getFriendlyErrorMessage(err, "Không đăng ký được buổi này.");
+      setNotice({
+        tone: "error",
+        message: retryAfter ? `${message} Thử lại sau ${retryAfter} giây.` : message,
+      });
+    } finally {
+      setBusySessionId(null);
+    }
+  }
+
+  async function handleContinuePayment(registration: RegistrationResponse) {
+    if (!registration.paymentIntentId) return;
+
+    setBusySessionId(registration.sessionId);
+    setNotice(null);
+
+    try {
+      const payment = await createPaymentUrl(registration.paymentIntentId);
+      if (payment.paymentUrl) {
+        window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
+        setNotice({
+          tone: "info",
+          message: "Đã mở liên kết thanh toán mới. Sau khi thanh toán, hãy quay lại và kiểm tra trạng thái.",
+        });
+      } else {
+        setNotice({
+          tone: "info",
+          message: "Đăng ký đang chờ thanh toán, nhưng backend chưa trả paymentUrl.",
+        });
+      }
+    } catch (err) {
+      setNotice({
+        tone: "error",
+        message: getFriendlyErrorMessage(err, "Không tạo được liên kết thanh toán."),
+      });
+    } finally {
+      setBusySessionId(null);
+    }
+  }
+
+  if (loading) {
+    return <div className="min-h-[520px] animate-pulse rounded-3xl bg-white shadow-sm" />;
+  }
+
+  if (error || !workshop) {
+    return (
+      <section className="rounded-3xl border border-red-200 bg-red-50 p-6">
         <button
           type="button"
           onClick={() => router.push("/")}
@@ -126,9 +244,6 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
               </div>
             </div>
           </div>
-        </div>
-
-        {notice ? <NoticeBanner notice={notice} /> : null}
         </div>
 
         {notice ? <NoticeBanner notice={notice} /> : null}
@@ -448,36 +563,6 @@ function InfoRow({ icon, label, value }: { icon: ReactNode; label: string; value
       </div>
     </div>
   );
-}
-
-function Chip({ children, tone = "light" }: { children: ReactNode; tone?: "light" | "dark" }) {
-  return (
-    <span
-      className={
-        tone === "dark"
-          ? "rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold"
-          : "rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-950"
-      }
-    >
-      {children}
-    </span>
-  );
-}
-
-function InlineTag({ children, tone = "slate" }: { children: ReactNode; tone?: "slate" | "sky" }) {
-  return (
-    <span
-      className={
-        tone === "sky"
-          ? "rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700"
-          : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
-      }
-    >
-      {children}
-    </span>
-  );
-}
-
 }
 
 function Chip({ children, tone = "light" }: { children: ReactNode; tone?: "light" | "dark" }) {

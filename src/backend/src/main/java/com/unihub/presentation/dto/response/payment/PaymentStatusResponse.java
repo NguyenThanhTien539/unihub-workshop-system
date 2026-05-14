@@ -7,5 +7,6 @@ public record PaymentStatusResponse(
     UUID registrationId,
     String status,
     String registrationStatus,
+    UUID qrTicketId,
     boolean qrAvailable) {
 }

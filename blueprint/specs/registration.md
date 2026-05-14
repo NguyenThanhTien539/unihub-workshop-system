@@ -97,9 +97,9 @@ sequenceDiagram
 11. The Backend API increments the session reserved seat counter or creates an equivalent reservation record.
 12. The Backend API creates a local `payment_intents` record with status `PENDING_GATEWAY`.
 13. The Backend API commits the transaction.
-14. The Payment Module creates a payment intent with the payment gateway.
-15. The Backend API updates the local `payment_intents` record with the gateway reference.
-16. The Backend API returns a pending registration state and payment intent information.
+14. The Backend API returns a pending registration state and local `paymentIntentId`.
+15. The client later calls `POST /api/payments/intents/{paymentIntentId}/zalopay` to create a payment gateway checkout URL.
+16. The Payment Module creates a payment intent with the payment gateway and updates the local `payment_intents` record with the gateway reference.
 
 Important rule: the database transaction must not stay open while calling the external payment gateway.
 
@@ -122,10 +122,11 @@ sequenceDiagram
     API->>DB: Increment seats_reserved or create reservation
     API->>DB: Insert payment_intent=PENDING_GATEWAY
     API->>DB: Commit transaction
+    API-->>S: Registration pending payment + paymentIntentId
+    S->>API: POST /api/payments/intents/{paymentIntentId}/zalopay
     API->>Pay: Create gateway payment intent
     Pay-->>API: Payment URL / gateway reference
-    API->>DB: Update payment_intent with gateway reference
-    API-->>S: Registration pending payment + payment info
+    API-->>S: Payment URL / gateway reference
 ```
 
 ### Main Flow 3: Payment Success Confirms Registration
@@ -276,10 +277,14 @@ Success response:
   "success": true,
   "data": {
     "registrationId": "r-002",
+    "workshopId": "w-001",
     "sessionId": "s-102",
-    "status": "PENDING_PAYMENT",
+    "registrationStatus": "PENDING_PAYMENT",
+    "qrAvailable": false,
     "paymentIntentId": "pi-001",
-    "paymentUrl": "https://payment.example/checkout/pi-001",
+    "paymentStatus": "PENDING_GATEWAY",
+    "amount": 199000,
+    "currency": "VND",
     "expiresAt": "2026-05-01T12:30:00Z"
   }
 }
@@ -290,6 +295,7 @@ Rules:
 - The session must be paid.
 - The request must include an idempotency key.
 - The registration stays `PENDING_PAYMENT` until payment succeeds.
+- The response returns a local `paymentIntentId`; the checkout URL is created later through `POST /api/payments/intents/{paymentIntentId}/zalopay`.
 - The reserved seat must expire if payment is not completed before `expiresAt`.
 - QR ticket must not be created while registration is still `PENDING_PAYMENT`.
 

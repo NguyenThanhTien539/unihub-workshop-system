@@ -1,6 +1,5 @@
 package com.unihub.application.payment;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record PaymentStatusResult(
@@ -8,5 +7,6 @@ public record PaymentStatusResult(
     UUID registrationId,
     String status,
     String registrationStatus,
+    UUID qrTicketId,
     boolean qrAvailable) {
 }

@@ -280,7 +280,7 @@ class PaymentCommandServiceTest {
   }
 
   private PaymentIntent succeededIntent() {
-    return new PaymentIntent(paymentIntentId, registrationId, "ZALOPAY", "idem", "gw-123", PaymentStatus.SUCCESS,
+    return new PaymentIntent(paymentIntentId, registrationId, "ZALOPAY", "idem", "gw-123", PaymentStatus.SUCCEEDED,
         BigDecimal.valueOf(199000), "VND", "https://pay", LocalDateTime.of(2026, 5, 8, 10, 15),
         LocalDateTime.of(2026, 5, 8, 10, 5), null,
         LocalDateTime.of(2026, 5, 8, 10, 0), LocalDateTime.of(2026, 5, 8, 10, 5));

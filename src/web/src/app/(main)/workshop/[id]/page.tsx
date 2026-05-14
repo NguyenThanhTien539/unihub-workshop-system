@@ -8,7 +8,9 @@ import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage, getRetryAfterSeconds } from "../../../../lib/apiClient";
 import { getCurrentUser, hasStoredSession, normalizeRoles, type AuthUser } from "../../../../lib/auth";
 import {
+  clearPaidRegistrationIdempotencyKey,
   createPaymentUrl,
+  getOrCreatePaidRegistrationIdempotencyKey,
   listMyRegistrations,
   registerFree,
   registerPaid,
@@ -77,6 +79,11 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
 
       if (normalizeRoles(user.roles).includes("student")) {
         const ownRegistrations = await listMyRegistrations();
+        for (const registration of ownRegistrations) {
+          if (registration.registrationStatus !== "PENDING_PAYMENT") {
+            clearPaidRegistrationIdempotencyKey(registration.sessionId);
+          }
+        }
         setRegistrations(ownRegistrations);
       } else {
         setRegistrations([]);
@@ -98,13 +105,20 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
     try {
       if (confirmMode === "FREE") {
         await registerFree(confirmSession.id);
+        clearPaidRegistrationIdempotencyKey(confirmSession.id);
         setNotice({
           tone: "success",
           message:
             "Dang ky thanh cong. Ma QR da duoc tao. Email xac nhan da duoc gui neu cau hinh email hoat dong.",
         });
       } else {
-        const response = await registerPaid(confirmSession.id);
+        const response = await registerPaid(
+          confirmSession.id,
+          getOrCreatePaidRegistrationIdempotencyKey(confirmSession.id),
+        );
+        if (response.registrationStatus !== "PENDING_PAYMENT") {
+          clearPaidRegistrationIdempotencyKey(confirmSession.id);
+        }
         setNotice({
           tone: "success",
           message: response.paymentIntentId

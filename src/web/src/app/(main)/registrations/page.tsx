@@ -7,6 +7,7 @@ import { RegisteredWorkshopCard } from "../../../components/RegisteredWorkshopCa
 import { getFriendlyErrorMessage } from "../../../lib/apiClient";
 import { getCurrentUser, hasStoredSession, normalizeRoles } from "../../../lib/auth";
 import {
+  clearPaidRegistrationIdempotencyKey,
   createPaymentUrl,
   getPaymentStatus,
   getRegistrationQr,
@@ -66,6 +67,11 @@ export default function RegistrationsPage() {
       }
 
       const response = await listMyRegistrations();
+      for (const registration of response) {
+        if (registration.registrationStatus !== "PENDING_PAYMENT") {
+          clearPaidRegistrationIdempotencyKey(registration.sessionId);
+        }
+      }
       setRegistrations(response);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, "Khong tai duoc danh sach dang ky."));
@@ -136,7 +142,7 @@ export default function RegistrationsPage() {
         tone: status.qrAvailable ? "success" : "info",
         message: status.qrAvailable
           ? "Thanh toan da duoc xac nhan. Ma QR san sang."
-          : `Trang thai thanh toan hien tai: ${status.paymentStatus}.`,
+          : `Trang thai thanh toan hien tai: ${status.status}.`,
       });
     } catch (err) {
       setNotice({

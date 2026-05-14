@@ -9,6 +9,8 @@ public enum RegistrationErrorCode {
   REG_ALREADY_EXISTS("REG_ALREADY_EXISTS", "Registration already exists"),
   REG_PAYMENT_REQUIRED("REG_PAYMENT_REQUIRED", "This session requires payment"),
   REG_PAYMENT_NOT_REQUIRED("REG_PAYMENT_NOT_REQUIRED", "This session does not require payment"),
+  REG_IDEMPOTENCY_KEY_REQUIRED("REG_IDEMPOTENCY_KEY_REQUIRED", "Paid registration requires an idempotency key"),
+  REG_IDEMPOTENCY_KEY_CONFLICT("REG_IDEMPOTENCY_KEY_CONFLICT", "This idempotency key belongs to another paid registration request"),
   REG_NOT_FOUND("REG_NOT_FOUND", "Registration not found"),
   REG_ACCESS_DENIED("REG_ACCESS_DENIED", "You do not have access to this registration"),
   REG_QR_NOT_AVAILABLE("REG_QR_NOT_AVAILABLE", "QR ticket is not available for this registration");

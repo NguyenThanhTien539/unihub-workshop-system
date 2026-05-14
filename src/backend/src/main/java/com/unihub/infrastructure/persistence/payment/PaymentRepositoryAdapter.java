@@ -77,6 +77,12 @@ public class PaymentRepositoryAdapter implements PaymentRepository {
   }
 
   @Override
+  public Optional<PaymentIntent> findByIdempotencyKey(String idempotencyKey) {
+    return querySingle(BASE_SELECT + " WHERE idempotency_key = :idempotencyKey LIMIT 1",
+        new MapSqlParameterSource("idempotencyKey", idempotencyKey));
+  }
+
+  @Override
   public Optional<PaymentIntent> findByRegistrationId(UUID registrationId) {
     return querySingle(BASE_SELECT + " WHERE registration_id = :registrationId LIMIT 1",
         new MapSqlParameterSource("registrationId", registrationId));

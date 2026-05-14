@@ -14,6 +14,8 @@ public interface PaymentRepository {
 
   Optional<PaymentIntent> findByIdForUpdate(UUID paymentIntentId);
 
+  Optional<PaymentIntent> findByIdempotencyKey(String idempotencyKey);
+
   Optional<PaymentIntent> findByRegistrationId(UUID registrationId);
 
   Optional<PaymentIntent> findByProviderTransactionId(String providerTransactionId);

@@ -75,7 +75,7 @@ public class PaymentCommandService {
   public ZaloPayCallbackResult handleZaloPayCallback(String data, String mac) {
     ZaloPayCallbackPayload callbackPayload = zaloPayClient.verifyAndParseCallback(data, mac);
     PaymentIntent paymentIntent = resolvePaymentIntent(callbackPayload);
-    if (paymentIntent.status() == PaymentStatus.SUCCESS) {
+    if (paymentIntent.status() == PaymentStatus.SUCCEEDED) {
       return ZaloPayCallbackResult.success();
     }
     Registration registration = registrationRepository.findByIdForUpdate(paymentIntent.registrationId())
@@ -155,7 +155,7 @@ public class PaymentCommandService {
     }
 
     LocalDateTime now = LocalDateTime.now(clock);
-    if (paymentIntent.status() == PaymentStatus.SUCCESS) {
+    if (paymentIntent.status() == PaymentStatus.SUCCEEDED) {
       throw new PaymentException(PaymentErrorCode.PAYMENT_ALREADY_SUCCEEDED, HttpStatus.CONFLICT);
     }
     if (isExpired(paymentIntent, now)) {
@@ -246,7 +246,7 @@ public class PaymentCommandService {
 
     paymentRepository.update(copyPayment(
         paymentIntent,
-        PaymentStatus.SUCCESS,
+        PaymentStatus.SUCCEEDED,
         paymentIntent.paymentUrl(),
         callbackPayload.paidAt() == null ? now : callbackPayload.paidAt(),
         null,

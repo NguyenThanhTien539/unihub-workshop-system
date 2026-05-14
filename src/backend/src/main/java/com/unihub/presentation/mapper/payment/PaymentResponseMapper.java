@@ -26,6 +26,7 @@ public class PaymentResponseMapper {
         result.registrationId(),
         result.status(),
         result.registrationStatus(),
+        result.qrTicketId(),
         result.qrAvailable());
   }
 }

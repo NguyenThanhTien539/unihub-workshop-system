@@ -8,8 +8,11 @@ import com.unihub.domain.notification.Notification;
 import com.unihub.domain.notification.NotificationChannel;
 import com.unihub.domain.notification.NotificationRepository;
 import com.unihub.domain.notification.NotificationStatus;
+import com.unihub.domain.registration.Registration;
 import com.unihub.domain.registration.RegistrationEmailView;
 import com.unihub.domain.registration.RegistrationRepository;
+import com.unihub.domain.registration.RegistrationStatus;
+import com.unihub.domain.registration.RegistrationType;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -43,6 +46,18 @@ class RegistrationConfirmationMailServiceTest {
 
   @Test
   void existingNotificationDoesNotPublishDuplicateJob() {
+    when(registrationRepository.findById(registrationId)).thenReturn(Optional.of(new Registration(
+        registrationId,
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        RegistrationStatus.CONFIRMED,
+        RegistrationType.PAID,
+        LocalDateTime.now(),
+        LocalDateTime.now(),
+        LocalDateTime.now().plusMinutes(15),
+        null,
+        LocalDateTime.now(),
+        LocalDateTime.now())));
     Notification existing = new Notification(UUID.randomUUID(), UUID.randomUUID(),
         RegistrationConfirmationMailService.eventId(registrationId), "REGISTRATION_CONFIRMED_EMAIL",
         NotificationChannel.EMAIL, "registration-confirmed", "Registration confirmed", "done",

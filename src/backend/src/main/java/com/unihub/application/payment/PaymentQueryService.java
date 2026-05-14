@@ -47,6 +47,7 @@ public class PaymentQueryService {
         paymentIntent.registrationId(),
         paymentIntent.status().name(),
         view.registrationStatus().name(),
+        view.qrTicketId(),
         view.qrAvailable());
   }
 }

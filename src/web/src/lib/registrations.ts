@@ -58,23 +58,21 @@ export type PaymentUrlResponse = {
   paymentIntentId: string;
   paymentUrl: string;
   provider: string;
-  amount: number;
-  currency: string;
+  appTransId: string;
+  status: string;
   expiresAt: string | null;
 };
 
 export type PaymentStatusResponse = {
   paymentIntentId: string;
   registrationId: string;
-  paymentStatus: string;
+  status: string;
   registrationStatus: RegistrationStatus;
-  amount: number;
-  currency: string;
-  provider: string | null;
-  providerTransactionId: string | null;
-  expiresAt: string | null;
+  qrTicketId: string | null;
   qrAvailable: boolean;
 };
+
+const PAID_REGISTRATION_IDEMPOTENCY_PREFIX = "unihub:paid-registration:";
 
 export async function registerFree(sessionId: string) {
   return apiRequest<RegistrationMutationResponse>(
@@ -88,13 +86,37 @@ export async function registerFree(sessionId: string) {
   );
 }
 
-export async function registerPaid(sessionId: string) {
+export function getOrCreatePaidRegistrationIdempotencyKey(sessionId: string) {
+  const existing = readPaidRegistrationIdempotencyKey(sessionId);
+  if (existing) {
+    return existing;
+  }
+
+  const generated = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${sessionId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  writePaidRegistrationIdempotencyKey(sessionId, generated);
+  return generated;
+}
+
+export function clearPaidRegistrationIdempotencyKey(sessionId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.sessionStorage.removeItem(storageKey(sessionId));
+}
+
+export async function registerPaid(
+  sessionId: string,
+  idempotencyKey = getOrCreatePaidRegistrationIdempotencyKey(sessionId),
+) {
   return apiRequest<RegistrationMutationResponse>(
     "/api/registrations/paid",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ sessionId, idempotencyKey }),
     },
     { auth: true },
   );
@@ -122,4 +144,22 @@ export async function createPaymentUrl(paymentIntentId: string) {
 
 export async function getPaymentStatus(paymentIntentId: string) {
   return apiRequest<PaymentStatusResponse>(`/api/payments/${paymentIntentId}/status`, undefined, { auth: true });
+}
+
+function readPaidRegistrationIdempotencyKey(sessionId: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.sessionStorage.getItem(storageKey(sessionId));
+}
+
+function writePaidRegistrationIdempotencyKey(sessionId: string, idempotencyKey: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.sessionStorage.setItem(storageKey(sessionId), idempotencyKey);
+}
+
+function storageKey(sessionId: string) {
+  return `${PAID_REGISTRATION_IDEMPOTENCY_PREFIX}${sessionId}`;
 }

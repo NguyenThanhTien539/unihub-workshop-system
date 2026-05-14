@@ -34,18 +34,21 @@ export default function PaymentResultClient() {
 
   const pageTitle = useMemo(() => {
     if (!payment) return "Trang thai thanh toan";
-    return payment.registrationStatus === "CONFIRMED" ||
-      payment.paymentStatus === "SUCCESS"
-      ? "Dang ky thanh cong"
-      : "Dang cho thanh toan";
+    if (payment.registrationStatus === "CONFIRMED" || payment.status === "SUCCEEDED") {
+      return "Dang ky thanh cong";
+    }
+    if (payment.status === "FAILED" || payment.status === "EXPIRED") {
+      return "Thanh toan chua hoan tat";
+    }
+    return "Dang cho thanh toan";
   }, [payment]);
 
   const amountText = useMemo(() => {
-    if (!payment) return "Chua co";
-    const amount = payment.amount ?? registration?.amount ?? null;
-    const currency = payment.currency ?? registration?.currency ?? "VND";
+    if (!registration) return "Chua co";
+    const amount = registration.amount ?? null;
+    const currency = registration.currency ?? "VND";
     return formatMoney(amount, currency ?? "VND");
-  }, [payment, registration]);
+  }, [registration]);
 
   useEffect(() => {
     let mounted = true;
@@ -109,7 +112,7 @@ export default function PaymentResultClient() {
             </h1>
             {payment ? (
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {payment.paymentStatus}
+                {payment.status}
               </span>
             ) : null}
           </div>
@@ -126,7 +129,7 @@ export default function PaymentResultClient() {
             <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm sm:grid-cols-2">
               <InfoRow
                 label="Trang thai thanh toan"
-                value={payment.paymentStatus}
+                value={payment.status}
               />
               <InfoRow
                 label="Trang thai dang ky"
@@ -134,12 +137,8 @@ export default function PaymentResultClient() {
               />
               <InfoRow label="So tien" value={amountText} />
               <InfoRow
-                label="Ma giao dich"
-                value={payment.providerTransactionId ?? "Chua co"}
-              />
-              <InfoRow
-                label="Nha cung cap"
-                value={payment.provider ?? "ZaloPay"}
+                label="Ma QR"
+                value={payment.qrTicketId ?? "Chua co"}
               />
               <InfoRow
                 label="Ma paymentIntent"
@@ -166,6 +165,11 @@ export default function PaymentResultClient() {
               {registration.confirmedAt ? (
                 <div className="mt-3 text-sm text-emerald-600">
                   Xac nhan luc: {formatDateTime(registration.confirmedAt)}
+                </div>
+              ) : null}
+              {payment.qrAvailable ? (
+                <div className="mt-3 text-sm text-sky-600">
+                  Ma QR da san sang trong trang danh sach dang ky.
                 </div>
               ) : null}
             </div>

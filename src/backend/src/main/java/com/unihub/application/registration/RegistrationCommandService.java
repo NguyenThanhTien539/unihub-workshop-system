@@ -12,6 +12,7 @@ import com.unihub.domain.registration.RegistrationRepository;
 import com.unihub.domain.registration.RegistrationSessionSnapshot;
 import com.unihub.domain.registration.RegistrationStatus;
 import com.unihub.domain.registration.RegistrationType;
+import com.unihub.domain.registration.RegistrationView;
 import com.unihub.domain.student.Student;
 import com.unihub.domain.student.StudentRepository;
 import com.unihub.domain.student.StudentStatus;
@@ -99,9 +100,24 @@ public class RegistrationCommandService {
 
   @Transactional
   public RegistrationResult registerPaid(CreatePaidRegistrationCommand command) {
+    String idempotencyKey = normalizeIdempotencyKey(command.idempotencyKey());
+    if (idempotencyKey == null) {
+      throw new RegistrationException(RegistrationErrorCode.REG_IDEMPOTENCY_KEY_REQUIRED, HttpStatus.BAD_REQUEST);
+    }
+
     Student student = requireEligibleStudent(command.userId());
+    PaymentIntent replayedPaymentIntent = paymentRepository.findByIdempotencyKey(idempotencyKey).orElse(null);
+    if (replayedPaymentIntent != null) {
+      return replayPaidRegistration(student.id(), command.sessionId(), replayedPaymentIntent);
+    }
+
+    Registration existingRegistration = registrationRepository.findActiveByStudentAndSession(student.id(), command.sessionId())
+        .orElse(null);
+    if (existingRegistration != null) {
+      return existingPaidRegistrationResult(student.id(), existingRegistration);
+    }
+
     RegistrationSessionSnapshot session = requireRegisterableSession(command.sessionId(), FeeType.PAID);
-    ensureNoDuplicate(student.id(), session.sessionId());
     ensureCapacity(session);
 
     LocalDateTime now = LocalDateTime.now(clock);
@@ -130,7 +146,7 @@ public class RegistrationCommandService {
         UUID.randomUUID(),
         registration.id(),
         "ZALOPAY",
-        "payment-intent:" + registration.id(),
+        idempotencyKey,
         null,
         PaymentStatus.PENDING_GATEWAY,
         session.feeAmount(),
@@ -149,6 +165,41 @@ public class RegistrationCommandService {
         session.sessionId(),
         registration.status().name(),
         false,
+        paymentIntent.id(),
+        paymentIntent.status().name(),
+        paymentIntent.amount(),
+        paymentIntent.currency(),
+        paymentIntent.expiresAt());
+  }
+
+  private RegistrationResult replayPaidRegistration(UUID studentId, UUID requestedSessionId, PaymentIntent paymentIntent) {
+    Registration registration = registrationRepository.findById(paymentIntent.registrationId())
+        .orElseThrow(() -> new RegistrationException(RegistrationErrorCode.REG_NOT_FOUND, HttpStatus.NOT_FOUND));
+    if (!registration.studentId().equals(studentId) || !registration.sessionId().equals(requestedSessionId)) {
+      throw new RegistrationException(RegistrationErrorCode.REG_IDEMPOTENCY_KEY_CONFLICT, HttpStatus.CONFLICT);
+    }
+    return buildPaidRegistrationResult(studentId, paymentIntent);
+  }
+
+  private RegistrationResult existingPaidRegistrationResult(UUID studentId, Registration registration) {
+    if (registration.registrationType() == RegistrationType.PAID
+        && registration.status() == RegistrationStatus.PENDING_PAYMENT) {
+      PaymentIntent paymentIntent = paymentRepository.findByRegistrationId(registration.id())
+          .orElseThrow(this::duplicateRegistration);
+      return buildPaidRegistrationResult(studentId, paymentIntent);
+    }
+    throw duplicateRegistration();
+  }
+
+  private RegistrationResult buildPaidRegistrationResult(UUID studentId, PaymentIntent paymentIntent) {
+    RegistrationView view = registrationRepository.findViewByIdForStudent(paymentIntent.registrationId(), studentId)
+        .orElseThrow(() -> new RegistrationException(RegistrationErrorCode.REG_ACCESS_DENIED, HttpStatus.FORBIDDEN));
+    return new RegistrationResult(
+        view.registrationId(),
+        view.workshopId(),
+        view.sessionId(),
+        view.registrationStatus().name(),
+        view.qrAvailable(),
         paymentIntent.id(),
         paymentIntent.status().name(),
         paymentIntent.amount(),
@@ -200,6 +251,14 @@ public class RegistrationCommandService {
     if (session.remainingSeats() <= 0) {
       throw new RegistrationException(RegistrationErrorCode.REG_SESSION_FULL, HttpStatus.CONFLICT);
     }
+  }
+
+  private String normalizeIdempotencyKey(String value) {
+    if (value == null) {
+      return null;
+    }
+    String normalized = value.trim();
+    return normalized.isEmpty() ? null : normalized;
   }
 
   private RegistrationException duplicateRegistration() {

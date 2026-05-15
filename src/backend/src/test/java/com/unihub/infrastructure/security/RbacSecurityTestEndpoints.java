@@ -29,6 +29,16 @@ public class RbacSecurityTestEndpoints {
     return ApiResponse.success(id);
   }
 
+  @GetMapping("/api/admin/csv-imports")
+  ApiResponse<String> csvImportList() {
+    return ApiResponse.success("csv imports");
+  }
+
+  @GetMapping("/api/admin/csv-imports/{id}/errors")
+  ApiResponse<String> csvImportErrors(@PathVariable String id) {
+    return ApiResponse.success(id);
+  }
+
   @GetMapping("/api/registrations/auth-test")
   ApiResponse<String> registrations() {
     return ApiResponse.success("registrations");

@@ -20,6 +20,9 @@ target/
 logs/
 *.log
 
+# Local CSV imports may contain real student data
+data/import/
+
 # IDE
 .vscode/
 .idea/

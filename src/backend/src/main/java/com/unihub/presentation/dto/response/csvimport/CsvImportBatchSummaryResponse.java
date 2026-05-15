@@ -3,7 +3,7 @@ package com.unihub.presentation.dto.response.csvimport;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record CsvImportBatchResponse(
+public record CsvImportBatchSummaryResponse(
     UUID batchId,
     String fileName,
     String checksum,
@@ -12,6 +12,5 @@ public record CsvImportBatchResponse(
     LocalDateTime finishedAt,
     int totalRows,
     int successCount,
-    int errorCount,
-    String failureReason) {
+    int errorCount) {
 }

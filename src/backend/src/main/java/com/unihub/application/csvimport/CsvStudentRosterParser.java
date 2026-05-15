@@ -3,9 +3,11 @@ package com.unihub.application.csvimport;
 import com.unihub.domain.csvimport.CsvImportErrorCode;
 import com.unihub.domain.csvimport.StudentRosterRow;
 import com.unihub.domain.student.StudentStatus;
+import com.unihub.infrastructure.config.CsvImportProperties;
 import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.Charset;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -28,9 +30,26 @@ public class CsvStudentRosterParser {
   private static final String CLASS_NAME_HEADER = "class_name";
   private static final String STATUS_HEADER = "status";
 
+  private final Charset charset;
+  private final char delimiter;
+
+  public CsvStudentRosterParser() {
+    this(StandardCharsets.UTF_8, ',');
+  }
+
+  public CsvStudentRosterParser(CsvImportProperties properties) {
+    this(resolveCharset(properties.effectiveEncoding()), properties.effectiveDelimiter());
+  }
+
+  CsvStudentRosterParser(Charset charset, char delimiter) {
+    this.charset = charset;
+    this.delimiter = delimiter;
+  }
+
   public ParseResult parse(byte[] bytes) {
     try (Reader reader = utf8Reader(bytes);
         CSVParser parser = CSVFormat.DEFAULT.builder()
+            .setDelimiter(delimiter)
             .setHeader()
             .setSkipHeaderRecord(true)
             .setIgnoreEmptyLines(true)
@@ -77,10 +96,18 @@ public class CsvStudentRosterParser {
   }
 
   private Reader utf8Reader(byte[] bytes) {
-    var decoder = StandardCharsets.UTF_8.newDecoder()
+    var decoder = charset.newDecoder()
         .onMalformedInput(CodingErrorAction.REPORT)
         .onUnmappableCharacter(CodingErrorAction.REPORT);
     return new InputStreamReader(new ByteArrayInputStream(bytes), decoder);
+  }
+
+  private static Charset resolveCharset(String encoding) {
+    try {
+      return Charset.forName(encoding);
+    } catch (Exception ex) {
+      return StandardCharsets.UTF_8;
+    }
   }
 
   private Map<String, String> normalizeHeaders(Map<String, Integer> headerMap) {

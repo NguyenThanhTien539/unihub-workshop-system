@@ -75,9 +75,13 @@ app:
       sandbox-mode: ${APP_PAYMENT_ZALOPAY_SANDBOX_MODE:true}
   csv-import:
     enabled: ${APP_CSV_IMPORT_ENABLED:false}
-    input-directory: ${APP_CSV_IMPORT_INPUT_DIRECTORY:./data}
-    file-pattern: ${APP_CSV_IMPORT_FILE_PATTERN:*.csv}
-    cron: ${APP_CSV_IMPORT_CRON:0 5 0 * * *}
+    input-directory: ${APP_CSV_IMPORT_INPUT_DIRECTORY:./data/import}
+    file-pattern: ${APP_CSV_IMPORT_FILE_PATTERN:students-*.csv}
+    cron: ${APP_CSV_IMPORT_CRON:0 0 2 * * *}
+    timezone: ${APP_CSV_IMPORT_TIMEZONE:Asia/Ho_Chi_Minh}
+    encoding: ${APP_CSV_IMPORT_ENCODING:UTF-8}
+    delimiter: ${APP_CSV_IMPORT_DELIMITER:,}
+    batch-size: ${APP_CSV_IMPORT_BATCH_SIZE:500}
     record-missing-batch: ${APP_CSV_IMPORT_RECORD_MISSING_BATCH:false}
 
 server:

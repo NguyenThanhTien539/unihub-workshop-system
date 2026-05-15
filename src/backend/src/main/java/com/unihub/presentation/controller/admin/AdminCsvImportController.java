@@ -3,6 +3,7 @@ package com.unihub.presentation.controller.admin;
 import com.unihub.application.csvimport.CsvImportQueryService;
 import com.unihub.presentation.ApiResponse;
 import com.unihub.presentation.dto.response.csvimport.CsvImportBatchResponse;
+import com.unihub.presentation.dto.response.csvimport.CsvImportBatchSummaryResponse;
 import com.unihub.presentation.dto.response.csvimport.CsvImportErrorResponse;
 import com.unihub.presentation.mapper.csvimport.CsvImportResponseMapper;
 import java.util.List;
@@ -28,11 +29,11 @@ public class AdminCsvImportController {
   }
 
   @GetMapping
-  public ResponseEntity<ApiResponse<List<CsvImportBatchResponse>>> listBatches(
+  public ResponseEntity<ApiResponse<List<CsvImportBatchSummaryResponse>>> listBatches(
       @RequestParam(required = false) Integer page,
       @RequestParam(required = false) Integer size) {
-    List<CsvImportBatchResponse> responses = csvImportQueryService.listBatches(page, size).stream()
-        .map(csvImportResponseMapper::toBatchResponse)
+    List<CsvImportBatchSummaryResponse> responses = csvImportQueryService.listBatches(page, size).stream()
+        .map(csvImportResponseMapper::toBatchSummaryResponse)
         .toList();
     return ResponseEntity.ok(ApiResponse.success(responses));
   }

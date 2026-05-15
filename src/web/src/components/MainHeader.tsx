@@ -38,8 +38,14 @@ export default function MainHeader() {
       mounted = false;
     };
   }, []);
+  
+  const roleList = [
+    { role: "student", label: "Sinh viên" },
+    { role: "organizer", label: "Ban tổ chức" },
+    { role: "checkin_staff", label: "Nhân viên check-in" },
+  ]
 
-  const roles = normalizeRoles(user?.roles);
+  const roles = normalizeRoles(user?.roles || []).map(r => roleList.find(role => role.role === r)?.label || r);
   const isStudent = roles.includes("student");
   const isOrganizer = roles.includes("organizer");
   const isCheckinStaff = roles.includes("checkin_staff");

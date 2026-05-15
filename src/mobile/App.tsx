@@ -37,17 +37,18 @@ export default function App() {
     }
   };
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.kicker}>UniHub Workshop</Text>
-          <Text style={styles.title}>Check-in Mobile</Text>
-          <Text style={styles.subtitle}>
-            Live backend integration for sessions, QR validation, and offline sync staging.
-          </Text>
-        </View>
+    return (
+    <NotificationProvider>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <ScrollView contentContainerStyle={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.kicker}>UniHub Workshop</Text>
+            <Text style={styles.title}>Check-in Mobile</Text>
+            <Text style={styles.subtitle}>
+              Live backend integration for sessions, QR validation, and offline sync staging.
+            </Text>
+          </View>
 
           {!account ? (
             <AuthScreens onAuthenticated={setAccount} />
@@ -76,8 +77,8 @@ export default function App() {
             </View>
           )}
         </ScrollView>
-      </NotificationProvider>
-    </SafeAreaView>
+      </SafeAreaView>
+    </NotificationProvider>
   );
 }
 
@@ -140,5 +141,11 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 12,
     marginTop: 2,
+  },
+   subtitle: {
+    color: colors.muted,
+    fontSize: 14,
+    marginTop: spacing.sm,
+    lineHeight: 20,
   },
 });

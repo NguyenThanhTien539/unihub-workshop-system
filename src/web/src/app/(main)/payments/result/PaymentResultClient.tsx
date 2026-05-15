@@ -33,8 +33,11 @@ export default function PaymentResultClient() {
   );
 
   const pageTitle = useMemo(() => {
-    if (!payment) return "Trạng thái thanh toán";
-    if (payment.registrationStatus === "CONFIRMED" || payment.status === "SUCCEEDED") {
+    if (!payment) return "Trạng thái thanh toan";
+    if (
+      payment.registrationStatus === "CONFIRMED" ||
+      payment.status === "SUCCEEDED"
+    ) {
       return "Đăng ký thành công";
     }
     if (payment.status === "FAILED" || payment.status === "EXPIRED") {
@@ -44,7 +47,7 @@ export default function PaymentResultClient() {
   }, [payment]);
 
   const amountText = useMemo(() => {
-    if (!registration) return "Chưa có";
+    if (!registration) return "Chưa có thông tin";
     const amount = registration.amount ?? null;
     const currency = registration.currency ?? "VND";
     return formatMoney(amount, currency ?? "VND");
@@ -117,7 +120,7 @@ export default function PaymentResultClient() {
             ) : null}
           </div>
           <p className="text-sm text-slate-500">
-            Trang này hiển thị thông tin đặt chỗ. Mã QR sẽ được cấp sau khi
+            Trang này chỉ hiển thị thông tin đăng ký. Mã QR sẽ được cấp sau khi
             thanh toán thành công.
           </p>
         </div>
@@ -127,26 +130,20 @@ export default function PaymentResultClient() {
         {payment && registration ? (
           <div className="mt-6 grid gap-5">
             <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm sm:grid-cols-2">
-              <InfoRow
-                label="Trạng thái thanh toán"
-                value={paymentStatusLabel(payment.status)}
-              />
+              <InfoRow label="Trạng thái thanh toán" value={payment.status} />
               <InfoRow
                 label="Trạng thái đăng ký"
-                value={registrationStatusLabel(payment.registrationStatus)}
+                value={payment.registrationStatus}
               />
               <InfoRow label="Số tiền" value={amountText} />
-              <InfoRow
-                label="Ma QR"
-                value={payment.qrTicketId ?? "Chưa có"}
-              />
+              <InfoRow label="Mã QR" value={payment.qrTicketId ?? "Chưa có"} />
               <InfoRow
                 label="Mã paymentIntent"
                 value={payment.paymentIntentId}
               />
               <InfoRow label="Mã đăng ký" value={registration.registrationId} />
               <InfoRow
-                label="Thời gian tạo"
+                label="Thời gian tạo đăng ký"
                 value={formatDateTime(registration.createdAt)}
               />
             </div>

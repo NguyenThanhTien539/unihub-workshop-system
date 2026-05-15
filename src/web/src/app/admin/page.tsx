@@ -29,7 +29,7 @@ export default function AdminPage() {
           description="Tạo, chỉnh sửa, xuất bản, hủy workshop và quản lý các buổi học."
           href="/admin/workshops"
           action="Mở trang quản lý workshop"
-          tone="sky"
+          tone="emerald"
         />
         <AdminTile
           title="Báo cáo import CSV"

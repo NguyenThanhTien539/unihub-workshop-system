@@ -17,7 +17,7 @@ export function AuthGate({ children }: AuthGateProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   if (isBootstrapping) {
-    return <LoadingView label="Dang khoi dong..." />;
+    return <LoadingView label="Đang khởi động..." />;
   }
 
   if (!isAuthenticated) {

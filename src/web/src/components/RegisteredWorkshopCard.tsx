@@ -1,4 +1,5 @@
 import { CalendarDays, Clock, LoaderCircle, MapPin, QrCode } from "lucide-react";
+import Button from "./Button";
 import type { ReactNode } from "react";
 import { formatDateTime, formatMoney, formatSessionDate, formatSessionTime } from "../lib/workshops";
 
@@ -51,11 +52,11 @@ export function RegisteredWorkshopCard({
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Badge tone="slate">{registrationStatus}</Badge>
+              <Badge tone="slate">{registrationStatusLabel(registrationStatus)}</Badge>
               <Badge tone={registrationType === "PAID" ? "amber" : "sky"}>
                 {registrationType === "PAID" ? `Có phí · ${formatMoney(amount, currency ?? "VND")}` : "Miễn phí"}
               </Badge>
-              {paymentStatus ? <Badge tone={paymentStatus === "SUCCEEDED" ? "green" : "amber"}>{paymentStatus}</Badge> : null}
+              {paymentStatus ? <Badge tone={paymentStatus === "SUCCEEDED" ? "green" : "amber"}>{paymentStatusLabel(paymentStatus)}</Badge> : null}
               <Badge tone={qrAvailable ? "green" : "slate"}>{qrAvailable ? "QR sẵn sàng" : "Chưa có QR"}</Badge>
             </div>
           </div>
@@ -69,15 +70,14 @@ export function RegisteredWorkshopCard({
 
         <div className="flex flex-col gap-3 lg:items-end">
           {qrAvailable && onShowQr ? (
-            <button
+            <Button
               type="button"
               onClick={onShowQr}
-              disabled={qrLoading}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               {qrLoading ? <LoaderCircle size={16} className="animate-spin" /> : <QrCode size={16} />}
               {qrLoading ? "Đang tải QR..." : "Xem mã QR"}
-            </button>
+            </Button>
           ) : null}
 
           {action}
@@ -89,7 +89,7 @@ export function RegisteredWorkshopCard({
 
 function InfoCell({ icon, value }: { icon: ReactNode; value: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3">
+    <div className="flex items-center justify-center gap-2 rounded-xl bg-slate-50 px-3 py-3">
       <span className="text-slate-500">{icon}</span>
       <span>{value}</span>
     </div>
@@ -113,4 +113,36 @@ function Badge({
           : "bg-slate-100 text-slate-700";
 
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClass}`}>{children}</span>;
+}
+
+function registrationStatusLabel(status: string) {
+  switch (status) {
+    case "PENDING_PAYMENT":
+      return "Chờ thanh toán";
+    case "CONFIRMED":
+      return "Đã xác nhận";
+    case "PAYMENT_FAILED":
+      return "Thanh toán thất bại";
+    case "EXPIRED":
+      return "Đã hết hạn";
+    case "CANCELED":
+      return "Đã hủy";
+    default:
+      return status;
+  }
+}
+
+function paymentStatusLabel(status: string) {
+  switch (status) {
+    case "PENDING":
+      return "Đang chờ";
+    case "SUCCEEDED":
+      return "Thành công";
+    case "FAILED":
+      return "Thất bại";
+    case "EXPIRED":
+      return "Đã hết hạn";
+    default:
+      return status;
+  }
 }

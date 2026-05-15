@@ -32,7 +32,7 @@ Login returns a short-lived JWT access token and an opaque refresh token. Refres
 ## Security notes
 
 - JWT secret is read from `JWT_SECRET`; it must be at least 32 characters.
-- CORS origins are configured with `CORS_ALLOWED_ORIGINS`, defaulting to `http://localhost:3000,http://localhost:8081`.
+- CORS origins are configured with `CORS_ALLOWED_ORIGINS`, defaulting to `http://localhost:3000,http://localhost:3001,http://localhost:8081`.
 - The REST API uses Bearer tokens and refresh tokens in the JSON body, so CSRF is disabled for stateless API requests. Revisit CSRF if cookie-based auth is introduced.
 - `/api/payments/webhook` is public at the Spring Security layer because the Payment module must verify gateway signatures/shared secrets itself.
 

@@ -16,11 +16,11 @@ export function SessionCard({ session, onStart }: SessionCardProps) {
       <View style={styles.header}>
         <Text style={styles.title}>{session.workshopTitle}</Text>
         <StatusBadge
-          label={session.checkinOpen ? "Dang mo" : "Da dong"}
+          label={session.checkinOpen ? "Đang mở" : "Đã đóng"}
           tone={session.checkinOpen ? "success" : "warning"}
         />
       </View>
-      <Text style={styles.meta}>{session.roomName || "Chua co phong"}</Text>
+      <Text style={styles.meta}>{session.roomName || "Chưa có phòng"}</Text>
       <Text style={styles.time}>
         {formatDateTime(session.startAt)} - {formatDateTime(session.endAt)}
       </Text>
@@ -30,7 +30,7 @@ export function SessionCard({ session, onStart }: SessionCardProps) {
           tone={session.source === "LIVE" ? "info" : session.source === "MOCK" ? "warning" : "neutral"}
         />
         <AppButton
-          title="Bat dau quet"
+          title="Bắt đầu quét"
           onPress={() => onStart(session)}
           disabled={!session.checkinOpen}
           style={styles.button}

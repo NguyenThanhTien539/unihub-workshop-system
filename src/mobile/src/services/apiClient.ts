@@ -44,7 +44,7 @@ export async function apiRequest<T>(
   const body = await readEnvelope<T>(response);
   if (!response.ok || body.success === false) {
     throw new ApiClientError(
-      body.error?.message ?? body.message ?? "Request failed.",
+      body.error?.message ?? body.message ?? "Yêu cầu thất bại.",
       response.status,
       body.error?.code,
     );
@@ -53,24 +53,24 @@ export async function apiRequest<T>(
   return body.data as T;
 }
 
-export function getFriendlyApiError(error: unknown, fallback = "Something went wrong.") {
+export function getFriendlyApiError(error: unknown, fallback = "Đã xảy ra lỗi.") {
   if (error instanceof ApiClientError) {
     switch (error.code) {
       case "AUTH_FORBIDDEN":
-        return "This account does not have permission for check-in.";
+        return "Tài khoản này không có quyền check-in.";
       case "AUTH_INVALID_CREDENTIALS":
-        return "Invalid email or password.";
+        return "Email hoặc mật khẩu không đúng.";
       case "CHECKIN_QR_EXPIRED":
-        return "This QR code has expired.";
+        return "Mã QR này đã hết hạn.";
       case "CHECKIN_QR_REVOKED":
-        return "This QR code has been revoked.";
+        return "Mã QR này đã bị thu hồi.";
       case "CHECKIN_SESSION_MISMATCH":
-        return "This QR code belongs to another session.";
+        return "Mã QR này thuộc buổi học khác.";
       case "CHECKIN_SESSION_NOT_OPEN":
-        return "This session is not open for check-in yet.";
+        return "Buổi học này chưa mở check-in.";
       case "CHECKIN_INVALID_QR":
       case "CHECKIN_QR_NOT_FOUND":
-        return "The QR token could not be recognized.";
+        return "Không nhận diện được mã QR.";
       default:
         return error.message || fallback;
     }
@@ -93,7 +93,7 @@ async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   } catch {
     return {
       success: false,
-      message: response.ok ? "Invalid server response." : "Server returned an unreadable error response.",
+      message: response.ok ? "Phản hồi từ máy chủ không hợp lệ." : "Không đọc được phản hồi lỗi từ máy chủ.",
     };
   }
 }

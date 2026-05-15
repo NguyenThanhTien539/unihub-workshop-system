@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { logout } from "../lib/adminAuth";
+import Button from "./Button";
 
 type LogoutButtonProps = {
   children: React.ReactNode;
@@ -23,8 +24,8 @@ export default function LogoutButton({
   }
 
   return (
-    <button type="button" onClick={handleLogout} className={className}>
+    <Button type="button" onClick={handleLogout} className={className}>
       {children}
-    </button>
+    </Button>
   );
 }

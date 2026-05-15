@@ -36,11 +36,11 @@ export function ProfileScreen({ navigation }: Props) {
 
     if (pending > 0) {
       Alert.alert(
-        "Con du lieu chua dong bo",
-        "Du lieu local se duoc giu lai va chi dong bo khi dang nhap lai bang tai khoan check-in staff.",
+        "Còn dữ liệu chưa đồng bộ",
+        "Dữ liệu cục bộ sẽ được giữ lại và chỉ đồng bộ khi đăng nhập lại bằng tài khoản nhân sự check-in.",
         [
-          { text: "Huy", style: "cancel" },
-          { text: "Dang xuat", style: "destructive", onPress: doLogout },
+          { text: "Hủy", style: "cancel" },
+          { text: "Đăng xuất", style: "destructive", onPress: doLogout },
         ],
       );
       return;
@@ -54,23 +54,23 @@ export function ProfileScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
           <View style={styles.row}>
-            <Text style={styles.title}>{user?.fullName ?? "Check-in Staff"}</Text>
+            <Text style={styles.title}>{user?.fullName ?? "Nhân sự check-in"}</Text>
             <StatusBadge label={isOnline ? "Online" : "Offline"} tone={isOnline ? "success" : "warning"} />
           </View>
           <Text style={styles.meta}>{user?.email}</Text>
-          <Text style={styles.meta}>Roles: {user?.roles.join(", ")}</Text>
+          <Text style={styles.meta}>Vai trò: {user?.roles.join(", ")}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Local sync</Text>
+          <Text style={styles.sectionTitle}>Đồng bộ cục bộ</Text>
           <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>Pending / failed</Text>
+            <Text style={styles.metricLabel}>Đang chờ / thất bại</Text>
             <Text style={styles.metricValue}>{pendingCount}</Text>
           </View>
-          <AppButton title="Mo man hinh dong bo" onPress={() => navigation.navigate("OfflineSync")} variant="secondary" />
+          <AppButton title="Mở màn hình đồng bộ" onPress={() => navigation.navigate("OfflineSync")} variant="secondary" />
         </View>
 
-        <AppButton title="Dang xuat" onPress={confirmLogout} loading={isLoggingOut} variant="danger" />
+        <AppButton title="Đăng xuất" onPress={confirmLogout} loading={isLoggingOut} variant="danger" />
       </ScrollView>
     </SafeAreaView>
   );

@@ -97,7 +97,7 @@ export function getFirstSession(workshop: WorkshopListItem | WorkshopDetail) {
 }
 
 export function formatSessionDate(value?: string | null) {
-  if (!value) return "Chua xep lich";
+  if (!value) return "Chưa xếp lịch";
   return new Intl.DateTimeFormat("vi-VN", {
     weekday: "long",
     day: "2-digit",
@@ -107,7 +107,7 @@ export function formatSessionDate(value?: string | null) {
 }
 
 export function formatSessionTime(startAt?: string | null, endAt?: string | null) {
-  if (!startAt || !endAt) return "Chua co thoi gian";
+  if (!startAt || !endAt) return "Chưa có thời gian";
   const formatter = new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
@@ -116,7 +116,7 @@ export function formatSessionTime(startAt?: string | null, endAt?: string | null
 }
 
 export function formatDateTime(value?: string | null) {
-  if (!value) return "Chua cap nhat";
+  if (!value) return "Chưa cập nhật";
   return new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
@@ -128,7 +128,7 @@ export function formatDateTime(value?: string | null) {
 
 export function formatMoney(amount?: number | null, currency = "VND") {
   const safeAmount = Number(amount ?? 0);
-  if (safeAmount <= 0) return "Mien phi";
+  if (safeAmount <= 0) return "Miễn phí";
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency,
@@ -137,32 +137,32 @@ export function formatMoney(amount?: number | null, currency = "VND") {
 }
 
 export function formatLocation(session?: WorkshopListSession | WorkshopSession | null) {
-  if (!session) return "Chua co phong";
+  if (!session) return "Chưa có phòng";
   return `${session.roomName}, ${session.building}`;
 }
 
 export function formatSeatSummary(session?: WorkshopListSession | WorkshopSession | null) {
-  if (!session) return "Chua co suc chua";
+  if (!session) return "Chưa có sức chứa";
   if ("seatCapacity" in session) {
-    return `Con ${session.remainingSeats}/${session.seatCapacity} cho`;
+    return `Còn ${session.remainingSeats}/${session.seatCapacity} chỗ`;
   }
-  return `Con ${session.remainingSeats} cho`;
+  return `Còn ${session.remainingSeats} chỗ`;
 }
 
 export function statusLabel(status: string) {
   switch (status) {
     case "DRAFT":
-      return "Nhap";
+      return "Nháp";
     case "PUBLISHED":
-      return "Da xuat ban";
+      return "Đã xuất bản";
     case "CANCELED":
-      return "Da huy";
+      return "Đã hủy";
     case "ARCHIVED":
-      return "Luu tru";
+      return "Lưu trữ";
     case "OPEN":
-      return "Mo dang ky";
+      return "Mở đăng ký";
     case "CLOSED":
-      return "Da dong";
+      return "Đã đóng";
     default:
       return status;
   }

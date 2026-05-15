@@ -19,11 +19,11 @@ type ScanResultModalProps = {
 };
 
 const resultLabel: Record<CheckinResult, string> = {
-  ACCEPTED: "Check-in thanh cong",
-  DUPLICATE: "Da check-in",
-  REJECTED: "Bi tu choi",
-  ALREADY_SYNCED: "Da dong bo",
-  PENDING_SYNC: "Cho dong bo",
+  ACCEPTED: "Check-in thành công",
+  DUPLICATE: "Đã check-in",
+  REJECTED: "Bị từ chối",
+  ALREADY_SYNCED: "Đã đồng bộ",
+  PENDING_SYNC: "Chờ đồng bộ",
 };
 
 const resultTone: Record<CheckinResult, "success" | "warning" | "danger" | "info"> = {
@@ -45,12 +45,12 @@ export function ScanResultModal({ visible, result, onScanNext, onClose }: ScanRe
               <Text style={styles.title}>{resultLabel[result.result]}</Text>
               {result.studentName ? <Text style={styles.name}>{result.studentName}</Text> : null}
               {result.studentCode ? <Text style={styles.meta}>MSSV: {result.studentCode}</Text> : null}
-              {result.registrationId ? <Text style={styles.meta}>Registration: {result.registrationId}</Text> : null}
-              {result.syncEventId ? <Text style={styles.meta}>Sync event: {result.syncEventId}</Text> : null}
+              {result.registrationId ? <Text style={styles.meta}>Đăng ký: {result.registrationId}</Text> : null}
+              {result.syncEventId ? <Text style={styles.meta}>Sự kiện đồng bộ: {result.syncEventId}</Text> : null}
               {result.message ? <Text style={styles.message}>{result.message}</Text> : null}
               <View style={styles.actions}>
-                <AppButton title="Quet tiep" onPress={onScanNext} style={styles.action} />
-                <AppButton title="Danh sach" onPress={onClose} variant="secondary" style={styles.action} />
+                <AppButton title="Quét tiếp" onPress={onScanNext} style={styles.action} />
+                <AppButton title="Danh sách" onPress={onClose} variant="secondary" style={styles.action} />
               </View>
             </>
           ) : null}

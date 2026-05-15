@@ -32,17 +32,17 @@ export function QrScannerPlaceholderScreen({
 }: QrScannerPlaceholderScreenProps) {
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Manual QR Validation</Text>
+      <Text style={styles.title}>Xác thực QR thủ công</Text>
       <Text style={styles.description}>
-        Use this fallback when camera scanning is not installed yet. Paste a QR token and send it to `/api/checkin/validate`.
+        Dùng phương án này khi chưa cài quét camera. Dán mã QR và gửi đến `/api/checkin/validate`.
       </Text>
 
       <View style={styles.sessionBox}>
-        <Text style={styles.sessionLabel}>Selected session</Text>
+        <Text style={styles.sessionLabel}>Buổi học đã chọn</Text>
         <Text style={styles.sessionValue}>
           {selectedSession
             ? `${selectedSession.workshopTitle} · ${selectedSession.roomName}`
-            : "Choose a session above first."}
+            : "Hãy chọn buổi học ở phía trên trước."}
         </Text>
       </View>
 
@@ -52,7 +52,7 @@ export function QrScannerPlaceholderScreen({
         value={qrToken}
         onChangeText={onQrTokenChange}
         style={styles.input}
-        placeholder="Paste QR token here"
+        placeholder="Dán mã QR vào đây"
         placeholderTextColor="#94a3b8"
       />
 
@@ -62,7 +62,7 @@ export function QrScannerPlaceholderScreen({
           onPress={onValidate}
           disabled={!selectedSession || !qrToken.trim() || scanSubmitting}
         >
-          <Text style={styles.primaryButtonText}>{scanSubmitting ? "Validating..." : "Validate online"}</Text>
+          <Text style={styles.primaryButtonText}>{scanSubmitting ? "Đang xác thực..." : "Xác thực online"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -70,11 +70,11 @@ export function QrScannerPlaceholderScreen({
           onPress={onQueueOffline}
           disabled={!selectedSession || !qrToken.trim()}
         >
-          <Text style={styles.secondaryButtonText}>Queue offline</Text>
+          <Text style={styles.secondaryButtonText}>Lưu offline</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.secondaryButton} onPress={onReset}>
-          <Text style={styles.secondaryButtonText}>Scan next</Text>
+          <Text style={styles.secondaryButtonText}>Quét tiếp</Text>
         </TouchableOpacity>
       </View>
 

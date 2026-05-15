@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Button from "../../../../components/Button";
 import { useRouter } from "next/navigation";
 import { CalendarPlus, Trash2 } from "lucide-react";
 import { ensureAdminAuth } from "../../../../lib/adminAuth";
@@ -153,10 +154,10 @@ export default function CreateWorkshopPage() {
                 <h3 className="text-lg font-medium text-slate-950">Buổi học</h3>
                 <p className="mt-1 text-sm text-slate-500">Thêm một hoặc nhiều lịch học cho workshop.</p>
               </div>
-              <button type="button" onClick={addSession} className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white">
+              <Button type="button" onClick={addSession} className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white">
                 <CalendarPlus size={16} />
                 Thêm buổi học
-              </button>
+              </Button>
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -241,9 +242,9 @@ export default function CreateWorkshopPage() {
                           {session.seatCapacity} chỗ, {formatMoney(session.feeAmount, session.currency ?? "VND")}
                         </div>
                       </div>
-                      <button type="button" onClick={() => removeSession(index)} className="rounded-md p-2 text-red-600 hover:bg-red-50">
+                      <Button type="button" onClick={() => removeSession(index)} className="rounded-md p-2 text-red-600 hover:bg-red-50">
                         <Trash2 size={16} />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -253,13 +254,9 @@ export default function CreateWorkshopPage() {
 
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             {error && <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-            >
+            <Button type="submit" disabled={submitting} className="w-full">
               {submitting ? "Đang tạo..." : "Tạo workshop"}
-            </button>
+            </Button>
           </section>
         </aside>
       </form>

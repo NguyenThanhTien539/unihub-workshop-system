@@ -63,7 +63,7 @@ export default function App() {
       const response = await loginCheckin(email, password);
       const roles = response.user.roles.map((role) => role.toLowerCase());
       if (!roles.includes("checkin_staff")) {
-        throw new Error("This account does not have check-in access.");
+        throw new Error("Tài khoản này không có quyền check-in.");
       }
 
       const me = await getCurrentUser(response.accessToken);
@@ -71,14 +71,14 @@ export default function App() {
       setStaffName(me.fullName);
       setScanFeedback({
         tone: "info",
-        title: "Signed in",
-        message: "Check-in endpoints are now ready to use.",
+        title: "Đã đăng nhập",
+        message: "Các endpoint check-in đã sẵn sàng sử dụng.",
       });
       await loadSessions(response.accessToken);
     } catch (error) {
       setAccessToken(null);
       setStaffName("");
-      setLoginError(getFriendlyApiError(error, "Unable to sign in."));
+      setLoginError(getFriendlyApiError(error, "Không đăng nhập được."));
     } finally {
       setLoginLoading(false);
     }
@@ -95,7 +95,7 @@ export default function App() {
       setSessions(response);
       setSelectedSessionId((current) => current || response[0]?.sessionId || "");
     } catch (error) {
-      setSessionError(getFriendlyApiError(error, "Unable to load check-in sessions."));
+      setSessionError(getFriendlyApiError(error, "Không tải được danh sách buổi check-in."));
     } finally {
       setSessionsLoading(false);
     }
@@ -118,21 +118,21 @@ export default function App() {
         response.result === "ACCEPTED"
           ? {
               tone: "success",
-              title: "Accepted",
-              message: `${response.studentName} (${response.studentId}) checked in successfully.`,
+              title: "Đã chấp nhận",
+              message: `${response.studentName} (${response.studentId}) đã check-in thành công.`,
             }
           : {
               tone: "warning",
-              title: "Duplicate",
-              message: `This attendee was already checked in at ${response.previousCheckedInAt ?? "an earlier time"}.`,
+              title: "Trùng lượt",
+              message: `Người tham dự này đã check-in lúc ${response.previousCheckedInAt ?? "một thời điểm trước đó"}.`,
             },
       );
     } catch (error) {
       setLastResult(null);
       setScanFeedback({
         tone: "error",
-        title: "Rejected",
-        message: getFriendlyApiError(error, "Unable to validate this QR token."),
+        title: "Bị từ chối",
+        message: getFriendlyApiError(error, "Không xác thực được mã QR này."),
       });
     } finally {
       setScanSubmitting(false);
@@ -156,8 +156,8 @@ export default function App() {
     await refreshQueue();
     setScanFeedback({
       tone: "info",
-      title: "Queued offline",
-      message: "The scan was saved locally with status PENDING_SYNC.",
+      title: "Đã lưu offline",
+      message: "Lượt quét đã được lưu cục bộ với trạng thái PENDING_SYNC.",
     });
   }
 
@@ -168,8 +168,8 @@ export default function App() {
     if (pendingEvents.length === 0) {
       setScanFeedback({
         tone: "info",
-        title: "Queue is clean",
-        message: "There are no pending offline events to sync.",
+        title: "Hàng đợi đã trống",
+        message: "Không có sự kiện offline nào đang chờ đồng bộ.",
       });
       return;
     }
@@ -194,8 +194,8 @@ export default function App() {
       await refreshQueue();
       setScanFeedback({
         tone: "success",
-        title: "Sync complete",
-        message: `Processed ${response.results.length} offline event(s).`,
+        title: "Đồng bộ hoàn tất",
+        message: `Đã xử lý ${response.results.length} sự kiện offline.`,
       });
     } catch (error) {
       for (const event of pendingEvents) {
@@ -204,8 +204,8 @@ export default function App() {
       await refreshQueue();
       setScanFeedback({
         tone: "error",
-        title: "Sync failed",
-        message: getFriendlyApiError(error, "Unable to sync offline events right now."),
+        title: "Đồng bộ thất bại",
+        message: getFriendlyApiError(error, "Hiện không đồng bộ được sự kiện offline."),
       });
     } finally {
       setSyncingQueue(false);
@@ -220,7 +220,7 @@ export default function App() {
           <Text style={styles.kicker}>UniHub Workshop</Text>
           <Text style={styles.title}>Check-in Mobile</Text>
           <Text style={styles.subtitle}>
-            Live backend integration for sessions, QR validation, and offline sync staging.
+            Tích hợp backend thật cho buổi học, xác thực QR và đồng bộ offline.
           </Text>
         </View>
 

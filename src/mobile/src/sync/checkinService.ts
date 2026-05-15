@@ -32,7 +32,7 @@ export async function handleQrScan(params: HandleQrScanParams): Promise<ScanHand
       result: "REJECTED",
       sourceMode: "ONLINE",
       errorCode: "CHECKIN_INVALID_QR",
-      message: "Ma QR khong hop le.",
+      message: "Mã QR không hợp lệ.",
     };
     await saveHistory(params.sessionId, qrToken, rejected, "ONLINE", scannedAt);
     return rejected;
@@ -40,7 +40,7 @@ export async function handleQrScan(params: HandleQrScanParams): Promise<ScanHand
 
   const isOnline = useNetworkStore.getState().isOnline;
   if (!isOnline) {
-    return saveOfflineScan(params.sessionId, qrToken, scannedAt, "Dang offline. Da luu vao hang cho dong bo.");
+    return saveOfflineScan(params.sessionId, qrToken, scannedAt, "Đang offline. Đã lưu vào hàng chờ đồng bộ.");
   }
 
   try {
@@ -57,7 +57,7 @@ export async function handleQrScan(params: HandleQrScanParams): Promise<ScanHand
     };
   } catch (error) {
     if (isNetworkError(error)) {
-      return saveOfflineScan(params.sessionId, qrToken, scannedAt, "Mat ket noi. Da luu vao hang cho dong bo.");
+      return saveOfflineScan(params.sessionId, qrToken, scannedAt, "Mất kết nối. Đã lưu vào hàng chờ đồng bộ.");
     }
 
     const appError = toAppError(error);
@@ -88,7 +88,7 @@ async function saveOfflineScan(
       result: "PENDING_SYNC",
       sourceMode: "OFFLINE",
       syncEventId: existing.syncEventId,
-      message: "Ma QR nay da nam trong hang cho dong bo.",
+      message: "Mã QR này đã nằm trong hàng chờ đồng bộ.",
     };
     await saveHistory(sessionId, qrToken, result, "OFFLINE", scannedAt);
     return result;

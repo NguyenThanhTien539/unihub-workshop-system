@@ -9,7 +9,7 @@ type ErrorViewProps = {
   onAction?: () => void;
 };
 
-export function ErrorView({ title = "Co loi", message, actionLabel, onAction }: ErrorViewProps) {
+export function ErrorView({ title = "Có lỗi", message, actionLabel, onAction }: ErrorViewProps) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>

@@ -64,9 +64,9 @@ export function ScannerScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.permissionCard}>
-          <Text style={styles.title}>Can quyen camera</Text>
-          <Text style={styles.description}>Cap quyen camera de quet QR check-in.</Text>
-          <AppButton title="Cap quyen" onPress={requestPermission} />
+          <Text style={styles.title}>Cần quyền camera</Text>
+          <Text style={styles.description}>Cấp quyền camera để quét QR check-in.</Text>
+          <AppButton title="Cấp quyền" onPress={requestPermission} />
         </View>
       </SafeAreaView>
     );
@@ -78,7 +78,7 @@ export function ScannerScreen({ navigation, route }: Props) {
         <View style={styles.headerText}>
           <Text style={styles.title}>{session.workshopTitle}</Text>
           <Text style={styles.description}>
-            {session.roomName || "Chua co phong"} - {formatDateTime(session.startAt)}
+            {session.roomName || "Chưa có phòng"} - {formatDateTime(session.startAt)}
           </Text>
         </View>
         <StatusBadge label={isOnline ? "Online" : "Offline"} tone={isOnline ? "success" : "warning"} />
@@ -94,13 +94,13 @@ export function ScannerScreen({ navigation, route }: Props) {
         {isProcessingScan ? (
           <View style={styles.processing}>
             <ActivityIndicator color="#ffffff" />
-            <Text style={styles.processingText}>Dang xu ly...</Text>
+            <Text style={styles.processingText}>Đang xử lý...</Text>
           </View>
         ) : null}
       </View>
 
       <View style={styles.footer}>
-        <AppButton title="Quay lai" onPress={() => navigation.goBack()} variant="secondary" />
+        <AppButton title="Quay lại" onPress={() => navigation.goBack()} variant="secondary" />
       </View>
 
       <ScanResultModal

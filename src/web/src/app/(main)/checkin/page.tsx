@@ -55,7 +55,7 @@ export default function CheckinPage() {
       setSessions(response);
       setSelectedSessionId((current) => current || response[0]?.sessionId || "");
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Khong tai duoc danh sach session check-in."));
+      setError(getFriendlyErrorMessage(err, "Không tải được danh sách buổi check-in."));
     } finally {
       setLoading(false);
     }
@@ -79,19 +79,19 @@ export default function CheckinPage() {
       if (response.result === "ACCEPTED") {
         setNotice({
           tone: "success",
-          message: "Check-in thanh cong. San sang quet ma tiep theo.",
+          message: "Check-in thành công. Sẵn sàng quét mã tiếp theo.",
         });
       } else {
         setNotice({
           tone: "info",
-          message: "Ma nay da duoc check-in truoc do.",
+          message: "Mã này đã được check-in trước đó.",
         });
       }
     } catch (err) {
       setResult(null);
       setNotice({
         tone: "error",
-        message: getFriendlyErrorMessage(err, "Khong xac thuc duoc ma QR."),
+        message: getFriendlyErrorMessage(err, "Không xác thực được mã QR."),
       });
     } finally {
       setSubmitting(false);
@@ -105,15 +105,15 @@ export default function CheckinPage() {
   if (!allowed) {
     return (
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-950">Check-in desk</h1>
+        <h1 className="text-2xl font-semibold text-slate-950">Quầy check-in</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          This page is available only for check-in staff accounts.
+          Trang này chỉ dành cho tài khoản nhân sự check-in.
         </p>
         <Link
           href="/auth/login?role=checkin"
           className="mt-5 inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
         >
-          Sign in as check-in staff
+          Đăng nhập nhân sự check-in
         </Link>
       </section>
     );
@@ -124,9 +124,9 @@ export default function CheckinPage() {
       <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-950">Check-in desk</h1>
+            <h1 className="text-2xl font-semibold text-slate-950">Quầy check-in</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Manual QR token input for testing. Mobile app uses the same backend endpoints.
+              Nhập mã QR thủ công để kiểm thử. Ứng dụng mobile dùng cùng endpoint backend.
             </p>
           </div>
           <button
@@ -134,7 +134,7 @@ export default function CheckinPage() {
             onClick={() => void loadSessions()}
             className="inline-flex w-fit rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
-            Refresh sessions
+            Làm mới buổi học
           </button>
         </div>
       </div>
@@ -144,10 +144,10 @@ export default function CheckinPage() {
 
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-950">Available sessions</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Buổi học khả dụng</h2>
           <div className="mt-4 space-y-3">
             {sessions.length === 0 ? (
-              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No sessions available for check-in.</div>
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Không có buổi học nào khả dụng để check-in.</div>
             ) : (
               sessions.map((session) => {
                 const active = session.sessionId === selectedSessionId;
@@ -168,7 +168,7 @@ export default function CheckinPage() {
                       {session.roomName}, {session.building}
                     </div>
                     <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {session.checkinOpen ? "CHECK-IN OPEN" : "CHECK-IN CLOSED"}
+                      {session.checkinOpen ? "ĐANG MỞ CHECK-IN" : "ĐÃ ĐÓNG CHECK-IN"}
                     </div>
                   </button>
                 );
@@ -178,16 +178,16 @@ export default function CheckinPage() {
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-950">Validate QR token</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Xác thực mã QR</h2>
           <form className="mt-5 space-y-4" onSubmit={handleValidate}>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">Session</span>
+              <span className="mb-1 block text-sm font-medium text-slate-700">Buổi học</span>
               <select
                 value={selectedSessionId}
                 onChange={(event) => setSelectedSessionId(event.target.value)}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none"
               >
-                <option value="">Select a session</option>
+                <option value="">Chọn buổi học</option>
                 {sessions.map((session) => (
                   <option key={session.sessionId} value={session.sessionId}>
                     {session.workshopTitle} · {session.roomName}
@@ -197,13 +197,13 @@ export default function CheckinPage() {
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">QR token</span>
+              <span className="mb-1 block text-sm font-medium text-slate-700">Mã QR</span>
               <textarea
                 value={qrToken}
                 onChange={(event) => setQrToken(event.target.value)}
                 rows={5}
                 className="w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm outline-none"
-                placeholder="Paste the QR token here for manual validation."
+                placeholder="Dán mã QR vào đây để xác thực thủ công."
               />
             </label>
 
@@ -214,7 +214,7 @@ export default function CheckinPage() {
                 className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:bg-slate-400"
               >
                 {submitting ? <LoaderCircle size={16} className="animate-spin" /> : null}
-                {submitting ? "Validating..." : "Validate check-in"}
+                {submitting ? "Đang xác thực..." : "Xác thực check-in"}
               </button>
               <button
                 type="button"
@@ -225,7 +225,7 @@ export default function CheckinPage() {
                 }}
                 className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Scan next
+                Quét tiếp
               </button>
             </div>
           </form>
@@ -266,17 +266,17 @@ function ResultCard({ result }: { result: CheckinValidateResponse }) {
         )}
         <div>
           <div className={`text-lg font-semibold ${accepted ? "text-emerald-800" : "text-amber-800"}`}>
-            {result.result}
+            {result.result === "ACCEPTED" ? "Đã chấp nhận" : "Trùng lượt check-in"}
           </div>
           <div className="mt-1 text-sm text-slate-700">
             {result.studentName} · {result.studentId}
           </div>
           {result.checkedInAt ? (
-            <div className="mt-2 text-sm text-slate-600">Checked in at: {formatDateTime(result.checkedInAt)}</div>
+            <div className="mt-2 text-sm text-slate-600">Check-in lúc: {formatDateTime(result.checkedInAt)}</div>
           ) : null}
           {result.previousCheckedInAt ? (
             <div className="mt-2 text-sm text-slate-600">
-              Previous check-in: {formatDateTime(result.previousCheckedInAt)}
+              Lần check-in trước: {formatDateTime(result.previousCheckedInAt)}
             </div>
           ) : null}
         </div>

@@ -71,7 +71,7 @@ export default function LoginPageClient() {
       <div className="w-full max-w-2xl rounded-2xl bg-white/90 p-8 shadow-lg">
         <div className="text-center">
           <h1 className="text-2xl font-semibold">UniHub Workshop</h1>
-          <p className="mt-1 text-sm text-slate-600">Sign in as {roleLabel}</p>
+          <p className="mt-1 text-sm text-slate-600">Đăng nhập với vai trò {roleLabel}</p>
         </div>
 
         <form className="mt-6 space-y-4" onSubmit={submit}>
@@ -87,7 +87,7 @@ export default function LoginPageClient() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu</label>
             <input
               type="password"
               value={password}

@@ -64,7 +64,7 @@ function getMockSessions(): CheckinSession[] {
   return [
     {
       sessionId: "mock-session-101",
-      workshopTitle: "Career Skills Workshop",
+      workshopTitle: "Workshop kỹ năng nghề nghiệp",
       roomName: "A101",
       startAt: start.toISOString(),
       endAt: end.toISOString(),
@@ -73,7 +73,7 @@ function getMockSessions(): CheckinSession[] {
     },
     {
       sessionId: "mock-session-202",
-      workshopTitle: "AI for Student Projects",
+      workshopTitle: "AI cho đồ án sinh viên",
       roomName: "B204",
       startAt: new Date(start.getTime() + 3 * 60 * 60 * 1000).toISOString(),
       endAt: new Date(end.getTime() + 3 * 60 * 60 * 1000).toISOString(),
@@ -98,11 +98,11 @@ function mockResultForToken(qrToken: string): ValidateQrResponse {
     return {
       result: "DUPLICATE",
       registrationId: createId("reg"),
-      studentName: "Student Duplicate",
+      studentName: "Sinh viên đã check-in",
       studentId: "23123456",
       studentCode: "23123456",
       previousCheckedInAt: nowIso(),
-      message: "Sinh vien da check-in truoc do.",
+      message: "Sinh viên đã check-in trước đó.",
     };
   }
 
@@ -110,17 +110,17 @@ function mockResultForToken(qrToken: string): ValidateQrResponse {
     return {
       result: "REJECTED",
       errorCode: "CHECKIN_INVALID_QR",
-      message: "Ma QR khong hop le.",
+      message: "Mã QR không hợp lệ.",
     };
   }
 
   return {
     result: "ACCEPTED",
     registrationId: createId("reg"),
-    studentName: "Student One",
+    studentName: "Sinh viên Một",
     studentId: "23123456",
     studentCode: "23123456",
     checkedInAt: nowIso(),
-    message: "Check-in thanh cong.",
+    message: "Check-in thành công.",
   };
 }

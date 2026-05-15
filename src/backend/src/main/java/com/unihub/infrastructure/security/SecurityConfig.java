@@ -118,7 +118,7 @@ public class SecurityConfig {
 
   @Bean
   CorsConfigurationSource corsConfigurationSource(
-      @Value("${app.security.cors.allowed-origins:http://localhost:3000,http://localhost:8081}") String allowedOrigins) {
+      @Value("${app.security.cors.allowed-origins:http://localhost:3000,http://localhost:3001,http://localhost:8081}") String allowedOrigins) {
     CorsConfiguration config = new CorsConfiguration();
     List<String> origins = Arrays.stream(allowedOrigins.split(","))
         .map(String::trim)

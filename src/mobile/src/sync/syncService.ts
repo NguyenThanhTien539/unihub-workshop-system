@@ -47,12 +47,12 @@ export function syncPendingEvents(options?: SyncPendingOptions) {
 
 async function runSync(options?: SyncPendingOptions): Promise<SyncSummary> {
   if (!useNetworkStore.getState().isOnline) {
-    return emptySummary("SKIPPED_OFFLINE", "Dang offline.");
+    return emptySummary("SKIPPED_OFFLINE", "Đang offline.");
   }
 
   const events = await getPendingEvents(options?.batchSize ?? 20);
   if (events.length === 0) {
-    return emptySummary("NO_PENDING", "Khong co ban ghi cho dong bo.");
+    return emptySummary("NO_PENDING", "Không có bản ghi chờ đồng bộ.");
   }
 
   await markSyncing(events.map((event) => event.syncEventId));
@@ -105,7 +105,7 @@ async function applySyncResults(events: OfflineCheckinEvent[], results: SyncResu
     const result = resultById.get(event.syncEventId);
     if (!result) {
       summary.failed += 1;
-      await markSyncFailed(event.syncEventId, "SYNC_RESULT_MISSING", "Backend khong tra ket qua cho event nay.");
+      await markSyncFailed(event.syncEventId, "SYNC_RESULT_MISSING", "Backend không trả kết quả cho sự kiện này.");
       continue;
     }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { clearTokens, getCurrentUser, hasStoredSession, logout, normalizeRoles, type AuthUser } from "../lib/auth";
+import Button from "./Button";
 
 export default function MainHeader() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -57,35 +58,32 @@ export default function MainHeader() {
 
         <div className="flex flex-col gap-4 lg:items-end">
           <nav className="flex flex-wrap gap-2 text-sm font-medium">
-            <NavLink href="/">Workshops</NavLink>
+            <NavLink href="/">Workshop</NavLink>
             {isStudent ? <NavLink href="/registrations">Các lượt đăng ký của tôi</NavLink> : null}
             {isCheckinStaff ? <NavLink href="/checkin">Check-in</NavLink> : null}
-            {isOrganizer ? <NavLink href="/admin/workshops">Organizer</NavLink> : null}
+            {isOrganizer ? <NavLink href="/admin/workshops">Ban tổ chức</NavLink> : null}
           </nav>
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
             {loading ? (
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">Checking session...</span>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">Đang kiểm tra phiên...</span>
             ) : user ? (
-              <>
-                <span className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">
                   {user.fullName} · {roles.join(", ")}
-                </span>
-                <button
+                </div>
+                <Button
                   type="button"
                   onClick={handleLogout}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="rounded-full border border-slate-200 px-4 py-2 text-slate-700 transition hover:border-slate-300 hover:bg-black"
                 >
-                  Logout
-                </button>
-              </>
+                  Đăng xuất
+                </Button>
+              </div>
             ) : (
-              <Link
-                href="/auth"
-                className="rounded-full bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"
-              >
-                Sign in
-              </Link>
+              <Button href="/auth" className="rounded-full px-4 py-2">
+                Đăng nhập
+              </Button>
             )}
           </div>
         </div>

@@ -33,18 +33,18 @@ export default function PaymentResultClient() {
   );
 
   const pageTitle = useMemo(() => {
-    if (!payment) return "Trang thai thanh toan";
+    if (!payment) return "Trạng thái thanh toán";
     if (payment.registrationStatus === "CONFIRMED" || payment.status === "SUCCEEDED") {
-      return "Dang ky thanh cong";
+      return "Đăng ký thành công";
     }
     if (payment.status === "FAILED" || payment.status === "EXPIRED") {
-      return "Thanh toan chua hoan tat";
+      return "Thanh toán chưa hoàn tất";
     }
-    return "Dang cho thanh toan";
+    return "Đang chờ thanh toán";
   }, [payment]);
 
   const amountText = useMemo(() => {
-    if (!registration) return "Chua co";
+    if (!registration) return "Chưa có";
     const amount = registration.amount ?? null;
     const currency = registration.currency ?? "VND";
     return formatMoney(amount, currency ?? "VND");
@@ -60,7 +60,7 @@ export default function PaymentResultClient() {
       if (!paymentIntentId) {
         setNotice({
           tone: "error",
-          message: "Khong tim thay paymentIntentId tren URL.",
+          message: "Không tìm thấy paymentIntentId trên URL.",
         });
         setLoading(false);
         return;
@@ -82,7 +82,7 @@ export default function PaymentResultClient() {
           tone: "error",
           message: getFriendlyErrorMessage(
             err,
-            "Khong lay duoc thong tin thanh toan.",
+            "Không lấy được thông tin thanh toán.",
           ),
         });
       } finally {
@@ -112,13 +112,13 @@ export default function PaymentResultClient() {
             </h1>
             {payment ? (
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {payment.status}
+                {paymentStatusLabel(payment.status)}
               </span>
             ) : null}
           </div>
           <p className="text-sm text-slate-500">
-            Trang nay chi hien thi thong tin dat cho. Ma QR se duoc cap sau khi
-            thanh toan thanh cong.
+            Trang này hiển thị thông tin đặt chỗ. Mã QR sẽ được cấp sau khi
+            thanh toán thành công.
           </p>
         </div>
 
@@ -128,25 +128,25 @@ export default function PaymentResultClient() {
           <div className="mt-6 grid gap-5">
             <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm sm:grid-cols-2">
               <InfoRow
-                label="Trang thai thanh toan"
-                value={payment.status}
+                label="Trạng thái thanh toán"
+                value={paymentStatusLabel(payment.status)}
               />
               <InfoRow
-                label="Trang thai dang ky"
-                value={payment.registrationStatus}
+                label="Trạng thái đăng ký"
+                value={registrationStatusLabel(payment.registrationStatus)}
               />
-              <InfoRow label="So tien" value={amountText} />
+              <InfoRow label="Số tiền" value={amountText} />
               <InfoRow
                 label="Ma QR"
-                value={payment.qrTicketId ?? "Chua co"}
+                value={payment.qrTicketId ?? "Chưa có"}
               />
               <InfoRow
-                label="Ma paymentIntent"
+                label="Mã paymentIntent"
                 value={payment.paymentIntentId}
               />
-              <InfoRow label="Ma dang ky" value={registration.registrationId} />
+              <InfoRow label="Mã đăng ký" value={registration.registrationId} />
               <InfoRow
-                label="Thoi gian tao"
+                label="Thời gian tạo"
                 value={formatDateTime(registration.createdAt)}
               />
             </div>
@@ -164,12 +164,12 @@ export default function PaymentResultClient() {
               </div>
               {registration.confirmedAt ? (
                 <div className="mt-3 text-sm text-emerald-600">
-                  Xac nhan luc: {formatDateTime(registration.confirmedAt)}
+                  Xác nhận lúc: {formatDateTime(registration.confirmedAt)}
                 </div>
               ) : null}
               {payment.qrAvailable ? (
                 <div className="mt-3 text-sm text-sky-600">
-                  Ma QR da san sang trong trang danh sach dang ky.
+                  Mã QR đã sẵn sàng trong trang danh sách đăng ký.
                 </div>
               ) : null}
             </div>
@@ -181,13 +181,13 @@ export default function PaymentResultClient() {
             href="/registrations"
             className="inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
           >
-            Xem danh sach dang ky
+            Xem danh sách đăng ký
           </Link>
           <Link
             href="/"
             className="inline-flex rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
-            Ve trang chu
+            Về trang chủ
           </Link>
         </div>
       </div>
@@ -219,4 +219,36 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <div className="font-medium text-slate-900">{value}</div>
     </div>
   );
+}
+
+function registrationStatusLabel(status: string) {
+  switch (status) {
+    case "PENDING_PAYMENT":
+      return "Chờ thanh toán";
+    case "CONFIRMED":
+      return "Đã xác nhận";
+    case "PAYMENT_FAILED":
+      return "Thanh toán thất bại";
+    case "EXPIRED":
+      return "Đã hết hạn";
+    case "CANCELED":
+      return "Đã hủy";
+    default:
+      return status;
+  }
+}
+
+function paymentStatusLabel(status: string) {
+  switch (status) {
+    case "PENDING":
+      return "Đang chờ";
+    case "SUCCEEDED":
+      return "Thành công";
+    case "FAILED":
+      return "Thất bại";
+    case "EXPIRED":
+      return "Đã hết hạn";
+    default:
+      return status;
+  }
 }

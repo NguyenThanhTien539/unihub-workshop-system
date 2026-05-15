@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (!hasCheckinStaffRole(response.user.roles)) {
       await clearTokens();
-      throw new AppError("AUTH_FORBIDDEN", "Tai khoan khong co quyen check-in.");
+      throw new AppError("AUTH_FORBIDDEN", "Tài khoản không có quyền check-in.");
     }
 
     await saveTokens(response.accessToken, response.refreshToken);
@@ -78,7 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: false,
           user: null,
           roles: [],
-          bootstrapError: "Tai khoan khong co quyen check-in.",
+          bootstrapError: "Tài khoản không có quyền check-in.",
         });
         return;
       }

@@ -5,7 +5,7 @@ type LoadingViewProps = {
   label?: string;
 };
 
-export function LoadingView({ label = "Dang tai..." }: LoadingViewProps) {
+export function LoadingView({ label = "Đang tải..." }: LoadingViewProps) {
   return (
     <View style={styles.container}>
       <ActivityIndicator color={colors.primary} />

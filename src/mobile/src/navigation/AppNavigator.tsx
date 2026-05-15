@@ -40,10 +40,10 @@ export function MainStackNavigator() {
         headerTitleStyle: { color: colors.text, fontWeight: "800" },
       }}
     >
-      <Stack.Screen name="Sessions" component={CheckinSessionsScreen} options={{ title: "Sessions" }} />
-      <Stack.Screen name="Scanner" component={ScannerScreen} options={{ title: "QR Scanner" }} />
-      <Stack.Screen name="OfflineSync" component={OfflineSyncScreen} options={{ title: "Dong bo" }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Tai khoan" }} />
+      <Stack.Screen name="Sessions" component={CheckinSessionsScreen} options={{ title: "Buổi học" }} />
+      <Stack.Screen name="Scanner" component={ScannerScreen} options={{ title: "Quét QR" }} />
+      <Stack.Screen name="OfflineSync" component={OfflineSyncScreen} options={{ title: "Đồng bộ" }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Tài khoản" }} />
     </Stack.Navigator>
   );
 }

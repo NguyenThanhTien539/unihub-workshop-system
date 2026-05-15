@@ -8,27 +8,27 @@ export default function AuthPage() {
       <div className="w-full max-w-2xl rounded-2xl bg-white/90 p-8 shadow-lg">
         <div className="text-center">
           <h1 className="text-2xl font-semibold">UniHub Workshop</h1>
-          <p className="mt-1 text-sm text-slate-600">Choose a role to continue</p>
+          <p className="mt-1 text-sm text-slate-600">Chọn vai trò để tiếp tục</p>
         </div>
 
         <div className="mt-6 space-y-4">
           <RoleCard
             href="/auth/login?role=student"
             icon={<FaUser />}
-            title="Student"
-            description="Browse workshops, register, and open QR tickets"
+            title="Sinh viên"
+            description="Khám phá workshop, đăng ký và mở vé QR"
           />
           <RoleCard
             href="/auth/login?role=organizer"
             icon={<FaShieldHalved />}
-            title="Organizer"
-            description="Manage workshops, sessions, and publish changes"
+            title="Ban tổ chức"
+            description="Quản lý workshop, buổi học và xuất bản thay đổi"
           />
           <RoleCard
             href="/auth/login?role=checkin"
             icon={<FaShieldHalved />}
-            title="Check-in staff"
-            description="Validate attendee QR codes and sync door activity"
+            title="Nhân sự check-in"
+            description="Xác thực mã QR người tham dự và đồng bộ lượt vào cửa"
           />
         </div>
       </div>

@@ -28,6 +28,7 @@ import {
   type WorkshopDetail,
   type WorkshopSession,
 } from "../../../../lib/workshops";
+import Button from "@/components/Button";
 
 type Notice = {
   tone: "success" | "error" | "info";
@@ -209,14 +210,14 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
 
-            <button
+            {/* <button
               type="button"
               onClick={() => router.push("/")}
               className="absolute right-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm backdrop-blur hover:bg-white/25"
             >
               <ArrowLeft size={16} />
               Quay lại
-            </button>
+            </button> */}
 
             <div className="relative z-10 flex min-h-[360px] flex-col justify-end p-6 sm:p-10">
               <div className="mb-4 flex flex-wrap gap-2">
@@ -294,15 +295,15 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
                               <InlineTag>{statusLabel(session.status)}</InlineTag>
                               <InlineTag>{session.feeType === "FREE" ? "Miễn phí" : "Có phí"}</InlineTag>
                               <InlineTag>{formatMoney(session.feeAmount, session.currency ?? "VND")}</InlineTag>
-                              {registration ? <InlineTag tone="sky">{registration.registrationStatus}</InlineTag> : null}
+                              {registration ? <InlineTag tone="sky">{registrationStatusLabel(registration.registrationStatus)}</InlineTag> : null}
                             </div>
                           </div>
 
-                          <button
+                          <Button
                             type="button"
                             disabled={action.disabled}
                             onClick={() => handleAction(action.kind, session, registration)}
-                            className={buttonClass(action)}
+                            className="px-4 hover:bg-black"
                           >
                             {busySessionId === session.id ? (
                               <>
@@ -312,7 +313,7 @@ export default function WorkshopDetailPage({ params }: { params: Promise<{ id: s
                             ) : (
                               action.label
                             )}
-                          </button>
+                          </Button>
                         </div>
 
                         <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-4">
@@ -523,11 +524,11 @@ function ConfirmationModal({
             type="button"
             onClick={onCancel}
             disabled={submitting}
-            className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
           >
             Hủy
           </button>
-          <button
+          <Button
             type="button"
             onClick={onConfirm}
             disabled={submitting}
@@ -535,7 +536,7 @@ function ConfirmationModal({
           >
             {submitting ? <LoaderCircle size={16} className="animate-spin" /> : null}
             {submitting ? "Đang gửi..." : "Xác nhận"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -591,4 +592,21 @@ function InlineTag({ children, tone = "slate" }: { children: ReactNode; tone?: "
       {children}
     </span>
   );
+}
+
+function registrationStatusLabel(status: string) {
+  switch (status) {
+    case "PENDING_PAYMENT":
+      return "Chờ thanh toán";
+    case "CONFIRMED":
+      return "Đã xác nhận";
+    case "PAYMENT_FAILED":
+      return "Thanh toán thất bại";
+    case "EXPIRED":
+      return "Đã hết hạn";
+    case "CANCELED":
+      return "Đã hủy";
+    default:
+      return status;
+  }
 }

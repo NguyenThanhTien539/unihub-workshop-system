@@ -68,7 +68,7 @@ async function refreshAccessToken() {
     refreshPromise = (async () => {
       const refreshToken = await getRefreshToken();
       if (!refreshToken) {
-        throw new AppError("AUTH_EXPIRED", "Can dang nhap lai.");
+        throw new AppError("AUTH_EXPIRED", "Cần đăng nhập lại.");
       }
 
       const response = await axios.post<ApiEnvelope<TokenResponse>>(
@@ -86,7 +86,7 @@ async function refreshAccessToken() {
       if (!response.data.success) {
         throw new AppError(
           "AUTH_EXPIRED",
-          response.data.error?.message ?? "Phien dang nhap da het han.",
+          response.data.error?.message ?? "Phiên đăng nhập đã hết hạn.",
         );
       }
 
@@ -104,7 +104,7 @@ export function unwrapApiResponse<T>(envelope: ApiEnvelope<T>) {
   if (!envelope.success) {
     throw new AppError(
       "UNKNOWN_ERROR",
-      envelope.error?.message ?? "Yeu cau khong thanh cong.",
+      envelope.error?.message ?? "Yêu cầu không thành công.",
       { backendCode: envelope.error?.code },
     );
   }

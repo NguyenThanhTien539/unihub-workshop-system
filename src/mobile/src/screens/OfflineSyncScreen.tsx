@@ -12,18 +12,18 @@ export function OfflineSyncScreen({ events, syncing, onSync }: OfflineSyncScreen
     <View style={styles.card}>
       <View style={styles.row}>
         <View>
-          <Text style={styles.title}>Offline Sync</Text>
+          <Text style={styles.title}>Đồng bộ offline</Text>
           <Text style={styles.description}>
-            Queue statuses are mapped to backend sync results event by event.
+            Trạng thái hàng đợi được cập nhật theo từng kết quả đồng bộ từ backend.
           </Text>
         </View>
         <TouchableOpacity style={styles.primaryButton} onPress={onSync} disabled={syncing}>
-          <Text style={styles.primaryButtonText}>{syncing ? "Syncing..." : "Sync now"}</Text>
+          <Text style={styles.primaryButtonText}>{syncing ? "Đang đồng bộ..." : "Đồng bộ ngay"}</Text>
         </TouchableOpacity>
       </View>
 
       {events.length === 0 ? (
-        <Text style={styles.empty}>No offline events stored.</Text>
+        <Text style={styles.empty}>Chưa có sự kiện offline nào.</Text>
       ) : (
         events.map((event) => (
           <View key={event.syncEventId} style={styles.eventCard}>
@@ -31,10 +31,10 @@ export function OfflineSyncScreen({ events, syncing, onSync }: OfflineSyncScreen
               <Text style={styles.eventId}>{event.syncEventId}</Text>
               <Text style={[styles.statusBadge, badgeStyle(event.localStatus)]}>{event.localStatus}</Text>
             </View>
-            <Text style={styles.eventMeta}>Session: {event.sessionId}</Text>
-            <Text style={styles.eventMeta}>Scanned at: {event.scannedAt}</Text>
-            {event.backendResult ? <Text style={styles.eventMeta}>Backend result: {event.backendResult}</Text> : null}
-            {event.backendErrorCode ? <Text style={styles.eventMeta}>Error code: {event.backendErrorCode}</Text> : null}
+            <Text style={styles.eventMeta}>Buổi học: {event.sessionId}</Text>
+            <Text style={styles.eventMeta}>Quét lúc: {event.scannedAt}</Text>
+            {event.backendResult ? <Text style={styles.eventMeta}>Kết quả backend: {event.backendResult}</Text> : null}
+            {event.backendErrorCode ? <Text style={styles.eventMeta}>Mã lỗi: {event.backendErrorCode}</Text> : null}
           </View>
         ))
       )}

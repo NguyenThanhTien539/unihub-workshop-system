@@ -21,16 +21,16 @@ export function CheckinSessionsScreen({
   return (
     <View style={styles.card}>
       <View style={styles.row}>
-        <Text style={styles.title}>Check-in Sessions</Text>
+        <Text style={styles.title}>Buổi check-in</Text>
         <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
-          <Text style={styles.refreshButtonText}>{loading ? "Loading..." : "Refresh"}</Text>
+          <Text style={styles.refreshButtonText}>{loading ? "Đang tải..." : "Làm mới"}</Text>
         </TouchableOpacity>
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {sessions.length === 0 ? (
-        <Text style={styles.empty}>No sessions loaded yet.</Text>
+        <Text style={styles.empty}>Chưa tải buổi học nào.</Text>
       ) : (
         sessions.map((session) => {
           const active = session.sessionId === selectedSessionId;
@@ -48,7 +48,7 @@ export function CheckinSessionsScreen({
                 {session.roomName}, {session.building}
               </Text>
               <Text style={[styles.sessionBadge, session.checkinOpen ? styles.badgeOpen : styles.badgeClosed]}>
-                {session.checkinOpen ? "CHECK-IN OPEN" : "CHECK-IN CLOSED"}
+                {session.checkinOpen ? "ĐANG MỞ CHECK-IN" : "ĐÃ ĐÓNG CHECK-IN"}
               </Text>
             </TouchableOpacity>
           );

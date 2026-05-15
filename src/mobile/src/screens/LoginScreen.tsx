@@ -28,18 +28,18 @@ export function LoginScreen({
   return (
     <View style={styles.card}>
       <View style={styles.row}>
-        <Text style={styles.title}>Check-in Login</Text>
+        <Text style={styles.title}>Đăng nhập check-in</Text>
         {isSignedIn ? (
           <TouchableOpacity style={styles.secondaryButton} onPress={onLogout}>
-            <Text style={styles.secondaryButtonText}>Logout</Text>
+            <Text style={styles.secondaryButtonText}>Đăng xuất</Text>
           </TouchableOpacity>
         ) : null}
       </View>
 
       <Text style={styles.description}>
         {isSignedIn
-          ? `Signed in as ${staffName || "check-in staff"}.`
-          : "Sign in with a check-in_staff account to access validation endpoints."}
+          ? `Đã đăng nhập với tên ${staffName || "nhân sự check-in"}.`
+          : "Đăng nhập bằng tài khoản check-in_staff để truy cập chức năng xác thực."}
       </Text>
 
       {!isSignedIn ? (
@@ -58,12 +58,12 @@ export function LoginScreen({
             onChangeText={onPasswordChange}
             style={styles.input}
             secureTextEntry
-            placeholder="Password"
+            placeholder="Mật khẩu"
             placeholderTextColor="#94a3b8"
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <TouchableOpacity style={styles.primaryButton} onPress={onSubmit} disabled={loading}>
-            <Text style={styles.primaryButtonText}>{loading ? "Signing in..." : "Sign in"}</Text>
+            <Text style={styles.primaryButtonText}>{loading ? "Đang đăng nhập..." : "Đăng nhập"}</Text>
           </TouchableOpacity>
         </>
       ) : null}

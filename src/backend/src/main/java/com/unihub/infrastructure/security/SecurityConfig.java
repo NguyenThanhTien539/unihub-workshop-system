@@ -1,6 +1,7 @@
 package com.unihub.infrastructure.security;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.unihub.infrastructure.ratelimit.RateLimitFilter;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Arrays;
@@ -26,6 +27,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -39,7 +41,8 @@ public class SecurityConfig {
       UserPrincipalConverter userPrincipalConverter,
       CorsConfigurationSource corsConfigurationSource,
       JsonAuthenticationEntryPoint authenticationEntryPoint,
-      JsonAccessDeniedHandler accessDeniedHandler) throws Exception {
+      JsonAccessDeniedHandler accessDeniedHandler,
+      RateLimitFilter rateLimitFilter) throws Exception {
     http
         .csrf(csrf -> csrf.disable())
         .cors(cors -> cors.configurationSource(corsConfigurationSource))
@@ -67,7 +70,8 @@ public class SecurityConfig {
         .oauth2ResourceServer(oauth2 -> oauth2
             .jwt(jwt -> jwt.jwtAuthenticationConverter(userPrincipalConverter))
             .authenticationEntryPoint(authenticationEntryPoint)
-            .accessDeniedHandler(accessDeniedHandler));
+            .accessDeniedHandler(accessDeniedHandler))
+        .addFilterAfter(rateLimitFilter, BearerTokenAuthenticationFilter.class);
 
     return http.build();
   }

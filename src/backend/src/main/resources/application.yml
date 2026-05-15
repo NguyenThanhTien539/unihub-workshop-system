@@ -57,6 +57,7 @@ app:
       consumer-name: ${APP_MAIL_QUEUE_CONSUMER_NAME:${spring.application.name}}
       max-retries: ${APP_MAIL_QUEUE_MAX_RETRIES:3}
       poll-interval-ms: ${APP_MAIL_QUEUE_POLL_INTERVAL_MS:5000}
+
   qr:
     issuer: ${APP_QR_ISSUER:unihub}
     ttl-minutes: ${APP_QR_TTL_MINUTES:10080}
@@ -74,6 +75,38 @@ app:
       frontend-return-url: ${APP_PAYMENT_ZALOPAY_FRONTEND_RETURN_URL:}
       enabled: ${APP_PAYMENT_ZALOPAY_ENABLED:false}
       sandbox-mode: ${APP_PAYMENT_ZALOPAY_SANDBOX_MODE:true}
+
+
+  rate-limit:
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    algorithm: ${APP_RATE_LIMIT_ALGORITHM:token-bucket}
+    trust-forwarded-for: ${APP_RATE_LIMIT_TRUST_FORWARDED_FOR:false}
+    default-ip-limit: ${APP_RATE_LIMIT_DEFAULT_IP_LIMIT:120}
+    default-ip-refill-tokens: ${APP_RATE_LIMIT_DEFAULT_IP_REFILL_TOKENS:120}
+    default-ip-refill-period-seconds: ${APP_RATE_LIMIT_DEFAULT_IP_REFILL_PERIOD_SECONDS:60}
+    policies:
+      login:
+        capacity: ${APP_RATE_LIMIT_LOGIN_CAPACITY:10}
+        refill-tokens: ${APP_RATE_LIMIT_LOGIN_REFILL_TOKENS:10}
+        refill-period-seconds: ${APP_RATE_LIMIT_LOGIN_REFILL_PERIOD_SECONDS:60}
+      auth-refresh:
+        capacity: ${APP_RATE_LIMIT_AUTH_REFRESH_CAPACITY:30}
+        refill-tokens: ${APP_RATE_LIMIT_AUTH_REFRESH_REFILL_TOKENS:30}
+        refill-period-seconds: ${APP_RATE_LIMIT_AUTH_REFRESH_REFILL_PERIOD_SECONDS:60}
+      registration:
+        capacity: ${APP_RATE_LIMIT_REGISTRATION_CAPACITY:5}
+        refill-tokens: ${APP_RATE_LIMIT_REGISTRATION_REFILL_TOKENS:5}
+        refill-period-seconds: ${APP_RATE_LIMIT_REGISTRATION_REFILL_PERIOD_SECONDS:60}
+      payment:
+        capacity: ${APP_RATE_LIMIT_PAYMENT_CAPACITY:10}
+        refill-tokens: ${APP_RATE_LIMIT_PAYMENT_REFILL_TOKENS:10}
+        refill-period-seconds: ${APP_RATE_LIMIT_PAYMENT_REFILL_PERIOD_SECONDS:60}
+      checkin-sync:
+        capacity: ${APP_RATE_LIMIT_CHECKIN_SYNC_CAPACITY:30}
+        refill-tokens: ${APP_RATE_LIMIT_CHECKIN_SYNC_REFILL_TOKENS:30}
+        refill-period-seconds: ${APP_RATE_LIMIT_CHECKIN_SYNC_REFILL_PERIOD_SECONDS:60}
+
+
   csv-import:
     enabled: ${APP_CSV_IMPORT_ENABLED:false}
     input-directory: ${APP_CSV_IMPORT_INPUT_DIRECTORY:./data/import}
@@ -84,6 +117,8 @@ app:
     delimiter: ${APP_CSV_IMPORT_DELIMITER:,}
     batch-size: ${APP_CSV_IMPORT_BATCH_SIZE:500}
     record-missing-batch: ${APP_CSV_IMPORT_RECORD_MISSING_BATCH:false}
+
+
   ai-summary:
     enabled: ${APP_AI_SUMMARY_ENABLED:true}
     provider: ${APP_AI_SUMMARY_PROVIDER:gemini}

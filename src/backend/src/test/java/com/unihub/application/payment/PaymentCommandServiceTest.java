@@ -122,7 +122,7 @@ class PaymentCommandServiceTest {
 
     assertEquals(1, result.return_code());
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 1, -1);
-    verify(qrTicketService).ensureQrTicket(any(Registration.class));
+    verify(qrTicketService).ensureQrTicketRecord(any(Registration.class));
     verify(registrationConfirmationMailService).queueRegistrationConfirmedNotifications(registrationId);
   }
 
@@ -141,7 +141,7 @@ class PaymentCommandServiceTest {
 
     verify(registrationRepository, never()).updateSessionSeatCounters(any(), any(int.class), any(int.class));
     verify(registrationConfirmationMailService, never()).queueRegistrationConfirmedNotifications(any());
-    verify(qrTicketService, never()).ensureQrTicket(any(Registration.class));
+    verify(qrTicketService, never()).ensureQrTicketRecord(any(Registration.class));
   }
 
   @Test
@@ -157,7 +157,7 @@ class PaymentCommandServiceTest {
     service.handleZaloPayCallback("data", "mac");
 
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 0, -1);
-    verify(qrTicketService, never()).ensureQrTicket(any());
+    verify(qrTicketService, never()).ensureQrTicketRecord(any());
     verify(registrationConfirmationMailService, never()).queueRegistrationConfirmedNotifications(any());
   }
 
@@ -171,7 +171,7 @@ class PaymentCommandServiceTest {
 
     verify(paymentRepository, never()).findByProviderTransactionIdForUpdate(any());
     verify(registrationRepository, never()).findByIdForUpdate(any());
-    verify(qrTicketService, never()).ensureQrTicket(any());
+    verify(qrTicketService, never()).ensureQrTicketRecord(any());
   }
 
   @Test
@@ -188,7 +188,7 @@ class PaymentCommandServiceTest {
 
     verify(paymentRepository, never()).update(any());
     verify(registrationRepository, never()).updateSessionSeatCounters(any(), any(int.class), any(int.class));
-    verify(qrTicketService, never()).ensureQrTicket(any());
+    verify(qrTicketService, never()).ensureQrTicketRecord(any());
   }
 
   @Test
@@ -208,7 +208,7 @@ class PaymentCommandServiceTest {
 
     assertEquals(0, result.return_code());
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 0, -1);
-    verify(qrTicketService, never()).ensureQrTicket(any());
+    verify(qrTicketService, never()).ensureQrTicketRecord(any());
     verify(registrationConfirmationMailService, never()).queueRegistrationConfirmedNotifications(any());
   }
 

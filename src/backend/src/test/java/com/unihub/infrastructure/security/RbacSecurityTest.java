@@ -7,8 +7,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import com.unihub.infrastructure.ratelimit.RateLimitProperties;
+import com.unihub.infrastructure.ratelimit.RateLimitPolicyResolver;
+import com.unihub.infrastructure.ratelimit.RateLimiter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -22,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
         JsonAuthenticationEntryPoint.class,
         JsonAccessDeniedHandler.class
 })
+@EnableConfigurationProperties(RateLimitProperties.class)
 @TestPropertySource(properties = {
         "app.auth.jwt.secret=01234567890123456789012345678901",
         "app.security.cors.allowed-origins=http://localhost:3000"
@@ -29,6 +35,12 @@ import org.springframework.test.web.servlet.MockMvc;
 public class RbacSecurityTest {
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private RateLimitPolicyResolver rateLimitPolicyResolver;
+
+    @MockBean
+    private RateLimiter rateLimiter;
 
     @Test
     void publicCanAccessWorkshopList() throws Exception {

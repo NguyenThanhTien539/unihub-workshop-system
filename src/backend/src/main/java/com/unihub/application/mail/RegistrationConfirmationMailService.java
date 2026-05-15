@@ -41,18 +41,7 @@ public class RegistrationConfirmationMailService {
   }
 
   public void queueRegistrationConfirmedNotifications(UUID registrationId) {
-    Registration registration = registrationRepository.findById(registrationId)
-        .orElseThrow(() -> new IllegalStateException("Registration not found"));
-    if (registration.status() != RegistrationStatus.CONFIRMED) {
-      log.info(
-          "Skip registration confirmation notification because status is {} for registration {}",
-          registration.status(),
-          registrationId);
-      return;
-    }
-    RegistrationEmailView emailView = registrationRepository.findEmailViewByRegistrationId(registrationId)
-        .orElseThrow(() -> new IllegalStateException("Registration email view not found"));
-    registerAfterCommit(emailView, registrationId, eventId(registrationId));
+    registerAfterCommit(registrationId, eventId(registrationId));
   }
 
   public static String eventId(UUID registrationId) {
@@ -103,21 +92,40 @@ public class RegistrationConfirmationMailService {
         now);
   }
 
-  private void registerAfterCommit(RegistrationEmailView emailView, UUID registrationId, String eventId) {
+  private void registerAfterCommit(UUID registrationId, String eventId) {
     if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-      createNotificationsAndPublish(emailView, registrationId, eventId);
+      try {
+        createNotificationsAndPublish(registrationId, eventId);
+      } catch (Exception ex) {
+        log.warn("Failed to queue registration confirmation notifications for registration {}", registrationId, ex);
+      }
       return;
     }
 
     TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
       @Override
       public void afterCommit() {
-        createNotificationsAndPublish(emailView, registrationId, eventId);
+        try {
+          createNotificationsAndPublish(registrationId, eventId);
+        } catch (Exception ex) {
+          log.warn("Failed to queue registration confirmation notifications for registration {}", registrationId, ex);
+        }
       }
     });
   }
 
-  private void createNotificationsAndPublish(RegistrationEmailView emailView, UUID registrationId, String eventId) {
+  private void createNotificationsAndPublish(UUID registrationId, String eventId) {
+    Registration registration = registrationRepository.findById(registrationId)
+        .orElseThrow(() -> new IllegalStateException("Registration not found"));
+    if (registration.status() != RegistrationStatus.CONFIRMED) {
+      log.info(
+          "Skip registration confirmation notification because status is {} for registration {}",
+          registration.status(),
+          registrationId);
+      return;
+    }
+    RegistrationEmailView emailView = registrationRepository.findEmailViewByRegistrationId(registrationId)
+        .orElseThrow(() -> new IllegalStateException("Registration email view not found"));
     ensureInAppNotification(emailView, eventId);
     EmailNotification emailNotification = ensureEmailNotification(emailView, eventId);
     if (emailNotification.newlyCreated()) {

@@ -117,7 +117,7 @@ public class MailQueueWorker {
 
     RegistrationEmailView emailView = registrationRepository.findEmailViewByRegistrationId(job.registrationId())
         .orElseThrow(() -> new IllegalStateException("Email view not found for registration"));
-    QrTicketData qrTicketData = qrTicketService.getQrTicketData(job.registrationId());
+    QrTicketData qrTicketData = qrTicketService.getQrTicketData(registration);
     RegistrationConfirmedEmailContent content = emailTemplateBuilder.build(emailView, qrTicketData);
     mailSenderService.sendRegistrationConfirmedEmail(content);
 

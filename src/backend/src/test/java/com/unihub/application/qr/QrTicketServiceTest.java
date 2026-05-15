@@ -2,6 +2,9 @@ package com.unihub.application.qr;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,7 +46,25 @@ class QrTicketServiceTest {
   }
 
   @Test
-  void ensureQrTicketCreatesExactlyOneTicketAndReturnsDataUrl() {
+  void ensureQrTicketRecordCreatesExactlyOneTicketWithoutGeneratingPng() {
+    UUID registrationId = UUID.randomUUID();
+    Registration registration = new Registration(registrationId, UUID.randomUUID(), UUID.randomUUID(),
+        RegistrationStatus.CONFIRMED, RegistrationType.FREE, null,
+        LocalDateTime.of(2026, 5, 8, 10, 0), null, null,
+        LocalDateTime.of(2026, 5, 8, 10, 0), LocalDateTime.of(2026, 5, 8, 10, 0));
+    when(qrTicketRepository.findByRegistrationId(registrationId)).thenReturn(Optional.empty());
+    when(qrTokenCodec.createPayload(org.mockito.ArgumentMatchers.any(QrTicket.class))).thenReturn("payload");
+    when(qrTicketRepository.save(org.mockito.ArgumentMatchers.any(QrTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    QrTicket ticket = service.ensureQrTicketRecord(registration);
+
+    assertNotNull(ticket.id());
+    verify(qrTicketRepository).save(org.mockito.ArgumentMatchers.any(QrTicket.class));
+    verify(qrCodeGenerator, never()).generatePng(any(), anyInt());
+  }
+
+  @Test
+  void getQrTicketDataCreatesMissingRecordAndGeneratesDataUrl() {
     UUID registrationId = UUID.randomUUID();
     Registration registration = new Registration(registrationId, UUID.randomUUID(), UUID.randomUUID(),
         RegistrationStatus.CONFIRMED, RegistrationType.FREE, null,
@@ -54,10 +75,11 @@ class QrTicketServiceTest {
     when(qrTicketRepository.save(org.mockito.ArgumentMatchers.any(QrTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
     when(qrCodeGenerator.generatePng("payload", 256)).thenReturn(new byte[] {1, 2, 3});
 
-    QrTicketData data = service.ensureQrTicket(registration);
+    QrTicketData data = service.getQrTicketData(registration);
 
     assertNotNull(data.qrTicketId());
     assertEquals("payload", data.payload());
-    verify(qrTicketRepository).save(org.mockito.ArgumentMatchers.any(QrTicket.class));
+    assertEquals("data:image/png;base64,AQID", data.dataUrl());
+    verify(qrCodeGenerator).generatePng("payload", 256);
   }
 }

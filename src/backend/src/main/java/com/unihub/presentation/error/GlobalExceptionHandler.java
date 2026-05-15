@@ -7,15 +7,21 @@ import com.unihub.application.csvimport.CsvImportException;
 import com.unihub.application.payment.exception.PaymentException;
 import com.unihub.application.registration.exception.RegistrationException;
 import com.unihub.application.workshop.exception.WorkshopException;
+import com.unihub.domain.registration.RegistrationErrorCode;
 import com.unihub.domain.workshop.WorkshopErrorCode;
 import com.unihub.domain.user.UserErrorCode;
 import com.unihub.presentation.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.stream.Collectors;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.TransactionTimedOutException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -102,8 +108,29 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
     String message = ex.getMostSpecificCause() == null ? "" : ex.getMostSpecificCause().getMessage();
     ErrorMapping mapping = mapDataIntegrityError(message);
-    ApiResponse<Void> body = ApiResponse.error(mapping.code().code(), mapping.message());
+    ApiResponse<Void> body = ApiResponse.error(mapping.code(), mapping.message());
     return ResponseEntity.status(mapping.status()).body(body);
+  }
+
+  @ExceptionHandler({
+      CannotAcquireLockException.class,
+      PessimisticLockingFailureException.class,
+      QueryTimeoutException.class,
+      TransactionTimedOutException.class
+  })
+  public ResponseEntity<ApiResponse<Void>> handleConcurrencyConflict(Exception ex) {
+    ApiResponse<Void> body = ApiResponse.error(
+        RegistrationErrorCode.REG_SESSION_FULL.code(),
+        RegistrationErrorCode.REG_SESSION_FULL.defaultMessage());
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+  }
+
+  @ExceptionHandler(CannotGetJdbcConnectionException.class)
+  public ResponseEntity<ApiResponse<Void>> handleDatabaseUnavailable(CannotGetJdbcConnectionException ex) {
+    ApiResponse<Void> body = ApiResponse.error(
+        "REGISTRATION_TEMPORARILY_UNAVAILABLE",
+        "Registration is temporarily unavailable");
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
   }
 
   @ExceptionHandler(Exception.class)
@@ -114,44 +141,48 @@ public class GlobalExceptionHandler {
 
   private ErrorMapping mapDataIntegrityError(String message) {
     if (message == null) {
-      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_VALIDATION_ERROR, HttpStatus.BAD_REQUEST,
+      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_VALIDATION_ERROR.code(), HttpStatus.BAD_REQUEST,
           "Data integrity violation");
     }
 
     String normalized = message.toLowerCase();
+    if (normalized.contains("uq_active_registration_student_session")) {
+      return new ErrorMapping(RegistrationErrorCode.REG_ALREADY_EXISTS.code(), HttpStatus.CONFLICT,
+          RegistrationErrorCode.REG_ALREADY_EXISTS.defaultMessage());
+    }
+    if (normalized.contains("ck_workshop_sessions_total_seats")) {
+      return new ErrorMapping(RegistrationErrorCode.REG_SESSION_FULL.code(), HttpStatus.CONFLICT,
+          RegistrationErrorCode.REG_SESSION_FULL.defaultMessage());
+    }
     if (normalized.contains("ex_workshop_sessions_room_overlap")) {
-      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_ROOM_CONFLICT, HttpStatus.CONFLICT,
+      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_ROOM_CONFLICT.code(), HttpStatus.CONFLICT,
           WorkshopErrorCode.WORKSHOP_ROOM_CONFLICT.defaultMessage());
     }
     if (normalized.contains("ck_workshop_sessions_time_order")) {
-      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_INVALID_TIME_RANGE, HttpStatus.BAD_REQUEST,
+      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_INVALID_TIME_RANGE.code(), HttpStatus.BAD_REQUEST,
           WorkshopErrorCode.WORKSHOP_INVALID_TIME_RANGE.defaultMessage());
     }
     if (normalized.contains("ck_workshop_sessions_seat_capacity_positive")) {
-      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_INVALID_CAPACITY, HttpStatus.BAD_REQUEST,
+      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_INVALID_CAPACITY.code(), HttpStatus.BAD_REQUEST,
           WorkshopErrorCode.WORKSHOP_INVALID_CAPACITY.defaultMessage());
     }
     if (normalized.contains("ck_workshop_sessions_fee_rule")) {
-      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_VALIDATION_ERROR, HttpStatus.BAD_REQUEST,
+      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_VALIDATION_ERROR.code(), HttpStatus.BAD_REQUEST,
           "Invalid fee configuration");
     }
     if (normalized.contains("fk_workshop_sessions_room")) {
-      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_ROOM_NOT_FOUND, HttpStatus.NOT_FOUND,
+      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_ROOM_NOT_FOUND.code(), HttpStatus.NOT_FOUND,
           WorkshopErrorCode.WORKSHOP_ROOM_NOT_FOUND.defaultMessage());
     }
     if (normalized.contains("fk_workshop_sessions_workshop")) {
-      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_NOT_FOUND, HttpStatus.NOT_FOUND,
+      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_NOT_FOUND.code(), HttpStatus.NOT_FOUND,
           WorkshopErrorCode.WORKSHOP_NOT_FOUND.defaultMessage());
     }
-    if (normalized.contains("ck_workshop_sessions_total_seats")) {
-      return new ErrorMapping(WorkshopErrorCode.WORKSHOP_CAPACITY_BELOW_CONFIRMED, HttpStatus.CONFLICT,
-          WorkshopErrorCode.WORKSHOP_CAPACITY_BELOW_CONFIRMED.defaultMessage());
-    }
 
-    return new ErrorMapping(WorkshopErrorCode.WORKSHOP_VALIDATION_ERROR, HttpStatus.BAD_REQUEST,
+    return new ErrorMapping(WorkshopErrorCode.WORKSHOP_VALIDATION_ERROR.code(), HttpStatus.BAD_REQUEST,
         "Data integrity violation");
   }
 
-  private record ErrorMapping(WorkshopErrorCode code, HttpStatus status, String message) {
+  private record ErrorMapping(String code, HttpStatus status, String message) {
   }
 }

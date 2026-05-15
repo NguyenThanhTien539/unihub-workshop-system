@@ -42,14 +42,16 @@ public class RegistrationQueryService {
     return requireOwnedRegistration(registrationId, student.id());
   }
 
-  @Transactional(readOnly = true)
+  @Transactional
   public QrTicketData getMyRegistrationQr(UUID userId, UUID registrationId) {
     Student student = requireStudent(userId);
     RegistrationView view = requireOwnedRegistration(registrationId, student.id());
-    if (!view.qrAvailable() || !view.registrationStatus().isConfirmed()) {
+    if (!view.registrationStatus().isConfirmed()) {
       throw new RegistrationException(RegistrationErrorCode.REG_QR_NOT_AVAILABLE, HttpStatus.CONFLICT);
     }
-    return qrTicketService.getQrTicketData(registrationId);
+    Registration registration = registrationRepository.findById(registrationId)
+        .orElseThrow(() -> new RegistrationException(RegistrationErrorCode.REG_NOT_FOUND, HttpStatus.NOT_FOUND));
+    return qrTicketService.getQrTicketData(registration);
   }
 
   private Student requireStudent(UUID userId) {

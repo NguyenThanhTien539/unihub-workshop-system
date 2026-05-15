@@ -101,7 +101,7 @@ class RegistrationCommandServiceTest {
     assertEquals(true, result.qrAvailable());
     verify(registrationRepository).save(any(Registration.class));
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 1, 0);
-    verify(qrTicketService).ensureQrTicket(any(Registration.class));
+    verify(qrTicketService).ensureQrTicketRecord(any(Registration.class));
     verify(registrationConfirmationMailService).queueRegistrationConfirmedNotifications(result.registrationId());
     verify(paymentRepository, never()).save(any(PaymentIntent.class));
   }
@@ -114,7 +114,7 @@ class RegistrationCommandServiceTest {
         () -> service.registerFree(new CreateFreeRegistrationCommand(userId, sessionId)));
 
     verify(paymentRepository, never()).save(any(PaymentIntent.class));
-    verify(qrTicketService, never()).ensureQrTicket(any());
+    verify(qrTicketService, never()).ensureQrTicketRecord(any());
   }
 
   @Test
@@ -128,7 +128,7 @@ class RegistrationCommandServiceTest {
     assertEquals(false, result.qrAvailable());
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 0, 1);
     verify(paymentRepository).save(any(PaymentIntent.class));
-    verify(qrTicketService, never()).ensureQrTicket(any());
+    verify(qrTicketService, never()).ensureQrTicketRecord(any());
     verify(registrationConfirmationMailService, never()).queueRegistrationConfirmedNotifications(any());
   }
 

@@ -270,7 +270,7 @@ public class PaymentCommandService {
       registrationRepository.updateSessionSeatCounters(registration.sessionId(), 1, -1);
     }
 
-    qrTicketService.ensureQrTicket(confirmedRegistration);
+    qrTicketService.ensureQrTicketRecord(confirmedRegistration);
     registrationConfirmationMailService.queueRegistrationConfirmedNotifications(confirmedRegistration.id());
   }
 

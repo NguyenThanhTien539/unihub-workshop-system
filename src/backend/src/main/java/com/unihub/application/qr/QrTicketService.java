@@ -37,13 +37,14 @@ public class QrTicketService {
     this.clock = clock;
   }
 
-  public QrTicketData ensureQrTicket(Registration registration) {
-    if (registration.status() != RegistrationStatus.CONFIRMED) {
-      throw new IllegalStateException("QR ticket can only be generated for confirmed registrations");
-    }
-
-    QrTicket qrTicket = qrTicketRepository.findByRegistrationId(registration.id())
+  public QrTicket ensureQrTicketRecord(Registration registration) {
+    validateConfirmed(registration);
+    return qrTicketRepository.findByRegistrationId(registration.id())
         .orElseGet(() -> createTicket(registration));
+  }
+
+  public QrTicketData getQrTicketData(Registration registration) {
+    QrTicket qrTicket = ensureQrTicketRecord(registration);
     return toData(qrTicket);
   }
 
@@ -61,6 +62,12 @@ public class QrTicketService {
       throw new QrTokenVerificationException("QR payload does not match stored ticket");
     }
     return new VerifiedQrTicket(qrTicket, claims);
+  }
+
+  private void validateConfirmed(Registration registration) {
+    if (registration.status() != RegistrationStatus.CONFIRMED) {
+      throw new IllegalStateException("QR ticket can only be generated for confirmed registrations");
+    }
   }
 
   private QrTicket createTicket(Registration registration) {

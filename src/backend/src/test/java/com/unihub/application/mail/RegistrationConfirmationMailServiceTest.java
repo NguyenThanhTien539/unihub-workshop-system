@@ -24,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class RegistrationConfirmationMailServiceTest {
@@ -74,5 +76,49 @@ class RegistrationConfirmationMailServiceTest {
     service.queueRegistrationConfirmedNotifications(registrationId);
 
     verify(mailQueuePublisher, never()).publish(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void queuesNotificationsOnlyAfterTransactionCommit() {
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      service.queueRegistrationConfirmedNotifications(registrationId);
+
+      verify(registrationRepository, never()).findById(registrationId);
+
+      when(registrationRepository.findById(registrationId)).thenReturn(Optional.of(new Registration(
+          registrationId,
+          UUID.randomUUID(),
+          UUID.randomUUID(),
+          RegistrationStatus.CONFIRMED,
+          RegistrationType.FREE,
+          null,
+          LocalDateTime.now(),
+          null,
+          null,
+          LocalDateTime.now(),
+          LocalDateTime.now())));
+      when(notificationRepository.findEmailByEventId(RegistrationConfirmationMailService.eventId(registrationId)))
+          .thenReturn(Optional.of(new Notification(UUID.randomUUID(), UUID.randomUUID(),
+              RegistrationConfirmationMailService.eventId(registrationId), "REGISTRATION_CONFIRMED_EMAIL",
+              NotificationChannel.EMAIL, "registration-confirmed", "Registration confirmed", "done",
+              NotificationStatus.PENDING, null, 0, null, null, LocalDateTime.now(), LocalDateTime.now())));
+      when(notificationRepository.findByEventIdAndChannel(
+          RegistrationConfirmationMailService.eventId(registrationId),
+          NotificationChannel.IN_APP)).thenReturn(Optional.empty());
+      when(notificationRepository.save(org.mockito.ArgumentMatchers.any(Notification.class)))
+          .thenAnswer(invocation -> invocation.getArgument(0));
+      when(registrationRepository.findEmailViewByRegistrationId(registrationId))
+          .thenReturn(Optional.of(new RegistrationEmailView(registrationId, UUID.randomUUID(), "student@example.com",
+              "Student", UUID.randomUUID(), "Workshop", "Room", "H1", LocalDateTime.now(), LocalDateTime.now())));
+
+      for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+        synchronization.afterCommit();
+      }
+
+      verify(registrationRepository).findById(registrationId);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
   }
 }

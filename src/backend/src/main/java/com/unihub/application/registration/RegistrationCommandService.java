@@ -82,7 +82,7 @@ public class RegistrationCommandService {
       throw duplicateRegistration();
     }
     registrationRepository.updateSessionSeatCounters(session.sessionId(), 1, 0);
-    qrTicketService.ensureQrTicket(registration);
+    qrTicketService.ensureQrTicketRecord(registration);
     registrationConfirmationMailService.queueRegistrationConfirmedNotifications(registration.id());
 
     return new RegistrationResult(

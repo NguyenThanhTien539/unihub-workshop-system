@@ -23,6 +23,10 @@ logs/
 # Local CSV imports may contain real student data
 data/import/
 
+# Local object storage may contain uploaded PDFs
+data/object-storage/
+src/backend/data/object-storage/
+
 # IDE
 .vscode/
 .idea/

@@ -24,6 +24,7 @@ import {
   formatSessionTime,
   getAdminWorkshop,
   getDocumentSummaryStatus,
+  getWorkshopSummary,
   listRooms,
   publishWorkshop,
   statusLabel,
@@ -36,6 +37,7 @@ import {
   type FeeType,
   type Room,
   type UploadWorkshopDocumentResponse,
+  type WorkshopAiSummaryResponse,
   type WorkshopDetail,
   type WorkshopSession,
 } from "../../../../lib/workshops";
@@ -81,6 +83,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
   const [summaryStatus, setSummaryStatus] = useState<DocumentSummaryStatusResponse | null>(
     initialAiSummaryNotice.summaryStatus,
   );
+  const [aiSummary, setAiSummary] = useState<WorkshopAiSummaryResponse | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -93,13 +96,18 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       }
 
       try {
-        const [detail, roomData] = await Promise.all([getAdminWorkshop(id), listRooms()]);
+        const [detail, roomData, latestSummary] = await Promise.all([
+          getAdminWorkshop(id),
+          listRooms(),
+          getWorkshopSummary(id).catch(() => null),
+        ]);
         if (!mounted) return;
         setWorkshop(detail);
         setRooms(roomData);
         setTitle(detail.title);
         setSpeaker(detail.speaker);
         setDescription(detail.description);
+        setAiSummary(latestSummary);
         setNewSession({ ...emptySession(), roomId: roomData[0]?.id || "" });
       } catch (err) {
         if (mounted) setError(err instanceof Error ? err.message : "Không tải được workshop");
@@ -253,6 +261,14 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
         ...uploadResult,
         updatedAt: new Date().toISOString(),
       });
+      setAiSummary({
+        workshopId: id,
+        documentId: uploadResult.documentId,
+        summaryStatus: uploadResult.summaryStatus,
+        summaryText: null,
+        generatedAt: null,
+        errorCode: null,
+      });
       setNotice({
         tone: "success",
         message: "PDF đã được upload. Backend đang xử lý tóm tắt trong nền.",
@@ -273,12 +289,32 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
     try {
       const status = await getDocumentSummaryStatus(documentId);
       setSummaryStatus(status);
+      if (status.summaryStatus === "COMPLETED") {
+        await loadLatestAiSummary();
+      } else {
+        setAiSummary((current) => ({
+          workshopId: status.workshopId,
+          documentId: status.documentId,
+          summaryStatus: status.summaryStatus,
+          summaryText: null,
+          generatedAt: null,
+          errorCode: status.summaryStatus === "FAILED" ? "AI_SUMMARY_FAILED" : current?.errorCode ?? null,
+        }));
+      }
     } catch (err) {
       setPdfError(getFriendlyErrorMessage(err, "Không cập nhật được trạng thái tóm tắt."));
     } finally {
       if (showSpinner) {
         setRefreshingSummaryStatus(false);
       }
+    }
+  }
+
+  async function loadLatestAiSummary() {
+    try {
+      setAiSummary(await getWorkshopSummary(id));
+    } catch {
+      setAiSummary(null);
     }
   }
 
@@ -450,10 +486,8 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
 
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-medium text-slate-950">Tóm tắt</h3>
-            <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <div>Tổng buổi học: {workshop.sessions.length}</div>
-              <div>Buổi học đang mở: {workshop.sessions.filter((item) => item.status === "OPEN").length}</div>
-              <div>Tổng chỗ còn lại: {workshop.sessions.reduce((total, item) => total + item.remainingSeats, 0)}</div>
+            <div className="mt-4 text-sm leading-6 text-slate-700">
+              {renderAiSummary(aiSummary)}
             </div>
           </section>
         </aside>
@@ -681,6 +715,26 @@ function aiStatusLabel(status: DocumentSummaryStatusResponse["summaryStatus"]) {
     default:
       return status;
   }
+}
+
+function renderAiSummary(summary: WorkshopAiSummaryResponse | null) {
+  if (summary?.summaryStatus === "COMPLETED") {
+    return summary.summaryText ? (
+      <p className="whitespace-pre-line">{summary.summaryText}</p>
+    ) : (
+      <p>Chưa có tóm tắt cho workshop này.</p>
+    );
+  }
+
+  if (summary?.summaryStatus === "PENDING" || summary?.summaryStatus === "PROCESSING") {
+    return <p>Tóm tắt workshop đang được tạo. Vui lòng quay lại sau.</p>;
+  }
+
+  if (summary?.summaryStatus === "FAILED") {
+    return <p>Tóm tắt workshop hiện chưa khả dụng.</p>;
+  }
+
+  return <p>Chưa có tóm tắt cho workshop này.</p>;
 }
 
 function formatAdminDateTime(value?: string | null) {

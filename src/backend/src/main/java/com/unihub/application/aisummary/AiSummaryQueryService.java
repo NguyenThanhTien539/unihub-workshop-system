@@ -6,7 +6,6 @@ import com.unihub.domain.aisummary.AiSummaryStatus;
 import com.unihub.domain.aisummary.DocumentSummaryView;
 import com.unihub.domain.workshop.Workshop;
 import com.unihub.domain.workshop.WorkshopRepository;
-import com.unihub.domain.workshop.WorkshopStatus;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -26,7 +25,6 @@ public class AiSummaryQueryService {
 
   public WorkshopSummaryResult getWorkshopSummary(UUID workshopId) {
     Workshop workshop = workshopRepository.findById(workshopId)
-        .filter(candidate -> candidate.status() == WorkshopStatus.PUBLISHED)
         .orElseThrow(() -> new AiSummaryException(
             AiSummaryErrorCode.AI_WORKSHOP_NOT_FOUND,
             HttpStatus.NOT_FOUND));

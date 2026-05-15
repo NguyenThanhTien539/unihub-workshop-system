@@ -345,7 +345,7 @@ export async function uploadWorkshopDocument(workshopId: string, file: File) {
 export async function getDocumentSummaryStatus(documentId: string) {
   return apiRequest<DocumentSummaryStatusResponse>(
     `/api/admin/documents/${documentId}/summary-status`,
-    undefined,
+    { cache: "no-store" },
     { auth: true },
   );
 }
@@ -353,6 +353,7 @@ export async function getDocumentSummaryStatus(documentId: string) {
 export async function getWorkshopSummary(workshopId: string) {
   return apiRequest<WorkshopAiSummaryResponse>(
     `/api/workshops/${workshopId}/summary`,
+    { cache: "no-store" },
   );
 }
 

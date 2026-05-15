@@ -32,7 +32,7 @@ export default function AdminPage() {
           <h2 className="text-base font-semibold text-slate-900">Quản lý workshop</h2>
           <p className="mt-2 text-sm text-slate-600">Tạo, chỉnh sửa, xuất bản, hủy workshop và quản lý các buổi học.</p>
           <div className="mt-3">
-            <a href="/admin/workshops" className="inline-flex items-center rounded-md bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-700">Mở trang quản lý workshop</a>
+            <Link href="/admin/workshops" className="inline-flex items-center rounded-md bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-700">Mở trang quản lý workshop</Link>
           </div>
         </div>
       </div>

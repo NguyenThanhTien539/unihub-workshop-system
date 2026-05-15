@@ -11,6 +11,7 @@ import {
   formatTimeInput,
   toLocalDateTime,
 } from "../utils/dateTime";
+import { createId } from "../utils/uuid";
 import { apiRequest } from "./apiClient";
 
 type BackendWorkshopListSession = {
@@ -71,9 +72,18 @@ type BackendRegistration = {
   workshopId: string;
   workshopTitle: string;
   sessionId: string;
+  roomName?: string | null;
+  building?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
   registrationStatus: Registration["status"] | string;
   registrationType: "FREE" | "PAID" | string;
+  paymentIntentId?: string | null;
   paymentStatus?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  paymentExpiresAt?: string | null;
+  qrTicketId?: string | null;
   qrAvailable: boolean;
 };
 
@@ -83,7 +93,37 @@ type BackendRegistrationMutation = {
   sessionId: string;
   registrationStatus: Registration["status"] | string;
   qrAvailable: boolean;
+  paymentIntentId?: string | null;
   paymentStatus?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  expiresAt?: string | null;
+};
+
+type BackendRegistrationQr = {
+  registrationId: string;
+  qrTicketId: string;
+  dataUrl: string;
+  expiresAt: string | null;
+  status: string;
+};
+
+type BackendPaymentUrl = {
+  paymentIntentId: string;
+  provider: string;
+  paymentUrl: string;
+  appTransId: string;
+  status: string;
+  expiresAt: string | null;
+};
+
+type BackendPaymentStatus = {
+  paymentIntentId: string;
+  registrationId: string;
+  status: string;
+  registrationStatus: Registration["status"] | string;
+  qrTicketId: string | null;
+  qrAvailable: boolean;
 };
 
 export async function getWorkshops(): Promise<Workshop[]> {
@@ -111,14 +151,66 @@ export async function registerForWorkshop(
   workshopTitle: string,
   feeType: "FREE" | "PAID" = "FREE",
 ): Promise<Registration> {
+  const body =
+    feeType === "PAID"
+      ? { sessionId, idempotencyKey: createId(`paid_${sessionId}`) }
+      : { sessionId };
   const response = await apiRequest<BackendRegistrationMutation>(
     `/api/registrations/${feeType === "PAID" ? "paid" : "free"}`,
     {
-    method: "POST",
-    body: { sessionId },
+      method: "POST",
+      body,
     },
   );
-  return mapRegistrationMutation(response, workshopTitle, feeType);
+  const registration = mapRegistrationMutation(response, workshopTitle, feeType);
+  if (feeType !== "PAID" || !response.paymentIntentId) {
+    return registration;
+  }
+
+  try {
+    const payment = await createPaymentUrl(response.paymentIntentId);
+    return {
+      ...registration,
+      paymentUrl: payment.paymentUrl,
+      paymentExpiresAt: payment.expiresAt,
+      notification: "Payment checkout is ready. Complete payment to confirm your seat.",
+    };
+  } catch {
+    return {
+      ...registration,
+      notification:
+        "Seat reserved, but payment checkout could not be opened. Use My Seats to retry payment.",
+    };
+  }
+}
+
+export async function getRegistrationQr(registrationId: string): Promise<Registration> {
+  const response = await apiRequest<BackendRegistrationQr>(
+    `/api/registrations/${registrationId}/qr`,
+  );
+  return {
+    id: response.registrationId,
+    workshopId: "",
+    workshopTitle: "QR ticket",
+    status: "CONFIRMED",
+    qrAvailable: true,
+    qrDataUrl: response.dataUrl,
+    qrStatus: response.status,
+    qrExpiresAt: response.expiresAt,
+    message: response.status,
+    notification: "QR ticket loaded.",
+  };
+}
+
+export async function createPaymentUrl(paymentIntentId: string) {
+  return apiRequest<BackendPaymentUrl>(
+    `/api/payments/intents/${paymentIntentId}/zalopay`,
+    { method: "POST" },
+  );
+}
+
+export async function getPaymentStatus(paymentIntentId: string) {
+  return apiRequest<BackendPaymentStatus>(`/api/payments/${paymentIntentId}/status`);
 }
 
 export async function getOrganizerDashboard() {
@@ -261,6 +353,16 @@ function mapRegistration(item: BackendRegistration): Registration {
     workshopId: item.workshopId,
     workshopTitle: item.workshopTitle,
     status,
+    qrAvailable: item.qrAvailable,
+    paymentIntentId: item.paymentIntentId ?? null,
+    paymentStatus: item.paymentStatus ?? null,
+    paymentExpiresAt: item.paymentExpiresAt ?? null,
+    amount: item.amount ?? null,
+    currency: item.currency ?? null,
+    roomName: item.roomName ?? null,
+    building: item.building ?? null,
+    startAt: item.startAt ?? null,
+    endAt: item.endAt ?? null,
     message: registrationMessage(status, item.registrationType, item.paymentStatus),
     notification: item.qrAvailable
       ? "Your check-in ticket has been sent to your email."
@@ -279,6 +381,12 @@ function mapRegistrationMutation(
     workshopId: item.workshopId,
     workshopTitle,
     status,
+    qrAvailable: item.qrAvailable,
+    paymentIntentId: item.paymentIntentId ?? null,
+    paymentStatus: item.paymentStatus ?? null,
+    paymentExpiresAt: item.expiresAt ?? null,
+    amount: item.amount ?? null,
+    currency: item.currency ?? null,
     message: registrationMessage(status, registrationType, item.paymentStatus),
     notification: item.qrAvailable
       ? "Registration confirmed. Check your email for the check-in ticket."

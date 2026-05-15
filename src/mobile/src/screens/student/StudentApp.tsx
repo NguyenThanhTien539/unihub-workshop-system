@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { Account, Registration, Workshop } from "../../models/types";
 import {
+  createPaymentUrl,
+  getPaymentStatus,
   getCurrentWeekWorkshops,
   getMyRegistrations,
+  getRegistrationQr,
   registerForWorkshop,
 } from "../../services/workshopService";
 import { colors, spacing } from "../../theme/theme";
@@ -162,6 +165,9 @@ function WorkshopDetail({
         workshop.feeType,
       );
       await showSuccess(`${result.workshopTitle}: ${result.message}`);
+      if (result.paymentUrl) {
+        await Linking.openURL(result.paymentUrl);
+      }
     } catch (err) {
       await showError(getActionErrorMessage(err, "Registration failed."));
     } finally {
@@ -213,8 +219,11 @@ function WorkshopDetail({
 
 function RegistrationList() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [qrByRegistration, setQrByRegistration] = useState<Record<string, Registration>>({});
+  const [actionId, setActionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { showError, showSuccess } = useNotification();
 
   const refreshRegistrations = async () => {
     setLoading(true);
@@ -232,6 +241,43 @@ function RegistrationList() {
   useEffect(() => {
     refreshRegistrations();
   }, []);
+
+  const loadQr = async (registration: Registration) => {
+    setActionId(registration.id);
+    try {
+      const qrTicket = await getRegistrationQr(registration.id);
+      setQrByRegistration((current) => ({
+        ...current,
+        [registration.id]: qrTicket,
+      }));
+    } catch (err) {
+      await showError(getActionErrorMessage(err, "Unable to load QR ticket."));
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const openPayment = async (registration: Registration) => {
+    if (!registration.paymentIntentId) {
+      await showError("This registration does not have a payment intent.");
+      return;
+    }
+
+    setActionId(registration.id);
+    try {
+      const status = await getPaymentStatus(registration.paymentIntentId);
+      if (status.qrAvailable || status.registrationStatus === "CONFIRMED") {
+        await showSuccess("Payment is confirmed. Refresh registrations to load the QR ticket.");
+        return;
+      }
+      const checkout = await createPaymentUrl(registration.paymentIntentId);
+      await Linking.openURL(checkout.paymentUrl);
+    } catch (err) {
+      await showError(getActionErrorMessage(err, "Unable to check payment status."));
+    } finally {
+      setActionId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -265,8 +311,45 @@ function RegistrationList() {
               tone={registration.status === "CONFIRMED" ? "success" : "warning"}
             />
             <Text style={styles.workshopTitle}>{registration.workshopTitle}</Text>
+            {registration.startAt ? (
+              <Text style={styles.meta}>
+                {registration.startAt} - {registration.roomName || "Room not set"}
+              </Text>
+            ) : null}
             <Text style={styles.body}>{registration.message}</Text>
             <Text style={styles.meta}>{registration.notification}</Text>
+            {registration.qrAvailable ? (
+              <View style={styles.singleAction}>
+                <Button
+                  label={actionId === registration.id ? "Loading QR..." : "Load QR"}
+                  onPress={() => loadQr(registration)}
+                  disabled={actionId === registration.id}
+                  variant="secondary"
+                />
+              </View>
+            ) : null}
+            {registration.status === "PENDING_PAYMENT" && registration.paymentIntentId ? (
+              <View style={styles.singleAction}>
+                <Button
+                  label={actionId === registration.id ? "Checking..." : "Check payment status"}
+                  onPress={() => openPayment(registration)}
+                  disabled={actionId === registration.id}
+                  variant="secondary"
+                />
+              </View>
+            ) : null}
+            {qrByRegistration[registration.id]?.qrDataUrl ? (
+              <View style={styles.qrBox}>
+                <Image
+                  source={{ uri: qrByRegistration[registration.id].qrDataUrl }}
+                  style={styles.qrImage}
+                  resizeMode="contain"
+                />
+                <Text style={styles.meta}>
+                  QR status: {qrByRegistration[registration.id].qrStatus}
+                </Text>
+              </View>
+            ) : null}
           </Card>
         ))
       )}
@@ -365,5 +448,16 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 18,
     marginTop: spacing.md,
+  },
+  qrBox: {
+    alignItems: "center",
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 8,
+    marginTop: spacing.lg,
+    padding: spacing.lg,
+  },
+  qrImage: {
+    height: 180,
+    width: 180,
   },
 });

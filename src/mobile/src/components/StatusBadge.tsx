@@ -1,5 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
+
 import { colors } from "../config/theme";
+import { FeeType, WorkshopStatus } from "../models/types";
 
 type StatusBadgeProps = {
   label: string;
@@ -13,6 +15,22 @@ export function StatusBadge({ label, tone = "neutral" }: StatusBadgeProps) {
         {label}
       </Text>
     </View>
+  );
+}
+
+export function WorkshopStatusBadge({ status }: { status: WorkshopStatus }) {
+  const tone =
+    status === "CANCELLED" ? "danger" : status === "DRAFT" ? "warning" : "success";
+
+  return <StatusBadge label={status} tone={tone} />;
+}
+
+export function FeeBadge({ feeType }: { feeType: FeeType }) {
+  return (
+    <StatusBadge
+      label={feeType === "PAID" ? "Paid" : "Free"}
+      tone={feeType === "PAID" ? "warning" : "success"}
+    />
   );
 }
 

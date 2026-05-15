@@ -1,5 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { colors } from "../config/theme";
+import { colors, spacing } from "../config/theme";
 
 type LoadingViewProps = {
   label?: string;
@@ -18,12 +18,14 @@ const styles = StyleSheet.create({
   container: {
     alignItems: "center",
     flex: 1,
-    gap: 10,
+    gap: spacing.md,
     justifyContent: "center",
-    padding: 24,
+    padding: spacing.xl,
   },
   text: {
     color: colors.muted,
     fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
   },
 });

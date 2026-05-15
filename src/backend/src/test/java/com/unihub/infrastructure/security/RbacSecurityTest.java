@@ -56,6 +56,8 @@ public class RbacSecurityTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/registrations/auth-test").with(roleJwt("student")))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/student/workshops/current-week").with(roleJwt("student")))
+                .andExpect(status().isOk());
         mockMvc.perform(post("/api/payments/intents").with(roleJwt("student")))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/payments/10000000-0000-0000-0000-000000000001/status").with(roleJwt("student")))
@@ -77,6 +79,8 @@ public class RbacSecurityTest {
         mockMvc.perform(get("/api/admin/documents/10000000-0000-0000-0000-000000000001/summary-status").with(roleJwt("organizer")))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/registrations/auth-test").with(roleJwt("organizer")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/student/workshops/current-week").with(roleJwt("organizer")))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/checkin/sessions").with(roleJwt("organizer")))
                 .andExpect(status().isForbidden());

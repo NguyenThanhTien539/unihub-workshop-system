@@ -36,7 +36,7 @@ export type CheckinValidateResponse = {
 
 export type CheckinSyncEventPayload = {
   syncEventId: string;
-  sessionId: string;
+  sessionId?: string | null;
   qrToken: string;
   scannedAt: string;
   deviceId?: string;
@@ -58,29 +58,31 @@ export type CheckinSyncResponse = {
 export async function loginCheckin(email: string, password: string) {
   return apiRequest<LoginResponse>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: { email, password },
+    authenticated: false,
+    skipAuthRefresh: true,
   });
 }
 
 export async function getCurrentUser(accessToken: string) {
-  return apiRequest<AuthUser>("/api/auth/me", {}, accessToken);
+  return apiRequest<AuthUser>("/api/auth/me", { token: accessToken });
 }
 
 export async function listCheckinSessions(accessToken: string) {
-  return apiRequest<CheckinSession[]>("/api/checkin/sessions", {}, accessToken);
+  return apiRequest<CheckinSession[]>("/api/checkin/sessions", { token: accessToken });
 }
 
 export async function validateCheckin(
   accessToken: string,
-  payload: { sessionId: string; qrToken: string; scannedAt: string },
+  payload: { sessionId?: string | null; qrToken: string; scannedAt: string },
 ) {
   return apiRequest<CheckinValidateResponse>(
     "/api/checkin/validate",
     {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: payload,
+      token: accessToken,
     },
-    accessToken,
   );
 }
 
@@ -89,8 +91,8 @@ export async function syncCheckins(accessToken: string, events: CheckinSyncEvent
     "/api/checkin/sync",
     {
       method: "POST",
-      body: JSON.stringify({ events }),
+      body: { events },
+      token: accessToken,
     },
-    accessToken,
   );
 }

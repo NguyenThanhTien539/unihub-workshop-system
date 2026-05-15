@@ -72,14 +72,15 @@ public class GeminiAiSummaryProvider implements AiSummaryProvider {
 
   private String buildPrompt(String cleanedText) {
     return """
-        Hay tom tat noi dung PDF workshop bang tieng Viet.
-        Yeu cau:
-        - ngan gon
-        - dung 5-7 gach dau dong
-        - tap trung vao muc dich workshop, chu de, doi tuong phu hop va ket qua mong doi
-        - khong tu bia dat thong tin khong co trong PDF
+        Hãy tóm tắt nội dung PDF workshop bằng tiếng Việt.
 
-        Noi dung PDF:
+        Yêu cầu:
+        - Ngắn gọn.
+        - Dùng 5-7 gạch đầu dòng.
+        - Tập trung vào mục đích workshop, chủ đề, đối tượng phù hợp và kết quả mong đợi.
+        - Không tự bịa đặt thông tin không có trong PDF.
+
+        Nội dung PDF:
         %s
         """.formatted(cleanedText);
   }

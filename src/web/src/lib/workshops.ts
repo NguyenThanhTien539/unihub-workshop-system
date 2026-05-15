@@ -93,6 +93,33 @@ export type UpdateWorkshopPayload = {
 export type UpdateWorkshopSessionPayload =
   Partial<CreateWorkshopSessionPayload>;
 
+export type AiSummaryStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+export type UploadStatus = "UPLOADED" | "FAILED";
+
+export type UploadWorkshopDocumentResponse = {
+  documentId: string;
+  workshopId: string;
+  uploadStatus: UploadStatus;
+  summaryStatus: AiSummaryStatus;
+};
+
+export type DocumentSummaryStatusResponse = {
+  documentId: string;
+  workshopId: string;
+  uploadStatus: UploadStatus;
+  summaryStatus: AiSummaryStatus;
+  updatedAt: string;
+};
+
+export type WorkshopAiSummaryResponse = {
+  workshopId: string;
+  documentId: string | null;
+  summaryStatus: AiSummaryStatus | null;
+  summaryText: string | null;
+  generatedAt?: string | null;
+  errorCode?: string | null;
+};
+
 export function getFirstSession(workshop: WorkshopListItem | WorkshopDetail) {
   return workshop.sessions[0] ?? null;
 }
@@ -298,6 +325,34 @@ export async function listRooms(includeInactive = false) {
     `/api/admin/rooms?includeInactive=${includeInactive}`,
     undefined,
     { auth: true },
+  );
+}
+
+export async function uploadWorkshopDocument(workshopId: string, file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return apiRequest<UploadWorkshopDocumentResponse>(
+    `/api/admin/workshops/${workshopId}/documents`,
+    {
+      method: "POST",
+      body: formData,
+    },
+    { auth: true },
+  );
+}
+
+export async function getDocumentSummaryStatus(documentId: string) {
+  return apiRequest<DocumentSummaryStatusResponse>(
+    `/api/admin/documents/${documentId}/summary-status`,
+    undefined,
+    { auth: true },
+  );
+}
+
+export async function getWorkshopSummary(workshopId: string) {
+  return apiRequest<WorkshopAiSummaryResponse>(
+    `/api/workshops/${workshopId}/summary`,
   );
 }
 

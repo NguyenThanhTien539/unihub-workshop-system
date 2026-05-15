@@ -1,99 +1,172 @@
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://10.0.2.2:8080";
-
 type ApiEnvelope<T> = {
-  success?: boolean;
-  data?: T;
+  success: boolean;
+  data: T;
   error?: {
     code?: string;
     message?: string;
-  };
-  message?: string;
+  } | null;
 };
 
-export class ApiClientError extends Error {
-  status: number;
-  code: string | null;
+type RequestOptions = {
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  body?: unknown;
+  token?: string;
+  query?: Record<string, string | number | boolean | undefined | null>;
+  skipAuthRefresh?: boolean;
+  authenticated?: boolean;
+};
 
-  constructor(message: string, status: number, code?: string | null) {
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
+  "http://localhost:8080";
+
+let accessToken: string | null = null;
+let refreshToken: string | null = null;
+
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  details?: unknown;
+
+  constructor(status: number, message: string, code?: string, details?: unknown) {
     super(message);
-    this.name = "ApiClientError";
+    this.name = "ApiError";
     this.status = status;
-    this.code = code ?? null;
+    this.code = code;
+    this.details = details;
   }
+}
+
+export function setAuthTokens(tokens: {
+  accessToken?: string | null;
+  refreshToken?: string | null;
+}) {
+  accessToken = tokens.accessToken || null;
+  refreshToken = tokens.refreshToken || null;
+}
+
+export function getAccessToken() {
+  return accessToken;
+}
+
+export function getRefreshToken() {
+  return refreshToken;
 }
 
 export async function apiRequest<T>(
   path: string,
-  init: RequestInit = {},
-  accessToken?: string | null,
-) {
-  const headers = new Headers(init.headers ?? {});
-  headers.set("Accept", "application/json");
-  if (init.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  if (accessToken) {
-    headers.set("Authorization", `Bearer ${accessToken}`);
-  }
+  options: RequestOptions = {},
+): Promise<T> {
+  return sendRequest<T>(path, options, false);
+}
 
-  const response = await fetch(`${API_BASE_URL.replace(/\/$/, "")}${path}`, {
-    ...init,
-    headers,
+async function sendRequest<T>(
+  path: string,
+  options: RequestOptions,
+  didRefresh: boolean,
+): Promise<T> {
+  const url = new URL(`${API_BASE_URL}${path}`);
+  Object.entries(options.query || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
   });
 
-  const body = await readEnvelope<T>(response);
-  if (!response.ok || body.success === false) {
-    throw new ApiClientError(
-      body.error?.message ?? body.message ?? "Yêu cầu thất bại.",
+  let response: Response;
+  const requestToken =
+    options.authenticated === false ? null : options.token || accessToken;
+  try {
+    response = await fetch(url.toString(), {
+      method: options.method || "GET",
+      headers: {
+        Accept: "application/json",
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(requestToken ? { Authorization: `Bearer ${requestToken}` } : {}),
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, "Unable to reach the server. Check your connection and API URL.");
+  }
+
+  const text = await response.text();
+  let payload: ApiEnvelope<T> | null = null;
+  try {
+    payload = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
+  } catch {
+    throw new ApiError(response.status, "The server returned an unexpected response.");
+  }
+
+  if (!response.ok || payload?.success === false) {
+    if (
+      response.status === 401 &&
+      refreshToken &&
+      !options.skipAuthRefresh &&
+      !didRefresh
+    ) {
+      const refreshed = await refreshAuthToken();
+      if (refreshed) {
+        return sendRequest<T>(path, options, true);
+      }
+    }
+
+    if (response.status === 401) {
+      setAuthTokens({});
+    }
+    throw new ApiError(
       response.status,
-      body.error?.code,
+      friendlyErrorMessage(response.status, payload?.error?.message),
+      payload?.error?.code,
+      payload,
     );
   }
 
-  return body.data as T;
+  return payload ? payload.data : (undefined as T);
 }
 
-export function getFriendlyApiError(error: unknown, fallback = "Đã xảy ra lỗi.") {
-  if (error instanceof ApiClientError) {
-    switch (error.code) {
-      case "AUTH_FORBIDDEN":
-        return "Tài khoản này không có quyền check-in.";
-      case "AUTH_INVALID_CREDENTIALS":
-        return "Email hoặc mật khẩu không đúng.";
-      case "CHECKIN_QR_EXPIRED":
-        return "Mã QR này đã hết hạn.";
-      case "CHECKIN_QR_REVOKED":
-        return "Mã QR này đã bị thu hồi.";
-      case "CHECKIN_SESSION_MISMATCH":
-        return "Mã QR này thuộc buổi học khác.";
-      case "CHECKIN_SESSION_NOT_OPEN":
-        return "Buổi học này chưa mở check-in.";
-      case "CHECKIN_INVALID_QR":
-      case "CHECKIN_QR_NOT_FOUND":
-        return "Không nhận diện được mã QR.";
-      default:
-        return error.message || fallback;
-    }
-  }
-
-  if (error instanceof Error) {
-    return error.message || fallback;
-  }
-
-  return fallback;
-}
-
-async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
-  if (response.status === 204) {
-    return { success: true };
+async function refreshAuthToken() {
+  if (!refreshToken) {
+    return false;
   }
 
   try {
-    return (await response.json()) as ApiEnvelope<T>;
+    const tokens = await sendRequest<{
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }>(
+      "/api/auth/refresh",
+      {
+        method: "POST",
+        body: { refreshToken },
+        skipAuthRefresh: true,
+        authenticated: false,
+      },
+      true,
+    );
+    setAuthTokens(tokens);
+    return true;
   } catch {
-    return {
-      success: false,
-      message: response.ok ? "Phản hồi từ máy chủ không hợp lệ." : "Không đọc được phản hồi lỗi từ máy chủ.",
-    };
+    setAuthTokens({});
+    return false;
   }
+}
+
+export function friendlyErrorMessage(status: number, fallback?: string) {
+  if (status === 401) {
+    return fallback || "Your session has expired. Please sign in again.";
+  }
+  if (status === 403) {
+    return "You do not have permission to perform this action.";
+  }
+  if (status === 404) {
+    return "The requested item was not found.";
+  }
+  if (status === 409) {
+    return fallback || "This change conflicts with the latest server data.";
+  }
+  if (status >= 500) {
+    return "The server is unavailable. Please try again later.";
+  }
+  return fallback || "The request could not be completed.";
 }

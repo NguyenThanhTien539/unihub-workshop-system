@@ -1,6 +1,6 @@
 import { Modal, StyleSheet, Text, View } from "react-native";
 import { CheckinResult } from "../api/types";
-import { colors } from "../config/theme";
+import { colors, spacing } from "../config/theme";
 import { AppButton } from "./AppButton";
 import { StatusBadge } from "./StatusBadge";
 
@@ -70,22 +70,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
-    gap: 10,
-    padding: 18,
+    gap: spacing.md,
+    padding: spacing.xl,
   },
   title: {
     color: colors.text,
     fontSize: 22,
     fontWeight: "900",
+    lineHeight: 28,
   },
   name: {
     color: colors.text,
     fontSize: 17,
     fontWeight: "800",
+    lineHeight: 23,
   },
   meta: {
     color: colors.muted,
     fontSize: 13,
+    lineHeight: 18,
   },
   message: {
     color: colors.text,
@@ -94,8 +97,9 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 6,
+    flexWrap: "wrap",
+    gap: spacing.md,
+    marginTop: spacing.lg,
   },
   action: {
     flex: 1,

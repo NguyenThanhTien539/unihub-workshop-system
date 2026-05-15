@@ -26,6 +26,10 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      APP_AI_SUMMARY_STORAGE_TYPE: local
+      APP_AI_SUMMARY_STORAGE_LOCAL_DIRECTORY: /app/data/object-storage/workshop-documents
+    volumes:
+      - ./data/object-storage/workshop-documents:/app/data/object-storage/workshop-documents
     depends_on:
       redis:
         condition: service_healthy

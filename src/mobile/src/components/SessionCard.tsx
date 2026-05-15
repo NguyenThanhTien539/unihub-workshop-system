@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { CheckinSession } from "../api/types";
-import { colors } from "../config/theme";
+import { colors, spacing } from "../config/theme";
 import { formatDateTime } from "../utils/date";
 import { AppButton } from "./AppButton";
 import { StatusBadge } from "./StatusBadge";
@@ -46,13 +46,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    gap: 8,
-    padding: 14,
+    gap: spacing.md,
+    padding: spacing.xl,
   },
   header: {
     alignItems: "flex-start",
     flexDirection: "row",
-    gap: 10,
+    flexWrap: "wrap",
+    gap: spacing.md,
     justifyContent: "space-between",
   },
   title: {
@@ -65,17 +66,20 @@ const styles = StyleSheet.create({
   meta: {
     color: colors.muted,
     fontSize: 14,
+    lineHeight: 20,
   },
   time: {
     color: colors.text,
     fontSize: 13,
+    lineHeight: 18,
   },
   footer: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 10,
+    flexWrap: "wrap",
+    gap: spacing.md,
     justifyContent: "space-between",
-    marginTop: 4,
+    marginTop: spacing.md,
   },
   button: {
     minWidth: 126,

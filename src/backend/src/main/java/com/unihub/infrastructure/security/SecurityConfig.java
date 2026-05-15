@@ -54,6 +54,7 @@ public class SecurityConfig {
             // signature/shared secret.
             .requestMatchers(HttpMethod.POST, "/api/payments/zalopay/callback").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/workshops/**").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/student/workshops/**").hasRole("STUDENT")
             .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/notifications/me").authenticated()
@@ -118,13 +119,19 @@ public class SecurityConfig {
 
   @Bean
   CorsConfigurationSource corsConfigurationSource(
-      @Value("${app.security.cors.allowed-origins:http://localhost:3000,http://localhost:3001,http://localhost:8081}") String allowedOrigins) {
+      @Value("${app.security.cors.allowed-origins:http://localhost:3000,http://localhost:8081}") String allowedOrigins,
+      @Value("${app.security.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*,http://192.168.*.*:*}") String allowedOriginPatterns) {
     CorsConfiguration config = new CorsConfiguration();
     List<String> origins = Arrays.stream(allowedOrigins.split(","))
         .map(String::trim)
         .filter(origin -> !origin.isBlank())
         .toList();
+    List<String> originPatterns = Arrays.stream(allowedOriginPatterns.split(","))
+        .map(String::trim)
+        .filter(origin -> !origin.isBlank())
+        .toList();
     config.setAllowedOrigins(origins);
+    config.setAllowedOriginPatterns(originPatterns);
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
     config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
     config.setAllowCredentials(true);

@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record CheckinValidateRequest(
-    @NotNull UUID sessionId,
+    UUID sessionId,
     @NotBlank String qrToken,
     @NotNull LocalDateTime scannedAt) {
 }

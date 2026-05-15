@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public record CheckinSyncEventRequest(
     @NotBlank String syncEventId,
-    @NotNull UUID sessionId,
+    UUID sessionId,
     @NotBlank String qrToken,
     @NotNull LocalDateTime scannedAt,
     @Size(max = 255) String deviceId) {

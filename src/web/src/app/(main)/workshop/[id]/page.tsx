@@ -40,7 +40,9 @@ import {
   formatSessionTime,
   getFirstSession,
   getPublicWorkshop,
+  getWorkshopSummary,
   statusLabel,
+  type WorkshopAiSummaryResponse,
   type WorkshopDetail,
   type WorkshopSession,
 } from "../../../../lib/workshops";
@@ -59,6 +61,7 @@ export default function WorkshopDetailPage({
   const resolvedParams = use(params);
   const router = useRouter();
   const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null);
+  const [aiSummary, setAiSummary] = useState<WorkshopAiSummaryResponse | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [registrations, setRegistrations] = useState<RegistrationResponse[]>(
     [],
@@ -107,6 +110,12 @@ export default function WorkshopDetailPage({
       setSelectedSessionId(
         (prev) => prev ?? workshopDetail.sessions[0]?.id ?? null,
       );
+
+      try {
+        setAiSummary(await getWorkshopSummary(resolvedParams.id));
+      } catch {
+        setAiSummary(null);
+      }
 
       if (!hasStoredSession()) {
         setCurrentUser(null);
@@ -327,6 +336,23 @@ export default function WorkshopDetailPage({
                 {workshop.description}
               </p>
             </section>
+
+            {aiSummary?.summaryStatus ? (
+              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-slate-950">
+                  Tóm tắt AI
+                </h2>
+                <div className="mt-3 text-sm leading-6 text-slate-700">
+                  {aiSummary.summaryStatus === "COMPLETED" ? (
+                    <p className="whitespace-pre-line">{aiSummary.summaryText}</p>
+                  ) : aiSummary.summaryStatus === "FAILED" ? (
+                    <p>Tóm tắt hiện chưa khả dụng.</p>
+                  ) : (
+                    <p>Tóm tắt đang được xử lý.</p>
+                  )}
+                </div>
+              </section>
+            ) : null}
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

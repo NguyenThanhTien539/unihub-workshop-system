@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
-import { colors } from "../config/theme";
+import { colors, spacing } from "../config/theme";
 
 type AppButtonProps = {
   title: string;
@@ -49,9 +49,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     justifyContent: "center",
-    minHeight: 46,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   primary: {
     backgroundColor: colors.primary,
@@ -78,6 +78,8 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 15,
     fontWeight: "700",
+    lineHeight: 20,
+    textAlign: "center",
   },
   primaryText: {
     color: "#ffffff",

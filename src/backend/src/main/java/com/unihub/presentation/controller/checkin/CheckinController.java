@@ -8,6 +8,7 @@ import com.unihub.infrastructure.security.UserPrincipal;
 import com.unihub.presentation.ApiResponse;
 import com.unihub.presentation.dto.request.checkin.CheckinSyncRequest;
 import com.unihub.presentation.dto.request.checkin.CheckinValidateRequest;
+import com.unihub.presentation.dto.response.checkin.CheckinHistoryResponse;
 import com.unihub.presentation.dto.response.checkin.CheckinSessionResponse;
 import com.unihub.presentation.dto.response.checkin.CheckinSyncResponse;
 import com.unihub.presentation.dto.response.checkin.CheckinValidateResponse;
@@ -47,6 +48,12 @@ public class CheckinController {
         .map(checkinResponseMapper::toSessionResponse)
         .toList();
     return ResponseEntity.ok(ApiResponse.success(responses));
+  }
+
+  @GetMapping("/history")
+  public ResponseEntity<ApiResponse<List<CheckinHistoryResponse>>> history(Authentication authentication) {
+    UUID userId = requireCheckinUser(authentication);
+    return ResponseEntity.ok(ApiResponse.success(checkinQueryService.listHistoryForStaff(userId)));
   }
 
   @PostMapping("/validate")

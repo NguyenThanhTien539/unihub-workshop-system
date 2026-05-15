@@ -6,6 +6,7 @@ import Button from "../../../../components/Button";
 import { useRouter } from "next/navigation";
 import { CalendarPlus, Trash2 } from "lucide-react";
 import { ensureAdminAuth } from "../../../../lib/adminAuth";
+import { getFriendlyErrorMessage } from "../../../../lib/apiClient";
 import {
   createWorkshop,
   formatMoney,
@@ -13,6 +14,7 @@ import {
   formatSessionTime,
   listRooms,
   toApiDateTime,
+  uploadWorkshopDocument,
   type CreateWorkshopSessionPayload,
   type FeeType,
   type Room,
@@ -27,7 +29,6 @@ export default function CreateWorkshopPage() {
   const [speaker, setSpeaker] = useState("");
   const [description, setDescription] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionDraft[]>([]);
   const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySession());
@@ -98,6 +99,31 @@ export default function CreateWorkshopPage() {
         description,
         sessions,
       });
+
+      if (pdfFile) {
+        try {
+          const uploadResult = await uploadWorkshopDocument(workshop.id, pdfFile);
+          sessionStorage.setItem(
+            adminWorkshopNoticeKey(workshop.id),
+            JSON.stringify({
+              tone: "success",
+              message: "Workshop đã được tạo. PDF đang được xử lý để tạo tóm tắt.",
+              documentId: uploadResult.documentId,
+              uploadStatus: uploadResult.uploadStatus,
+              summaryStatus: uploadResult.summaryStatus,
+            }),
+          );
+        } catch (uploadError) {
+          sessionStorage.setItem(
+            adminWorkshopNoticeKey(workshop.id),
+            JSON.stringify({
+              tone: "warning",
+              message: `Workshop đã được tạo nhưng upload PDF thất bại. Bạn có thể upload lại trong trang chi tiết. ${getFriendlyErrorMessage(uploadError, "")}`.trim(),
+            }),
+          );
+        }
+      }
+
       router.replace(`/admin/workshops/${workshop.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tạo được workshop");
@@ -108,50 +134,13 @@ export default function CreateWorkshopPage() {
 
   function onPdfChange(event: React.ChangeEvent<HTMLInputElement>) {
     const f = event.target.files?.[0] ?? null;
-    if (f && f.type !== "application/pdf") {
+    if (f && f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
       setPdfUploadError("Vui lòng chọn file PDF");
       setPdfFile(null);
       return;
     }
     setPdfFile(f);
     setPdfUploadError(null);
-  }
-
-  async function handleUploadPdf() {
-    if (!pdfFile) {
-      setPdfUploadError("Chưa chọn file PDF");
-      return;
-    }
-    setUploadingPdf(true);
-    setPdfUploadError(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", pdfFile);
-
-      // Placeholder endpoint - backend should accept multipart/form-data
-      const res = await fetch(`/api/admin/documents/ai-summary`, {
-        method: "POST",
-        body: fd,
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Upload thất bại");
-      }
-
-      const data = await res.json();
-      // If backend returns a generated summary, append it to description
-      if (data?.summary) {
-        setDescription((cur) => (cur ? cur + "\n\n" + data.summary : data.summary));
-        setPdfFile(null);
-      } else {
-        setPdfUploadError("Không nhận được tóm tắt từ server");
-      }
-    } catch (err) {
-      setPdfUploadError(err instanceof Error ? err.message : "Upload thất bại");
-    } finally {
-      setUploadingPdf(false);
-    }
   }
 
   return (
@@ -201,12 +190,14 @@ export default function CreateWorkshopPage() {
                     <label htmlFor="pdf-file-input" className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
                       Chọn file PDF
                     </label>
-                    <Button type="button" onClick={handleUploadPdf} disabled={uploadingPdf || !pdfFile} className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white">
-                      {uploadingPdf ? "Đang upload..." : "Upload & Tóm tắt AI"}
-                    </Button>
+                    {pdfFile ? (
+                      <Button type="button" onClick={() => setPdfFile(null)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                        Bỏ chọn
+                      </Button>
+                    ) : null}
                   </div>
                   <div className="text-sm text-slate-600">
-                    {pdfFile ? <span>Đã chọn: {pdfFile.name}</span> : <span className="ml-1">Chỉ hỗ trợ file PDF (tùy chọn)</span>}
+                    {pdfFile ? <span>Đã chọn: {pdfFile.name}. File sẽ được upload sau khi workshop được tạo.</span> : <span className="ml-1">Chỉ hỗ trợ file PDF (tùy chọn)</span>}
                   </div>
                   {pdfUploadError && <div className="text-sm text-red-600">{pdfUploadError}</div>}
                 </div>
@@ -321,7 +312,7 @@ export default function CreateWorkshopPage() {
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             {error && <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
             <Button type="submit" disabled={submitting} className="w-full">
-              {submitting ? "Đang tạo..." : "Tạo workshop"}
+              {submitting ? (pdfFile ? "Đang tạo và upload PDF..." : "Đang tạo...") : "Tạo workshop"}
             </Button>
           </section>
         </aside>
@@ -363,4 +354,8 @@ function normalizeSession(session: SessionDraft): SessionDraft {
 
 function parseFeeType(value: string): FeeType {
   return value === "PAID" ? "PAID" : "FREE";
+}
+
+function adminWorkshopNoticeKey(workshopId: string) {
+  return `unihub-admin-workshop-notice:${workshopId}`;
 }

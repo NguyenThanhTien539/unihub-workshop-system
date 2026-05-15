@@ -1,5 +1,5 @@
 import { TextInput, TextInputProps, StyleSheet, Text, View } from "react-native";
-import { colors } from "../config/theme";
+import { colors, spacing } from "../config/theme";
 
 type AppTextInputProps = TextInputProps & {
   label: string;
@@ -23,7 +23,7 @@ export function AppTextInput({ label, error, style, ...props }: AppTextInputProp
 
 const styles = StyleSheet.create({
   field: {
-    gap: 6,
+    gap: spacing.sm,
   },
   label: {
     color: colors.text,
@@ -37,8 +37,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     color: colors.text,
     fontSize: 16,
-    minHeight: 48,
-    paddingHorizontal: 12,
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
   },
   inputError: {
     borderColor: colors.danger,
@@ -46,5 +47,6 @@ const styles = StyleSheet.create({
   error: {
     color: colors.danger,
     fontSize: 12,
+    lineHeight: 17,
   },
 });

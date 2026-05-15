@@ -9,6 +9,7 @@ public record WorkshopSessionResponse(
     UUID roomId,
     String roomName,
     String building,
+    String roomMapUrl,
     LocalDateTime startAt,
     LocalDateTime endAt,
     String status,

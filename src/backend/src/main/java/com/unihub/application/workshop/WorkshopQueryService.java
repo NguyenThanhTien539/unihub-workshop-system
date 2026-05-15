@@ -17,6 +17,8 @@ import com.unihub.presentation.dto.response.workshop.WorkshopSessionResponse;
 import com.unihub.presentation.dto.response.workshop.WorkshopSummaryResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -57,6 +59,24 @@ public class WorkshopQueryService {
         endAt,
         page,
         size);
+
+    return workshopMapper.toWorkshopListResponses(views);
+  }
+
+  @Transactional(readOnly = true)
+  public List<WorkshopListResponse> listPublishedWorkshopsForCurrentWeek() {
+    LocalDate today = LocalDate.now();
+    LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    LocalDate weekEndExclusive = weekStart.plusDays(7);
+
+    List<WorkshopSessionView> views = workshopRepository.findPublishedWorkshopSessions(
+        null,
+        null,
+        null,
+        weekStart.atStartOfDay(),
+        weekEndExclusive.atStartOfDay(),
+        null,
+        null);
 
     return workshopMapper.toWorkshopListResponses(views);
   }

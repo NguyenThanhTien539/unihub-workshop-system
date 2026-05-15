@@ -3,9 +3,9 @@ spring:
     name: unihub
 
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://localhost:15432/unihub}
+    username: ${DB_USERNAME:unihub}
+    password: ${DB_PASSWORD:unihub}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: ${DB_POOL_MAX_SIZE:3}
@@ -40,12 +40,13 @@ spring:
 app:
   auth:
     jwt:
-      secret: ${JWT_SECRET}
+      secret: ${JWT_SECRET:dev-only-jwt-secret-change-before-production}
       access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:15}
       refresh-token-ttl-days: ${JWT_REFRESH_TOKEN_TTL_DAYS:7}
   security:
     cors:
-      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:8081}
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8081}
+      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*,http://127.0.0.1:*,http://192.168.*.*:*}
   mail:
     enabled: ${APP_MAIL_ENABLED:false}
     from: ${APP_MAIL_FROM:no-reply@unihub.local}

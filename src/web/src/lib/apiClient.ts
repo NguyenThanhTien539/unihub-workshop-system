@@ -71,6 +71,14 @@ export function getFriendlyErrorMessage(error: unknown, fallback = "Đã xảy r
       case "AUTH_TOKEN_INVALID":
       case "AUTH_TOKEN_EXPIRED":
         return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+      case "AI_FILE_REQUIRED":
+        return "Vui lòng chọn file PDF.";
+      case "AI_FILE_TYPE_INVALID":
+        return "File phải là PDF.";
+      case "AI_FILE_TOO_LARGE":
+        return "File PDF quá lớn.";
+      case "AI_STORAGE_UNAVAILABLE":
+        return "Không thể lưu file PDF, vui lòng thử lại.";
       case "REG_ALREADY_EXISTS":
         return "Bạn đã đăng ký buổi này rồi.";
       case "REG_SESSION_FULL":
@@ -97,6 +105,9 @@ export function getFriendlyErrorMessage(error: unknown, fallback = "Đã xảy r
   }
 
   if (error instanceof Error) {
+    if (error.name === "TypeError") {
+      return "Không thể kết nối đến backend.";
+    }
     return error.message || fallback;
   }
 

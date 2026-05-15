@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import Link from "next/link";
 import Button from "../../../../components/Button";
 import {
   Ban,
   CalendarPlus,
   CheckCircle2,
+  RefreshCw,
   Save,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { ensureAdminAuth } from "../../../../lib/adminAuth";
+import { getFriendlyErrorMessage } from "../../../../lib/apiClient";
 import {
   cancelWorkshop,
   cancelWorkshopSession,
@@ -21,6 +23,7 @@ import {
   formatSessionDate,
   formatSessionTime,
   getAdminWorkshop,
+  getDocumentSummaryStatus,
   listRooms,
   publishWorkshop,
   statusLabel,
@@ -28,8 +31,11 @@ import {
   toDateTimeInputValue,
   updateWorkshop,
   updateWorkshopSession,
+  uploadWorkshopDocument,
+  type DocumentSummaryStatusResponse,
   type FeeType,
   type Room,
+  type UploadWorkshopDocumentResponse,
   type WorkshopDetail,
   type WorkshopSession,
 } from "../../../../lib/workshops";
@@ -44,9 +50,20 @@ type SessionForm = {
   currency: string;
 };
 
+type AdminNotice = {
+  tone: "success" | "warning" | "error" | "info";
+  message: string;
+};
+
+type InitialAiSummaryNotice = {
+  notice: AdminNotice | null;
+  summaryStatus: DocumentSummaryStatusResponse | null;
+};
+
 export default function WorkshopEditPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const id = resolvedParams.id;
+  const [initialAiSummaryNotice] = useState<InitialAiSummaryNotice>(() => readAdminWorkshopNotice(id));
   const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [title, setTitle] = useState("");
@@ -56,6 +73,14 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<AdminNotice | null>(initialAiSummaryNotice.notice);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [refreshingSummaryStatus, setRefreshingSummaryStatus] = useState(false);
+  const [summaryStatus, setSummaryStatus] = useState<DocumentSummaryStatusResponse | null>(
+    initialAiSummaryNotice.summaryStatus,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -88,6 +113,19 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       mounted = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!summaryStatus?.documentId || isTerminalSummaryStatus(summaryStatus.summaryStatus)) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshAiStatus(summaryStatus.documentId, false);
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryStatus?.documentId, summaryStatus?.summaryStatus]);
 
   async function reloadWorkshop() {
     const detail = await getAdminWorkshop(id);
@@ -187,6 +225,63 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
     }
   }
 
+  function onPdfChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    if (file && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setPdfError("File phải là PDF");
+      setPdfFile(null);
+      return;
+    }
+    setPdfFile(file);
+    setPdfError(null);
+  }
+
+  async function handleUploadPdf() {
+    if (!pdfFile) {
+      setPdfError("Vui lòng chọn file PDF");
+      return;
+    }
+
+    setUploadingPdf(true);
+    setPdfError(null);
+    setNotice(null);
+
+    try {
+      const uploadResult = await uploadWorkshopDocument(id, pdfFile);
+      setPdfFile(null);
+      setSummaryStatus({
+        ...uploadResult,
+        updatedAt: new Date().toISOString(),
+      });
+      setNotice({
+        tone: "success",
+        message: "PDF đã được upload. Backend đang xử lý tóm tắt trong nền.",
+      });
+    } catch (err) {
+      setPdfError(getFriendlyErrorMessage(err, "Upload PDF thất bại."));
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
+  async function refreshAiStatus(documentId = summaryStatus?.documentId, showSpinner = true) {
+    if (!documentId) return;
+
+    if (showSpinner) {
+      setRefreshingSummaryStatus(true);
+    }
+    try {
+      const status = await getDocumentSummaryStatus(documentId);
+      setSummaryStatus(status);
+    } catch (err) {
+      setPdfError(getFriendlyErrorMessage(err, "Không cập nhật được trạng thái tóm tắt."));
+    } finally {
+      if (showSpinner) {
+        setRefreshingSummaryStatus(false);
+      }
+    }
+  }
+
   if (loading) {
     return <div className="min-h-96 animate-pulse rounded-lg bg-white" />;
   }
@@ -238,6 +333,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       </div>
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+      {notice ? <AdminNoticeBanner notice={notice} /> : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
         <div className="space-y-6">
@@ -299,6 +395,57 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
                 Thêm buổi học
               </Button>
             </form>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-950">Tóm tắt AI từ PDF</h3>
+            <div className="mt-4 space-y-4">
+              <div className="flex flex-col gap-3">
+                <input id={`ai-summary-pdf-${id}`} type="file" accept="application/pdf" onChange={onPdfChange} className="hidden" />
+                <div className="flex flex-wrap items-center gap-2">
+                  <label htmlFor={`ai-summary-pdf-${id}`} className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    Chọn PDF
+                  </label>
+                  <Button
+                    type="button"
+                    onClick={handleUploadPdf}
+                    disabled={uploadingPdf || !pdfFile || workshop.status === "CANCELED"}
+                    className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:bg-slate-300"
+                  >
+                    <Upload size={16} />
+                    {uploadingPdf ? "Đang upload..." : "Upload PDF"}
+                  </Button>
+                </div>
+                <div className="text-sm text-slate-600">
+                  {pdfFile ? `Đã chọn: ${pdfFile.name}` : "Chọn PDF để backend tạo tóm tắt bất đồng bộ."}
+                </div>
+                {pdfError ? <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{pdfError}</div> : null}
+              </div>
+
+              {summaryStatus ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <div className="space-y-2">
+                    <div><span className="font-medium text-slate-950">Document ID:</span> {summaryStatus.documentId}</div>
+                    <div><span className="font-medium text-slate-950">Upload:</span> {summaryStatus.uploadStatus}</div>
+                    <div><span className="font-medium text-slate-950">Trạng thái:</span> {aiStatusLabel(summaryStatus.summaryStatus)}</div>
+                    <div><span className="font-medium text-slate-950">Cập nhật:</span> {formatAdminDateTime(summaryStatus.updatedAt)}</div>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => void refreshAiStatus()}
+                    disabled={refreshingSummaryStatus}
+                    className="mt-4 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <RefreshCw size={16} className={refreshingSummaryStatus ? "animate-spin" : ""} />
+                    Làm mới
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">
+                  Chưa có tài liệu AI summary trong phiên làm việc này.
+                </div>
+              )}
+            </div>
           </section>
 
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -431,6 +578,19 @@ function SessionFormFields({
   );
 }
 
+function AdminNoticeBanner({ notice }: { notice: AdminNotice }) {
+  const className =
+    notice.tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : notice.tone === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : notice.tone === "error"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : "border-sky-200 bg-sky-50 text-sky-700";
+
+  return <div className={`rounded-lg border p-4 text-sm ${className}`}>{notice.message}</div>;
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
@@ -464,4 +624,72 @@ function normalizeSession(session: SessionForm) {
 
 function parseFeeType(value: string): FeeType {
   return value === "PAID" ? "PAID" : "FREE";
+}
+
+function adminWorkshopNoticeKey(workshopId: string) {
+  return `unihub-admin-workshop-notice:${workshopId}`;
+}
+
+function readAdminWorkshopNotice(workshopId: string): InitialAiSummaryNotice {
+  if (typeof window === "undefined") {
+    return { notice: null, summaryStatus: null };
+  }
+
+  const key = adminWorkshopNoticeKey(workshopId);
+  const rawNotice = window.sessionStorage.getItem(key);
+  if (!rawNotice) {
+    return { notice: null, summaryStatus: null };
+  }
+
+  window.sessionStorage.removeItem(key);
+  try {
+    const parsed = JSON.parse(rawNotice) as AdminNotice & Partial<UploadWorkshopDocumentResponse>;
+    return {
+      notice: { tone: parsed.tone, message: parsed.message },
+      summaryStatus: parsed.documentId && parsed.uploadStatus && parsed.summaryStatus
+        ? {
+            documentId: parsed.documentId,
+            workshopId: parsed.workshopId ?? workshopId,
+            uploadStatus: parsed.uploadStatus,
+            summaryStatus: parsed.summaryStatus,
+            updatedAt: new Date().toISOString(),
+          }
+        : null,
+    };
+  } catch {
+    return {
+      notice: { tone: "info", message: rawNotice },
+      summaryStatus: null,
+    };
+  }
+}
+
+function isTerminalSummaryStatus(status: DocumentSummaryStatusResponse["summaryStatus"]) {
+  return status === "COMPLETED" || status === "FAILED";
+}
+
+function aiStatusLabel(status: DocumentSummaryStatusResponse["summaryStatus"]) {
+  switch (status) {
+    case "PENDING":
+      return "Đang chờ xử lý";
+    case "PROCESSING":
+      return "Đang tạo tóm tắt";
+    case "COMPLETED":
+      return "Tóm tắt đã sẵn sàng";
+    case "FAILED":
+      return "Không thể tạo tóm tắt";
+    default:
+      return status;
+  }
+}
+
+function formatAdminDateTime(value?: string | null) {
+  if (!value) return "Chưa cập nhật";
+  return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
 }

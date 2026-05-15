@@ -34,6 +34,8 @@ public class RbacSecurityTest {
     void publicCanAccessWorkshopList() throws Exception {
         mockMvc.perform(get("/api/workshops"))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/workshops/10000000-0000-0000-0000-000000000001/summary"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -70,6 +72,10 @@ public class RbacSecurityTest {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/admin/csv-imports/10000000-0000-0000-0000-000000000001/errors").with(roleJwt("organizer")))
                 .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/workshops/10000000-0000-0000-0000-000000000001/documents").with(roleJwt("organizer")))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/documents/10000000-0000-0000-0000-000000000001/summary-status").with(roleJwt("organizer")))
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/registrations/auth-test").with(roleJwt("organizer")))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/checkin/sessions").with(roleJwt("organizer")))
@@ -89,6 +95,20 @@ public class RbacSecurityTest {
         mockMvc.perform(get("/api/admin/csv-imports").with(roleJwt("checkin_staff")))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/admin/csv-imports/10000000-0000-0000-0000-000000000001/errors").with(roleJwt("checkin_staff")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/admin/workshops/10000000-0000-0000-0000-000000000001/documents").with(roleJwt("checkin_staff")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/documents/10000000-0000-0000-0000-000000000001/summary-status").with(roleJwt("checkin_staff")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void studentCanViewWorkshopSummaryButCannotUseAdminAiSummaryEndpoints() throws Exception {
+        mockMvc.perform(get("/api/workshops/10000000-0000-0000-0000-000000000001/summary").with(roleJwt("student")))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/workshops/10000000-0000-0000-0000-000000000001/documents").with(roleJwt("student")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/documents/10000000-0000-0000-0000-000000000001/summary-status").with(roleJwt("student")))
                 .andExpect(status().isForbidden());
     }
 

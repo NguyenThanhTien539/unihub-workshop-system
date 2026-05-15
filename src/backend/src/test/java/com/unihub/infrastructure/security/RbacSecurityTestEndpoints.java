@@ -39,6 +39,21 @@ public class RbacSecurityTestEndpoints {
     return ApiResponse.success(id);
   }
 
+  @PostMapping("/api/admin/workshops/{id}/documents")
+  ApiResponse<String> uploadWorkshopDocument(@PathVariable String id) {
+    return ApiResponse.success(id);
+  }
+
+  @GetMapping("/api/admin/documents/{id}/summary-status")
+  ApiResponse<String> documentSummaryStatus(@PathVariable String id) {
+    return ApiResponse.success(id);
+  }
+
+  @GetMapping("/api/workshops/{id}/summary")
+  ApiResponse<String> workshopSummary(@PathVariable String id) {
+    return ApiResponse.success(id);
+  }
+
   @GetMapping("/api/registrations/auth-test")
   ApiResponse<String> registrations() {
     return ApiResponse.success("registrations");

@@ -7,8 +7,9 @@ import java.util.UUID;
 public record PaymentIntent(
     UUID id,
     UUID registrationId,
+    String provider,
     String idempotencyKey,
-    String gatewayRef,
+    String providerTransactionId,
     PaymentStatus status,
     BigDecimal amount,
     String currency,

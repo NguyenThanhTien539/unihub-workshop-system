@@ -7,6 +7,8 @@ import java.util.UUID;
 public interface RegistrationRepository {
   Optional<Registration> findById(UUID registrationId);
 
+  Optional<Registration> findByIdForUpdate(UUID registrationId);
+
   Optional<Registration> findActiveByStudentAndSession(UUID studentId, UUID sessionId);
 
   RegistrationSessionSnapshot lockSessionForRegistration(UUID sessionId);

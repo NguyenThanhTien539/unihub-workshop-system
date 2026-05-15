@@ -123,7 +123,7 @@ export default function CreateWorkshopPage() {
                 <input
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  placeholder="VD: Hands-on Spring Boot API Foundations"
+                  placeholder="VD: Nền tảng API với Spring Boot"
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500"
                 />
               </Field>
@@ -131,7 +131,7 @@ export default function CreateWorkshopPage() {
                 <input
                   value={speaker}
                   onChange={(event) => setSpeaker(event.target.value)}
-                  placeholder="VD: Mr. Tran Minh Khoa"
+                  placeholder="VD: Thầy Trần Minh Khoa"
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500"
                 />
               </Field>
@@ -150,12 +150,12 @@ export default function CreateWorkshopPage() {
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-medium text-slate-950">Session</h3>
+                <h3 className="text-lg font-medium text-slate-950">Buổi học</h3>
                 <p className="mt-1 text-sm text-slate-500">Thêm một hoặc nhiều lịch học cho workshop.</p>
               </div>
               <button type="button" onClick={addSession} className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white">
                 <CalendarPlus size={16} />
-                Thêm session
+                Thêm buổi học
               </button>
             </div>
 
@@ -226,10 +226,10 @@ export default function CreateWorkshopPage() {
 
         <aside className="space-y-6">
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-medium text-slate-950">Session đã thêm</h3>
+            <h3 className="text-lg font-medium text-slate-950">Buổi học đã thêm</h3>
             <div className="mt-4 space-y-3">
               {sessions.length === 0 ? (
-                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Chưa có session nào.</div>
+                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Chưa có buổi học nào.</div>
               ) : (
                 sessions.map((session, index) => (
                   <div key={`${session.roomId}-${session.startAt}-${index}`} className="rounded-lg border border-slate-200 p-4">

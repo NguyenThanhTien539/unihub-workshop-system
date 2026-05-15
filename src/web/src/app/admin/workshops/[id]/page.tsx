@@ -127,7 +127,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
   }
 
   async function handleCancelWorkshop() {
-    if (!window.confirm("Hủy workshop này và tất cả session đang hoạt động?")) return;
+    if (!window.confirm("Hủy workshop này và tất cả buổi học đang hoạt động?")) return;
     setSaving(true);
     setError(null);
 
@@ -151,7 +151,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       await reloadWorkshop();
       setNewSession({ ...emptySession(), roomId: rooms[0]?.id || "" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không tạo được session");
+      setError(err instanceof Error ? err.message : "Không tạo được buổi học");
     } finally {
       setSaving(false);
     }
@@ -165,14 +165,14 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       await updateWorkshopSession(sessionId, normalizeSession(form));
       await reloadWorkshop();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không lưu được session");
+      setError(err instanceof Error ? err.message : "Không lưu được buổi học");
     } finally {
       setSaving(false);
     }
   }
 
   async function handleCancelSession(sessionId: string) {
-    if (!window.confirm("Hủy session này?")) return;
+    if (!window.confirm("Hủy buổi học này?")) return;
     setSaving(true);
     setError(null);
 
@@ -180,7 +180,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       await cancelWorkshopSession(sessionId);
       await reloadWorkshop();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không hủy được session");
+      setError(err instanceof Error ? err.message : "Không hủy được buổi học");
     } finally {
       setSaving(false);
     }
@@ -264,7 +264,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
           </form>
 
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-medium text-slate-950">Session hiện có</h3>
+            <h3 className="text-lg font-medium text-slate-950">Buổi học hiện có</h3>
             <div className="mt-4 space-y-4">
               {workshop.sessions.length > 0 ? (
                 workshop.sessions.map((session) => (
@@ -278,7 +278,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
                   />
                 ))
               ) : (
-                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Workshop chưa có session.</div>
+                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Workshop chưa có buổi học.</div>
               )}
             </div>
           </section>
@@ -286,7 +286,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
 
         <aside className="space-y-6">
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-medium text-slate-950">Thêm session</h3>
+            <h3 className="text-lg font-medium text-slate-950">Thêm buổi học</h3>
             <form onSubmit={handleCreateSession} className="mt-5 space-y-4">
               <SessionFormFields form={newSession} rooms={rooms} onChange={setNewSession} />
               <button
@@ -295,7 +295,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
                 className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:bg-slate-300"
               >
                 <CalendarPlus size={16} />
-                Thêm session
+                Thêm buổi học
               </button>
             </form>
           </section>
@@ -303,8 +303,8 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-medium text-slate-950">Tóm tắt</h3>
             <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <div>Tổng session: {workshop.sessions.length}</div>
-              <div>Session mở: {workshop.sessions.filter((item) => item.status === "OPEN").length}</div>
+              <div>Tổng buổi học: {workshop.sessions.length}</div>
+              <div>Buổi học đang mở: {workshop.sessions.filter((item) => item.status === "OPEN").length}</div>
               <div>Tổng chỗ còn lại: {workshop.sessions.reduce((total, item) => total + item.remainingSeats, 0)}</div>
             </div>
           </section>
@@ -366,7 +366,7 @@ function SessionEditor({
           className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
         >
           <Save size={16} />
-          Lưu session
+          Lưu buổi học
         </button>
         <button
           type="button"
@@ -375,7 +375,7 @@ function SessionEditor({
           className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-slate-400"
         >
           <Trash2 size={16} />
-          Hủy session
+          Hủy buổi học
         </button>
       </div>
     </div>

@@ -32,6 +32,15 @@ public class  RegistrationRepositoryAdapter implements RegistrationRepository {
       LIMIT 1
       """;
 
+  private static final String SQL_FIND_BY_ID_FOR_UPDATE = """
+      SELECT id, student_id, session_id, status, registration_type, reserved_at, confirmed_at,
+             expires_at, canceled_at, created_at, updated_at
+      FROM registrations
+      WHERE id = :id
+      LIMIT 1
+      FOR UPDATE
+      """;
+
   private static final String SQL_FIND_ACTIVE_BY_STUDENT_AND_SESSION = """
       SELECT id, student_id, session_id, status, registration_type, reserved_at, confirmed_at,
              expires_at, canceled_at, created_at, updated_at
@@ -165,6 +174,13 @@ public class  RegistrationRepositoryAdapter implements RegistrationRepository {
   @Override
   public Optional<Registration> findById(UUID registrationId) {
     List<Registration> rows = jdbcTemplate.query(SQL_FIND_BY_ID,
+        new MapSqlParameterSource("id", registrationId), registrationRowMapper());
+    return rows.stream().findFirst();
+  }
+
+  @Override
+  public Optional<Registration> findByIdForUpdate(UUID registrationId) {
+    List<Registration> rows = jdbcTemplate.query(SQL_FIND_BY_ID_FOR_UPDATE,
         new MapSqlParameterSource("id", registrationId), registrationRowMapper());
     return rows.stream().findFirst();
   }

@@ -10,29 +10,23 @@ import org.springframework.stereotype.Component;
 @Component
 public class PaymentResponseMapper {
   public PaymentUrlResponse toPaymentUrlResponse(
-      UUID paymentIntentId,
-      ZaloPayCreateOrderResult result,
-      PaymentStatusResult paymentStatus) {
+      ZaloPayCreateOrderResult result) {
     return new PaymentUrlResponse(
-        paymentIntentId,
-        result.paymentUrl(),
+        result.paymentIntentId(),
         result.provider(),
-        paymentStatus.amount(),
-        paymentStatus.currency(),
-        paymentStatus.expiresAt());
+        result.paymentUrl(),
+        result.appTransId(),
+        result.status(),
+        result.expiresAt());
   }
 
   public PaymentStatusResponse toPaymentStatusResponse(PaymentStatusResult result) {
     return new PaymentStatusResponse(
         result.paymentIntentId(),
         result.registrationId(),
-        result.paymentStatus(),
+        result.status(),
         result.registrationStatus(),
-        result.amount(),
-        result.currency(),
-        result.provider(),
-        result.providerTransactionId(),
-        result.expiresAt(),
+        result.qrTicketId(),
         result.qrAvailable());
   }
 }

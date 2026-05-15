@@ -90,7 +90,8 @@ export type UpdateWorkshopPayload = {
   description?: string;
 };
 
-export type UpdateWorkshopSessionPayload = Partial<CreateWorkshopSessionPayload>;
+export type UpdateWorkshopSessionPayload =
+  Partial<CreateWorkshopSessionPayload>;
 
 export function getFirstSession(workshop: WorkshopListItem | WorkshopDetail) {
   return workshop.sessions[0] ?? null;
@@ -106,7 +107,10 @@ export function formatSessionDate(value?: string | null) {
   }).format(new Date(value));
 }
 
-export function formatSessionTime(startAt?: string | null, endAt?: string | null) {
+export function formatSessionTime(
+  startAt?: string | null,
+  endAt?: string | null,
+) {
   if (!startAt || !endAt) return "Chua co thoi gian";
   const formatter = new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
@@ -128,7 +132,7 @@ export function formatDateTime(value?: string | null) {
 
 export function formatMoney(amount?: number | null, currency = "VND") {
   const safeAmount = Number(amount ?? 0);
-  if (safeAmount <= 0) return "Mien phi";
+  if (safeAmount <= 0) return "Miễn phí";
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency,
@@ -136,12 +140,16 @@ export function formatMoney(amount?: number | null, currency = "VND") {
   }).format(safeAmount);
 }
 
-export function formatLocation(session?: WorkshopListSession | WorkshopSession | null) {
+export function formatLocation(
+  session?: WorkshopListSession | WorkshopSession | null,
+) {
   if (!session) return "Chua co phong";
   return `${session.roomName}, ${session.building}`;
 }
 
-export function formatSeatSummary(session?: WorkshopListSession | WorkshopSession | null) {
+export function formatSeatSummary(
+  session?: WorkshopListSession | WorkshopSession | null,
+) {
   if (!session) return "Chua co suc chua";
   if ("seatCapacity" in session) {
     return `Con ${session.remainingSeats}/${session.seatCapacity} cho`;
@@ -152,17 +160,17 @@ export function formatSeatSummary(session?: WorkshopListSession | WorkshopSessio
 export function statusLabel(status: string) {
   switch (status) {
     case "DRAFT":
-      return "Nhap";
+      return "Bản nháp";
     case "PUBLISHED":
-      return "Da xuat ban";
+      return "Đã công bố";
     case "CANCELED":
-      return "Da huy";
+      return "Đã hủy";
     case "ARCHIVED":
-      return "Luu tru";
+      return "Đã lưu trữ";
     case "OPEN":
-      return "Mo dang ky";
+      return "Đang mở đăng ký";
     case "CLOSED":
-      return "Da dong";
+      return "Đã đóng đăng ký";
     default:
       return status;
   }
@@ -175,11 +183,15 @@ export function toDateTimeInputValue(value?: string | null) {
 
 export function toApiDateTime(value: string) {
   if (!value) return value;
-  return value.length === 16 ? `${value}:00` : value.replace(/\.\d+Z$/, "").replace(/Z$/, "");
+  return value.length === 16
+    ? `${value}:00`
+    : value.replace(/\.\d+Z$/, "").replace(/Z$/, "");
 }
 
 export async function listPublicWorkshops(filters: WorkshopFilters = {}) {
-  return apiRequest<WorkshopListItem[]>(`/api/workshops${queryString(filters)}`);
+  return apiRequest<WorkshopListItem[]>(
+    `/api/workshops${queryString(filters)}`,
+  );
 }
 
 export async function getPublicWorkshop(id: string) {
@@ -187,11 +199,17 @@ export async function getPublicWorkshop(id: string) {
 }
 
 export async function listAdminWorkshops(filters: WorkshopFilters = {}) {
-  return apiRequest<WorkshopDetail[]>(`/api/admin/workshops${queryString(filters)}`, undefined, { auth: true });
+  return apiRequest<WorkshopDetail[]>(
+    `/api/admin/workshops${queryString(filters)}`,
+    undefined,
+    { auth: true },
+  );
 }
 
 export async function getAdminWorkshop(id: string) {
-  return apiRequest<WorkshopDetail>(`/api/admin/workshops/${id}`, undefined, { auth: true });
+  return apiRequest<WorkshopDetail>(`/api/admin/workshops/${id}`, undefined, {
+    auth: true,
+  });
 }
 
 export async function createWorkshop(payload: CreateWorkshopPayload) {
@@ -206,7 +224,10 @@ export async function createWorkshop(payload: CreateWorkshopPayload) {
   );
 }
 
-export async function updateWorkshop(id: string, payload: UpdateWorkshopPayload) {
+export async function updateWorkshop(
+  id: string,
+  payload: UpdateWorkshopPayload,
+) {
   return apiRequest<WorkshopDetail>(
     `/api/admin/workshops/${id}`,
     {
@@ -234,7 +255,10 @@ export async function cancelWorkshop(id: string) {
   );
 }
 
-export async function createWorkshopSession(id: string, payload: CreateWorkshopSessionPayload) {
+export async function createWorkshopSession(
+  id: string,
+  payload: CreateWorkshopSessionPayload,
+) {
   return apiRequest<WorkshopSession>(
     `/api/admin/workshops/${id}/sessions`,
     {
@@ -246,7 +270,10 @@ export async function createWorkshopSession(id: string, payload: CreateWorkshopS
   );
 }
 
-export async function updateWorkshopSession(id: string, payload: UpdateWorkshopSessionPayload) {
+export async function updateWorkshopSession(
+  id: string,
+  payload: UpdateWorkshopSessionPayload,
+) {
   return apiRequest<WorkshopSession>(
     `/api/admin/sessions/${id}`,
     {
@@ -267,7 +294,11 @@ export async function cancelWorkshopSession(id: string) {
 }
 
 export async function listRooms(includeInactive = false) {
-  return apiRequest<Room[]>(`/api/admin/rooms?includeInactive=${includeInactive}`, undefined, { auth: true });
+  return apiRequest<Room[]>(
+    `/api/admin/rooms?includeInactive=${includeInactive}`,
+    undefined,
+    { auth: true },
+  );
 }
 
 function queryString(filters: WorkshopFilters) {

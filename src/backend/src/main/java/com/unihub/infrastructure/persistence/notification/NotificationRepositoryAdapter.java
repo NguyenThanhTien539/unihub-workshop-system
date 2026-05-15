@@ -52,9 +52,12 @@ public class NotificationRepositoryAdapter implements NotificationRepository {
   }
 
   @Override
-  public Optional<Notification> findEmailByEventId(String eventId) {
-    String sql = BASE_SELECT + " WHERE event_id = :eventId AND channel = 'EMAIL' LIMIT 1";
-    List<Notification> rows = jdbcTemplate.query(sql, new MapSqlParameterSource("eventId", eventId), rowMapper());
+  public Optional<Notification> findByEventIdAndChannel(String eventId, NotificationChannel channel) {
+    String sql = BASE_SELECT + " WHERE event_id = :eventId AND channel = :channel LIMIT 1";
+    MapSqlParameterSource params = new MapSqlParameterSource()
+        .addValue("eventId", eventId)
+        .addValue("channel", channel.name());
+    List<Notification> rows = jdbcTemplate.query(sql, params, rowMapper());
     return rows.stream().findFirst();
   }
 

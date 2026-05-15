@@ -33,13 +33,13 @@ public class PaymentQueryService {
     Student student = studentRepository.findByUserId(userId)
         .orElseThrow(() -> new PaymentException(PaymentErrorCode.PAYMENT_ACCESS_DENIED, HttpStatus.FORBIDDEN));
     PaymentIntent paymentIntent = paymentRepository.findById(paymentIntentId)
-        .orElseThrow(() -> new PaymentException(PaymentErrorCode.PAYMENT_NOT_FOUND, HttpStatus.NOT_FOUND));
+        .orElseThrow(() -> new PaymentException(PaymentErrorCode.PAYMENT_INTENT_NOT_FOUND, HttpStatus.NOT_FOUND));
     RegistrationView view = registrationRepository.findViewByIdForStudent(paymentIntent.registrationId(), student.id()).orElse(null);
     if (view == null) {
       if (registrationRepository.findById(paymentIntent.registrationId()).isPresent()) {
         throw new PaymentException(PaymentErrorCode.PAYMENT_ACCESS_DENIED, HttpStatus.FORBIDDEN);
       }
-      throw new PaymentException(PaymentErrorCode.PAYMENT_NOT_FOUND, HttpStatus.NOT_FOUND);
+      throw new PaymentException(PaymentErrorCode.PAYMENT_INTENT_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     return new PaymentStatusResult(
@@ -47,11 +47,7 @@ public class PaymentQueryService {
         paymentIntent.registrationId(),
         paymentIntent.status().name(),
         view.registrationStatus().name(),
-        paymentIntent.amount(),
-        paymentIntent.currency(),
-        "ZALOPAY",
-        paymentIntent.gatewayRef(),
-        paymentIntent.expiresAt(),
+        view.qrTicketId(),
         view.qrAvailable());
   }
 }

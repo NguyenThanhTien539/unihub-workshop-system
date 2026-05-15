@@ -56,7 +56,7 @@ public class RegistrationController {
       Authentication authentication,
       @Valid @RequestBody RegistrationRequest request) {
     var result = registrationCommandService.registerPaid(
-        new CreatePaidRegistrationCommand(requireUserId(authentication), request.sessionId()));
+        new CreatePaidRegistrationCommand(requireUserId(authentication), request.sessionId(), request.idempotencyKey()));
     return ResponseEntity.ok(ApiResponse.success(registrationResponseMapper.toMutationResponse(result)));
   }
 

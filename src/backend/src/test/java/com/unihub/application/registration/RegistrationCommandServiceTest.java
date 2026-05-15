@@ -2,6 +2,7 @@ package com.unihub.application.registration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -56,6 +57,7 @@ class RegistrationCommandServiceTest {
   private UUID studentId;
   private UUID sessionId;
   private UUID workshopId;
+  private String idempotencyKey;
 
   @BeforeEach
   void setUp() {
@@ -74,6 +76,7 @@ class RegistrationCommandServiceTest {
     studentId = UUID.randomUUID();
     sessionId = UUID.randomUUID();
     workshopId = UUID.randomUUID();
+    idempotencyKey = "paid-session-" + sessionId;
 
     lenient().when(studentRepository.findByUserId(userId))
         .thenReturn(Optional.of(new Student(
@@ -99,7 +102,7 @@ class RegistrationCommandServiceTest {
     verify(registrationRepository).save(any(Registration.class));
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 1, 0);
     verify(qrTicketService).ensureQrTicket(any(Registration.class));
-    verify(registrationConfirmationMailService).queueRegistrationConfirmedEmail(result.registrationId());
+    verify(registrationConfirmationMailService).queueRegistrationConfirmedNotifications(result.registrationId());
     verify(paymentRepository, never()).save(any(PaymentIntent.class));
   }
 
@@ -118,7 +121,7 @@ class RegistrationCommandServiceTest {
   void paidRegistrationCreatesPendingPaymentWithoutQrOrEmail() {
     when(registrationRepository.lockSessionForRegistration(sessionId)).thenReturn(paidSnapshot(2));
 
-    RegistrationResult result = service.registerPaid(new CreatePaidRegistrationCommand(userId, sessionId));
+    RegistrationResult result = service.registerPaid(new CreatePaidRegistrationCommand(userId, sessionId, idempotencyKey));
 
     assertEquals("PENDING_PAYMENT", result.registrationStatus());
     assertEquals("PENDING_GATEWAY", result.paymentStatus());
@@ -126,7 +129,7 @@ class RegistrationCommandServiceTest {
     verify(registrationRepository).updateSessionSeatCounters(sessionId, 0, 1);
     verify(paymentRepository).save(any(PaymentIntent.class));
     verify(qrTicketService, never()).ensureQrTicket(any());
-    verify(registrationConfirmationMailService, never()).queueRegistrationConfirmedEmail(any());
+    verify(registrationConfirmationMailService, never()).queueRegistrationConfirmedNotifications(any());
   }
 
   @Test
@@ -147,6 +150,118 @@ class RegistrationCommandServiceTest {
 
     assertThrows(RegistrationException.class,
         () -> service.registerFree(new CreateFreeRegistrationCommand(userId, sessionId)));
+  }
+
+  @Test
+  void paidRegistrationRequiresIdempotencyKey() {
+    RegistrationException ex = assertThrows(RegistrationException.class,
+        () -> service.registerPaid(new CreatePaidRegistrationCommand(userId, sessionId, "  ")));
+
+    assertEquals("REG_IDEMPOTENCY_KEY_REQUIRED", ex.getErrorCode().code());
+    verify(paymentRepository, never()).save(any(PaymentIntent.class));
+  }
+
+  @Test
+  void paidRegistrationReplaysExistingIntentWhenIdempotencyKeyMatches() {
+    UUID registrationId = UUID.randomUUID();
+    PaymentIntent existingPayment = new PaymentIntent(
+        UUID.randomUUID(),
+        registrationId,
+        "ZALOPAY",
+        idempotencyKey,
+        "app-trans-001",
+        PaymentStatus.PENDING_PAYMENT,
+        BigDecimal.valueOf(199000),
+        "VND",
+        "https://pay",
+        LocalDateTime.of(2026, 5, 8, 10, 15),
+        null,
+        null,
+        LocalDateTime.of(2026, 5, 8, 10, 0),
+        LocalDateTime.of(2026, 5, 8, 10, 1));
+    when(paymentRepository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.of(existingPayment));
+    when(registrationRepository.findById(registrationId)).thenReturn(Optional.of(new Registration(
+        registrationId,
+        studentId,
+        sessionId,
+        RegistrationStatus.PENDING_PAYMENT,
+        com.unihub.domain.registration.RegistrationType.PAID,
+        LocalDateTime.of(2026, 5, 8, 10, 0),
+        null,
+        LocalDateTime.of(2026, 5, 8, 10, 15),
+        null,
+        LocalDateTime.of(2026, 5, 8, 10, 0),
+        LocalDateTime.of(2026, 5, 8, 10, 0))));
+    when(registrationRepository.findViewByIdForStudent(registrationId, studentId)).thenReturn(Optional.of(
+        new com.unihub.domain.registration.RegistrationView(
+            registrationId,
+            studentId,
+            workshopId,
+            "Workshop",
+            sessionId,
+            "Room A",
+            "H1",
+            LocalDateTime.of(2026, 6, 1, 8, 0),
+            LocalDateTime.of(2026, 6, 1, 10, 0),
+            RegistrationStatus.PENDING_PAYMENT,
+            com.unihub.domain.registration.RegistrationType.PAID,
+            existingPayment.id(),
+            PaymentStatus.PENDING_PAYMENT,
+            BigDecimal.valueOf(199000),
+            "VND",
+            LocalDateTime.of(2026, 5, 8, 10, 15),
+            null,
+            false,
+            LocalDateTime.of(2026, 5, 8, 10, 0),
+            null)));
+
+    RegistrationResult result = service.registerPaid(new CreatePaidRegistrationCommand(userId, sessionId, idempotencyKey));
+
+    assertEquals(existingPayment.id(), result.paymentIntentId());
+    assertEquals("PENDING_PAYMENT", result.paymentStatus());
+    verify(registrationRepository, never()).save(any(Registration.class));
+    verify(paymentRepository, never()).save(any(PaymentIntent.class));
+  }
+
+  @Test
+  void paidRegistrationRejectsIdempotencyKeyReuseAcrossDifferentSession() {
+    UUID registrationId = UUID.randomUUID();
+    UUID anotherSessionId = UUID.randomUUID();
+    PaymentIntent existingPayment = new PaymentIntent(
+        UUID.randomUUID(),
+        registrationId,
+        "ZALOPAY",
+        idempotencyKey,
+        "app-trans-001",
+        PaymentStatus.PENDING_PAYMENT,
+        BigDecimal.valueOf(199000),
+        "VND",
+        "https://pay",
+        LocalDateTime.of(2026, 5, 8, 10, 15),
+        null,
+        null,
+        LocalDateTime.of(2026, 5, 8, 10, 0),
+        LocalDateTime.of(2026, 5, 8, 10, 1));
+    when(paymentRepository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.of(existingPayment));
+    when(registrationRepository.findById(registrationId)).thenReturn(Optional.of(new Registration(
+        registrationId,
+        studentId,
+        anotherSessionId,
+        RegistrationStatus.PENDING_PAYMENT,
+        com.unihub.domain.registration.RegistrationType.PAID,
+        LocalDateTime.of(2026, 5, 8, 10, 0),
+        null,
+        LocalDateTime.of(2026, 5, 8, 10, 15),
+        null,
+        LocalDateTime.of(2026, 5, 8, 10, 0),
+        LocalDateTime.of(2026, 5, 8, 10, 0))));
+
+    RegistrationException ex = assertThrows(RegistrationException.class,
+        () -> service.registerPaid(new CreatePaidRegistrationCommand(userId, sessionId, idempotencyKey)));
+
+    assertEquals("REG_IDEMPOTENCY_KEY_CONFLICT", ex.getErrorCode().code());
+    assertTrue(ex.getStatus().is4xxClientError());
+    verify(registrationRepository, never()).save(any(Registration.class));
   }
 
   private RegistrationSessionSnapshot freeSnapshot(int remainingSeats) {

@@ -5,8 +5,13 @@ import { LoaderCircle, QrCode } from "lucide-react";
 import Link from "next/link";
 import { RegisteredWorkshopCard } from "../../../components/RegisteredWorkshopCard";
 import { getFriendlyErrorMessage } from "../../../lib/apiClient";
-import { getCurrentUser, hasStoredSession, normalizeRoles } from "../../../lib/auth";
 import {
+  getCurrentUser,
+  hasStoredSession,
+  normalizeRoles,
+} from "../../../lib/auth";
+import {
+  clearPaidRegistrationIdempotencyKey,
   createPaymentUrl,
   getPaymentStatus,
   getRegistrationQr,
@@ -21,7 +26,9 @@ type Notice = {
 };
 
 export default function RegistrationsPage() {
-  const [registrations, setRegistrations] = useState<RegistrationResponse[]>([]);
+  const [registrations, setRegistrations] = useState<RegistrationResponse[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -37,7 +44,9 @@ export default function RegistrationsPage() {
   const sortedRegistrations = useMemo(
     () =>
       [...registrations].sort(
-        (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+        (left, right) =>
+          new Date(right.createdAt).getTime() -
+          new Date(left.createdAt).getTime(),
       ),
     [registrations],
   );
@@ -66,9 +75,16 @@ export default function RegistrationsPage() {
       }
 
       const response = await listMyRegistrations();
+      for (const registration of response) {
+        if (registration.registrationStatus !== "PENDING_PAYMENT") {
+          clearPaidRegistrationIdempotencyKey(registration.sessionId);
+        }
+      }
       setRegistrations(response);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Khong tai duoc danh sach dang ky."));
+      setError(
+        getFriendlyErrorMessage(err, "Khong tai duoc danh sach dang ky."),
+      );
     } finally {
       setLoading(false);
       setCheckedSession(true);
@@ -104,18 +120,22 @@ export default function RegistrationsPage() {
         window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
         setNotice({
           tone: "info",
-          message: "Lien ket thanh toan da duoc mo trong tab moi.",
+          message: "Liên kết thanh toán đã được mở trong tab mới.",
         });
       } else {
         setNotice({
           tone: "info",
-          message: "Dang ky van cho thanh toan, nhung backend chua tra paymentUrl.",
+          message:
+            "Đăng ký vẫn chờ thanh toán, nhưng backend chưa trả về paymentUrl.",
         });
       }
     } catch (err) {
       setNotice({
         tone: "error",
-        message: getFriendlyErrorMessage(err, "Khong tao duoc lien ket thanh toan."),
+        message: getFriendlyErrorMessage(
+          err,
+          "Không thể tạo liên kết thanh toán.",
+        ),
       });
     } finally {
       setPaymentLoadingId(null);
@@ -135,13 +155,16 @@ export default function RegistrationsPage() {
       setNotice({
         tone: status.qrAvailable ? "success" : "info",
         message: status.qrAvailable
-          ? "Thanh toan da duoc xac nhan. Ma QR san sang."
-          : `Trang thai thanh toan hien tai: ${status.paymentStatus}.`,
+          ? "Thanh toán đã được xác nhận và mã QR đã sẵn sàng."
+          : `Trạng thái thanh toán hiện tại: ${status.status}.`,
       });
     } catch (err) {
       setNotice({
         tone: "error",
-        message: getFriendlyErrorMessage(err, "Khong kiem tra duoc trang thai thanh toan."),
+        message: getFriendlyErrorMessage(
+          err,
+          "không thể kiểm tra được trạng thái thanh toán.",
+        ),
       });
     } finally {
       setPaymentLoadingId(null);
@@ -149,21 +172,26 @@ export default function RegistrationsPage() {
   }
 
   if (loading) {
-    return <div className="min-h-[360px] animate-pulse rounded-3xl bg-white shadow-sm" />;
+    return (
+      <div className="min-h-[360px] animate-pulse rounded-3xl bg-white shadow-sm" />
+    );
   }
 
   if (!hasStoredSession() || !checkedSession || !isStudent) {
     return (
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-950">My Registrations</h1>
+        <h1 className="text-2xl font-semibold text-slate-950">
+          My Registrations
+        </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          Sign in with a student account to view registrations, continue payment, and open QR tickets.
+          Đăng nhập bằng tài khoản sinh viên để xem đăng ký, tiếp tục thanh toán
+          và mở mã QR.
         </p>
         <Link
           href="/auth/login?role=student"
           className="mt-5 inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
         >
-          Sign in as student
+          Đăng nhập
         </Link>
       </section>
     );
@@ -172,12 +200,15 @@ export default function RegistrationsPage() {
   return (
     <>
       <section className="space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        {/* <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-950">My Registrations</h1>
+              <h1 className="text-2xl font-semibold text-slate-950">
+                
+              </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Open QR tickets, continue payment, and verify your latest registration status.
+                Mở mã QR, tiếp tục thanh toán và kiểm tra trạng thái đăng ký mới
+                nhất của bạn.
               </p>
             </div>
             <button
@@ -188,14 +219,17 @@ export default function RegistrationsPage() {
               Refresh
             </button>
           </div>
-        </div>
+        </div> */}
 
         {notice ? <NoticeBanner notice={notice} /> : null}
-        {error ? <NoticeBanner notice={{ tone: "error", message: error }} /> : null}
+        {error ? (
+          <NoticeBanner notice={{ tone: "error", message: error }} />
+        ) : null}
 
         {sortedRegistrations.length === 0 ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-600 shadow-sm">
-            You have not registered for any sessions yet.
+            Bạn chưa đăng ký tham gia phiên nào. Hãy xem lại lịch trình và đăng
+            ký cho các phiên bạn quan tâm nhé!
           </div>
         ) : (
           <div className="space-y-4">
@@ -216,18 +250,27 @@ export default function RegistrationsPage() {
                 confirmedAt={registration.confirmedAt}
                 qrAvailable={registration.qrAvailable}
                 qrLoading={qrLoadingId === registration.registrationId}
-                onShowQr={registration.qrAvailable ? () => void handleShowQr(registration) : undefined}
+                onShowQr={
+                  registration.qrAvailable
+                    ? () => void handleShowQr(registration)
+                    : undefined
+                }
                 action={
-                  registration.registrationStatus === "PENDING_PAYMENT" && registration.paymentIntentId ? (
+                  registration.registrationStatus === "PENDING_PAYMENT" &&
+                  registration.paymentIntentId ? (
                     <div className="flex flex-wrap gap-2">
                       <ActionButton
-                        loading={paymentLoadingId === registration.registrationId}
-                        label="Thanh toan"
+                        loading={
+                          paymentLoadingId === registration.registrationId
+                        }
+                        label="Thanh toán"
                         onClick={() => void handleContinuePayment(registration)}
                       />
                       <ActionButton
-                        loading={paymentLoadingId === registration.registrationId}
-                        label="Kiem tra thanh toan"
+                        loading={
+                          paymentLoadingId === registration.registrationId
+                        }
+                        label="Kiểm tra thanh toán"
                         tone="secondary"
                         onClick={() => void handleRefreshPayment(registration)}
                       />
@@ -245,28 +288,49 @@ export default function RegistrationsPage() {
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold text-slate-950">QR Ticket</h2>
-                <p className="mt-1 text-sm text-slate-500">{qrModal.registration.workshopTitle}</p>
+                <h2 className="text-xl font-semibold text-slate-950">
+                  QR Ticket
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {qrModal.registration.workshopTitle}
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setQrModal(null)}
                 className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-600 hover:bg-slate-50"
               >
-                Close
+                Đóng
               </button>
             </div>
 
             <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-              <img src={qrModal.qr.dataUrl} alt="Workshop QR ticket" className="mx-auto w-full max-w-xs rounded-2xl bg-white p-3" />
+              <img
+                src={qrModal.qr.dataUrl}
+                alt="Workshop QR ticket"
+                className="mx-auto w-full max-w-xs rounded-2xl bg-white p-3"
+              />
             </div>
 
             <div className="mt-4 space-y-2 text-sm text-slate-600">
-              <p>Session: {qrModal.registration.roomName}, {qrModal.registration.building}</p>
-              <p>QR status: {qrModal.qr.status}</p>
-              <p>Expires at: {new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(qrModal.qr.expiresAt))}</p>
+              <p>
+                Phòng: {qrModal.registration.roomName},{" "}
+                {qrModal.registration.building}
+              </p>
+              <p>Trạng thái QR: {qrModal.qr.status}</p>
+              <p>
+                Hạn sử dụng:{" "}
+                {new Intl.DateTimeFormat("vi-VN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                }).format(new Date(qrModal.qr.expiresAt))}
+              </p>
               <p className="rounded-2xl bg-sky-50 px-3 py-3 text-sky-700">
-                Vui long xuat trinh ma QR nay tai quay check-in.
+                Vui lòng xuất trình mã QR này tại quầy check-in. Xin cảm
+                ơn!{" "}
               </p>
             </div>
           </div>
@@ -284,7 +348,11 @@ function NoticeBanner({ notice }: { notice: Notice }) {
         ? "border-red-200 bg-red-50 text-red-700"
         : "border-sky-200 bg-sky-50 text-sky-700";
 
-  return <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>{notice.message}</div>;
+  return (
+    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>
+      {notice.message}
+    </div>
+  );
 }
 
 function ActionButton({
@@ -309,7 +377,11 @@ function ActionButton({
           : "inline-flex items-center gap-2 rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:bg-amber-300"
       }
     >
-      {loading ? <LoaderCircle size={16} className="animate-spin" /> : tone === "primary" ? <QrCode size={16} /> : null}
+      {loading ? (
+        <LoaderCircle size={16} className="animate-spin" />
+      ) : tone === "primary" ? (
+        <QrCode size={16} />
+      ) : null}
       {loading ? "Loading..." : label}
     </button>
   );

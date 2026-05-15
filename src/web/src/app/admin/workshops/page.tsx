@@ -137,7 +137,7 @@ export default function WorkshopsAdminPage() {
         <Stat label="Đã xuất bản" value={workshops.filter((item) => item.status === "PUBLISHED").length} tone="green" />
         <Stat label="Nháp" value={workshops.filter((item) => item.status === "DRAFT").length} tone="amber" />
         <Stat label="Đã hủy" value={workshops.filter((item) => item.status === "CANCELED").length} tone="red" />
-        <Stat label="Tổng session" value={totalSessions} tone="sky" />
+        <Stat label="Tổng buổi học" value={totalSessions} tone="sky" />
       </div>
 
       <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm lg:grid-cols-[1fr_auto]">
@@ -243,7 +243,7 @@ export default function WorkshopsAdminPage() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center justify-between gap-4 lg:w-56 lg:justify-end">
-                      <div className="text-sm text-slate-600">{workshop.sessions.length} session</div>
+                      <div className="text-sm text-slate-600">{workshop.sessions.length} buổi học</div>
                       <Link href={`/admin/workshops/${workshop.id}`} className="text-sm font-medium text-sky-700 hover:text-sky-900">
                         Chi tiết
                       </Link>

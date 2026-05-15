@@ -21,17 +21,17 @@ type ApiErrorBody = {
 };
 
 const backendMessage: Record<string, string> = {
-  CHECKIN_INVALID_QR: "Ma QR khong hop le.",
-  CHECKIN_QR_NOT_FOUND: "Khong tim thay ve QR.",
-  CHECKIN_QR_REVOKED: "Ve QR da bi thu hoi.",
-  CHECKIN_QR_EXPIRED: "Ve QR da het han.",
-  CHECKIN_REGISTRATION_NOT_CONFIRMED: "Sinh vien chua dang ky thanh cong.",
-  CHECKIN_SESSION_MISMATCH: "QR khong thuoc session nay.",
-  CHECKIN_SESSION_NOT_OPEN: "Session chua mo check-in.",
-  CHECKIN_DUPLICATE: "Sinh vien da check-in truoc do.",
-  AUTH_FORBIDDEN: "Tai khoan khong co quyen check-in.",
-  AUTH_TOKEN_INVALID: "Phien dang nhap da het han.",
-  AUTH_TOKEN_MISSING: "Can dang nhap lai.",
+  CHECKIN_INVALID_QR: "Mã QR không hợp lệ.",
+  CHECKIN_QR_NOT_FOUND: "Không tìm thấy mã QR check-in.",
+  CHECKIN_QR_REVOKED: "Mã QR này đã bị thu hồi.",
+  CHECKIN_QR_EXPIRED: "Mã QR đã hết hạn.",
+  CHECKIN_REGISTRATION_NOT_CONFIRMED: "Sinh viên chưa đăng ký thành công.",
+  CHECKIN_SESSION_MISMATCH: "Mã QR không thuộc buổi học này.",
+  CHECKIN_SESSION_NOT_OPEN: "Buổi học chưa mở check-in.",
+  CHECKIN_DUPLICATE: "Sinh viên đã check-in trước đó.",
+  AUTH_FORBIDDEN: "Tài khoản không có quyền thực hiện check-in.",
+  AUTH_TOKEN_INVALID: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+  AUTH_TOKEN_MISSING: "Bạn cần đăng nhập để tiếp tục.",
 };
 
 export class AppError extends Error {
@@ -66,33 +66,49 @@ export function toAppError(error: unknown): AppError {
   }
 
   if (!axios.isAxiosError(error)) {
-    return new AppError("UNKNOWN_ERROR", "Co loi khong xac dinh. Vui long thu lai.");
+    return new AppError(
+      "UNKNOWN_ERROR",
+      "Co loi khong xac dinh. Vui long thu lai.",
+    );
   }
 
   const axiosError = error as AxiosError<ApiErrorBody>;
   if (!axiosError.response) {
-    return new AppError("NETWORK_ERROR", "Khong ket noi duoc server. Du lieu se duoc luu offline neu co the.");
+    return new AppError(
+      "NETWORK_ERROR",
+      "Khong ket noi duoc server. Du lieu se duoc luu offline neu co the.",
+    );
   }
 
   const status = axiosError.response.status;
   const body = axiosError.response.data;
   const backendCode = body?.error?.code;
-  const fallbackMessage = body?.error?.message ?? body?.message ?? "Yeu cau khong thanh cong.";
-  const message = backendCode ? backendMessage[backendCode] ?? fallbackMessage : fallbackMessage;
+  const fallbackMessage =
+    body?.error?.message ?? body?.message ?? "Yeu cau khong thanh cong.";
+  const message = backendCode
+    ? (backendMessage[backendCode] ?? fallbackMessage)
+    : fallbackMessage;
 
   if (status === 401) {
     return new AppError("AUTH_EXPIRED", message, { status, backendCode });
   }
 
   if (status === 403) {
-    return new AppError("AUTH_FORBIDDEN", backendMessage.AUTH_FORBIDDEN, { status, backendCode });
-  }
-
-  if (status === 404 && !backendCode) {
-    return new AppError("API_NOT_IMPLEMENTED", "Backend chua co API check-in nay.", {
+    return new AppError("AUTH_FORBIDDEN", backendMessage.AUTH_FORBIDDEN, {
       status,
       backendCode,
     });
+  }
+
+  if (status === 404 && !backendCode) {
+    return new AppError(
+      "API_NOT_IMPLEMENTED",
+      "Backend chua co API check-in nay.",
+      {
+        status,
+        backendCode,
+      },
+    );
   }
 
   if (backendCode === "CHECKIN_DUPLICATE") {

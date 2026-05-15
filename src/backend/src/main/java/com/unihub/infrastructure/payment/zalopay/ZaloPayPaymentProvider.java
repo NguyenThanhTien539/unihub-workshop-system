@@ -19,13 +19,22 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class ZaloPayPaymentProvider implements ZaloPayClient {
   private static final DateTimeFormatter APP_TRANS_DATE = DateTimeFormatter.ofPattern("yyMMdd");
+  private static final Logger logger = LoggerFactory.getLogger(ZaloPayPaymentProvider.class);
 
   private final PaymentProperties paymentProperties;
   private final ZaloPayMacSigner macSigner;
@@ -42,7 +51,12 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
     this.macSigner = macSigner;
     this.objectMapper = objectMapper;
     this.clock = clock;
-    this.restClient = RestClient.builder().build();
+
+    PaymentProperties.ZaloPay props = paymentProperties.zalopay();
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(props == null ? 3000 : props.connectTimeoutMs());
+    requestFactory.setReadTimeout(props == null ? 5000 : props.readTimeoutMs());
+    this.restClient = RestClient.builder().requestFactory(requestFactory).build();
   }
 
   @Override
@@ -51,62 +65,77 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
     if (props == null || !props.enabled()) {
       throw new PaymentException(PaymentErrorCode.PAYMENT_PROVIDER_DISABLED, HttpStatus.CONFLICT);
     }
+    if (isBlank(props.appId()) || isBlank(props.key1()) || isBlank(props.callbackUrl())
+        || isBlank(props.frontendReturnUrl())) {
+      throw new PaymentException(PaymentErrorCode.PAYMENT_PROVIDER_DISABLED, HttpStatus.CONFLICT);
+    }
 
-    String appTransId = paymentIntent.gatewayRef() == null || paymentIntent.gatewayRef().isBlank()
+    String appTransId = paymentIntent.providerTransactionId() == null || paymentIntent.providerTransactionId().isBlank()
         ? generateAppTransId(paymentIntent.id())
-        : paymentIntent.gatewayRef();
+        : paymentIntent.providerTransactionId();
     long appTime = Instant.now(clock).toEpochMilli();
+    String redirectUrl = buildRedirectUrl(props.frontendReturnUrl(), paymentIntent.id());
 
     Map<String, Object> embedData = new LinkedHashMap<>();
     embedData.put("paymentIntentId", paymentIntent.id());
     embedData.put("registrationId", registrationView.registrationId());
-    embedData.put("redirecturl", props.frontendReturnUrl());
+    embedData.put("redirecturl", redirectUrl);
 
     String embedDataJson = writeJson(embedData);
-    String itemsJson = "[]";
+    String itemsJson = writeJson(java.util.List.of(Map.of(
+        "registrationId", registrationView.registrationId().toString(),
+        "sessionId", registrationView.sessionId().toString(),
+        "workshopTitle", registrationView.workshopTitle())));
     long amount = paymentIntent.amount().longValue();
-    String appId = props.appId();
-    String dataToSign = String.join("|",
-        appId,
-        appTransId,
-        userId.toString(),
-        String.valueOf(amount),
-        String.valueOf(appTime),
-        embedDataJson,
-        itemsJson);
 
     Map<String, String> orderParams = new LinkedHashMap<>();
-    orderParams.put("app_id", appId);
+    orderParams.put("app_id", props.appId());
     orderParams.put("app_trans_id", appTransId);
     orderParams.put("app_user", userId.toString());
     orderParams.put("app_time", String.valueOf(appTime));
-    orderParams.put("amount", String.valueOf(amount));
     orderParams.put("item", itemsJson);
     orderParams.put("embed_data", embedDataJson);
+    orderParams.put("amount", String.valueOf(amount));
     orderParams.put("description", "UniHub workshop registration " + registrationView.registrationId());
     orderParams.put("bank_code", "");
     orderParams.put("callback_url", props.callbackUrl());
-    orderParams.put("mac", macSigner.sign(dataToSign, props.key1()));
+    orderParams.put("mac", signCreateOrderRequest(props.appId(), appTransId, userId.toString(), amount, appTime,
+        embedDataJson, itemsJson, props.key1()));
+
+    MultiValueMap<String, String> formParams = new LinkedMultiValueMap<>();
+    orderParams.forEach(formParams::add);
 
     try {
       String responseBody = restClient.post()
-          .uri(props.endpoint() + "?" + toQueryString(orderParams))
+          .uri(props.endpoint())
+          .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+          .body(formParams)
           .retrieve()
           .body(String.class);
-      JsonNode root = objectMapper.readTree(responseBody == null ? "{}" : responseBody);
-      if (root.path("return_code").asInt() != 1) {
-        throw new PaymentException(PaymentErrorCode.PAYMENT_PROVIDER_ERROR, HttpStatus.BAD_GATEWAY,
-            root.path("return_message").asText(PaymentErrorCode.PAYMENT_PROVIDER_ERROR.defaultMessage()));
+      logger.info("ZaloPay create order response: {}", responseBody);
+      ZaloPayCreateOrderResponse response = parseCreateOrderResponse(responseBody);
+      logger.info(
+          "ZaloPay create order parsed: returnCode={}, returnMessage={}, orderUrlPresent={}",
+          response.returnCode(),
+          response.returnMessage(),
+          response.orderUrl() != null && !response.orderUrl().isBlank());
+      if (response.returnCode() != 1 || response.orderUrl() == null || response.orderUrl().isBlank()) {
+        throw new PaymentException(
+            PaymentErrorCode.PAYMENT_PROVIDER_REJECTED,
+            HttpStatus.BAD_GATEWAY,
+            response.returnMessage());
       }
+
       return new PaymentIntent(
           paymentIntent.id(),
           paymentIntent.registrationId(),
+          paymentIntent.provider(),
           paymentIntent.idempotencyKey(),
           appTransId,
           PaymentStatus.PENDING_PAYMENT,
           paymentIntent.amount(),
           paymentIntent.currency(),
-          root.path("order_url").asText(),
+          response.orderUrl(),
           paymentIntent.expiresAt(),
           paymentIntent.paidAt(),
           null,
@@ -114,8 +143,20 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
           LocalDateTime.now(clock));
     } catch (PaymentException ex) {
       throw ex;
+    } catch (ResourceAccessException ex) {
+      throw new PaymentException(
+          PaymentErrorCode.PAYMENT_PROVIDER_UNAVAILABLE,
+          HttpStatus.BAD_GATEWAY);
+    } catch (RestClientResponseException ex) {
+      logger.warn("ZaloPay create order HTTP error: {}", ex.getResponseBodyAsString());
+      throw new PaymentException(
+          PaymentErrorCode.PAYMENT_PROVIDER_REJECTED,
+          HttpStatus.BAD_GATEWAY,
+          ex.getResponseBodyAsString());
     } catch (Exception ex) {
-      throw new PaymentException(PaymentErrorCode.PAYMENT_PROVIDER_ERROR, HttpStatus.BAD_GATEWAY);
+      throw new PaymentException(
+          PaymentErrorCode.PAYMENT_PROVIDER_ERROR,
+          HttpStatus.BAD_GATEWAY);
     }
   }
 
@@ -124,27 +165,68 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
     PaymentProperties.ZaloPay props = paymentProperties.zalopay();
     String expectedMac = macSigner.sign(data, props.key2());
     if (!expectedMac.equals(mac)) {
-      throw new PaymentException(PaymentErrorCode.PAYMENT_INVALID_SIGNATURE, HttpStatus.UNAUTHORIZED);
+      throw new PaymentException(
+          PaymentErrorCode.PAYMENT_CALLBACK_MAC_INVALID,
+          HttpStatus.UNAUTHORIZED,
+          "mac not equal");
     }
 
     try {
       JsonNode root = objectMapper.readTree(data);
-      String gatewayRef = root.path("app_trans_id").asText(null);
       JsonNode embedNode = parseEmbedData(root.path("embed_data"));
       UUID paymentIntentId = embedNode.hasNonNull("paymentIntentId")
           ? UUID.fromString(embedNode.path("paymentIntentId").asText())
+          : null;
+      UUID registrationId = embedNode.hasNonNull("registrationId")
+          ? UUID.fromString(embedNode.path("registrationId").asText())
           : null;
       BigDecimal amount = BigDecimal.valueOf(root.path("amount").asLong());
       String currency = root.path("currency").asText("VND");
       LocalDateTime paidAt = extractPaidAt(root);
       boolean success = isSuccess(root);
-      String failureReason = root.path("return_message").asText(root.path("payment_status").asText("PAYMENT_FAILED"));
-      return new ZaloPayCallbackPayload(gatewayRef, paymentIntentId, amount, currency, paidAt, success, failureReason);
+      String failureReason = root.path("return_message").asText(root.path("status").asText("payment failed"));
+      return new ZaloPayCallbackPayload(
+          root.path("app_trans_id").asText(null),
+          paymentIntentId,
+          registrationId,
+          amount,
+          currency,
+          paidAt,
+          success,
+          failureReason);
     } catch (PaymentException ex) {
       throw ex;
     } catch (Exception ex) {
       throw new PaymentException(PaymentErrorCode.PAYMENT_PROVIDER_ERROR, HttpStatus.BAD_REQUEST);
     }
+  }
+
+  String signCreateOrderRequest(
+      String appId,
+      String appTransId,
+      String appUser,
+      long amount,
+      long appTime,
+      String embedData,
+      String item,
+      String key1) {
+    String dataToSign = String.join("|",
+        appId,
+        appTransId,
+        appUser,
+        String.valueOf(amount),
+        String.valueOf(appTime),
+        embedData,
+        item);
+    return macSigner.sign(dataToSign, key1);
+  }
+
+  private ZaloPayCreateOrderResponse parseCreateOrderResponse(String responseBody) throws Exception {
+    JsonNode root = objectMapper.readTree(responseBody == null ? "{}" : responseBody);
+    return new ZaloPayCreateOrderResponse(
+        root.path("return_code").asInt(0),
+        root.path("return_message").asText(PaymentErrorCode.PAYMENT_PROVIDER_REJECTED.defaultMessage()),
+        root.path("order_url").asText(null));
   }
 
   private JsonNode parseEmbedData(JsonNode embedDataNode) throws Exception {
@@ -154,21 +236,20 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
     if (embedDataNode.isObject()) {
       return embedDataNode;
     }
-    String raw = embedDataNode.asText("{}");
-    return objectMapper.readTree(raw);
+    return objectMapper.readTree(embedDataNode.asText("{}"));
   }
 
   private boolean isSuccess(JsonNode root) {
-    if (root.has("payment_status")) {
-      String status = root.path("payment_status").asText("").trim().toUpperCase();
-      return "SUCCESS".equals(status) || "SUCCEEDED".equals(status) || "1".equals(status);
-    }
     if (root.has("status")) {
       JsonNode statusNode = root.path("status");
-      if (statusNode.isInt() || statusNode.isLong()) {
+      if (statusNode.isIntegralNumber()) {
         return statusNode.asInt() == 1;
       }
       String status = statusNode.asText("").trim().toUpperCase();
+      return "SUCCESS".equals(status) || "SUCCEEDED".equals(status) || "1".equals(status);
+    }
+    if (root.has("payment_status")) {
+      String status = root.path("payment_status").asText("").trim().toUpperCase();
       return "SUCCESS".equals(status) || "SUCCEEDED".equals(status) || "1".equals(status);
     }
     if (root.has("return_code")) {
@@ -179,12 +260,10 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
 
   private LocalDateTime extractPaidAt(JsonNode root) {
     if (root.hasNonNull("paid_at")) {
-      long value = root.path("paid_at").asLong();
-      return LocalDateTime.ofInstant(Instant.ofEpochMilli(value), ZoneOffset.UTC);
+      return LocalDateTime.ofInstant(Instant.ofEpochMilli(root.path("paid_at").asLong()), ZoneOffset.UTC);
     }
     if (root.hasNonNull("server_time")) {
-      long value = root.path("server_time").asLong();
-      return LocalDateTime.ofInstant(Instant.ofEpochMilli(value), ZoneOffset.UTC);
+      return LocalDateTime.ofInstant(Instant.ofEpochMilli(root.path("server_time").asLong()), ZoneOffset.UTC);
     }
     return LocalDateTime.now(clock);
   }
@@ -201,6 +280,18 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
     String datePart = APP_TRANS_DATE.format(LocalDateTime.now(clock));
     String suffix = paymentIntentId.toString().replace("-", "").substring(0, 12);
     return datePart + "_" + suffix;
+  }
+
+  private String buildRedirectUrl(String baseUrl, UUID paymentIntentId) {
+    if (baseUrl == null || baseUrl.isBlank()) {
+      throw new PaymentException(PaymentErrorCode.PAYMENT_PROVIDER_DISABLED, HttpStatus.CONFLICT);
+    }
+    String separator = baseUrl.contains("?") ? "&" : "?";
+    return baseUrl + separator + "paymentIntentId=" + paymentIntentId;
+  }
+
+  private boolean isBlank(String value) {
+    return value == null || value.isBlank();
   }
 
   private String toQueryString(Map<String, String> params) {

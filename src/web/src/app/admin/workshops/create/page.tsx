@@ -26,6 +26,9 @@ export default function CreateWorkshopPage() {
   const [title, setTitle] = useState("");
   const [speaker, setSpeaker] = useState("");
   const [description, setDescription] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionDraft[]>([]);
   const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySession());
   const [submitting, setSubmitting] = useState(false);
@@ -103,6 +106,54 @@ export default function CreateWorkshopPage() {
     }
   }
 
+  function onPdfChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const f = event.target.files?.[0] ?? null;
+    if (f && f.type !== "application/pdf") {
+      setPdfUploadError("Vui lòng chọn file PDF");
+      setPdfFile(null);
+      return;
+    }
+    setPdfFile(f);
+    setPdfUploadError(null);
+  }
+
+  async function handleUploadPdf() {
+    if (!pdfFile) {
+      setPdfUploadError("Chưa chọn file PDF");
+      return;
+    }
+    setUploadingPdf(true);
+    setPdfUploadError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", pdfFile);
+
+      // Placeholder endpoint - backend should accept multipart/form-data
+      const res = await fetch(`/api/admin/documents/ai-summary`, {
+        method: "POST",
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Upload thất bại");
+      }
+
+      const data = await res.json();
+      // If backend returns a generated summary, append it to description
+      if (data?.summary) {
+        setDescription((cur) => (cur ? cur + "\n\n" + data.summary : data.summary));
+        setPdfFile(null);
+      } else {
+        setPdfUploadError("Không nhận được tóm tắt từ server");
+      }
+    } catch (err) {
+      setPdfUploadError(err instanceof Error ? err.message : "Upload thất bại");
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -144,6 +195,21 @@ export default function CreateWorkshopPage() {
                   rows={7}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500"
                 />
+                <div className="mt-3 flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input id="pdf-file-input" type="file" accept="application/pdf" onChange={onPdfChange} className="hidden" />
+                    <label htmlFor="pdf-file-input" className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                      Chọn file PDF
+                    </label>
+                    <Button type="button" onClick={handleUploadPdf} disabled={uploadingPdf || !pdfFile} className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white">
+                      {uploadingPdf ? "Đang upload..." : "Upload & Tóm tắt AI"}
+                    </Button>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    {pdfFile ? <span>Đã chọn: {pdfFile.name}</span> : <span className="ml-1">Chỉ hỗ trợ file PDF (tùy chọn)</span>}
+                  </div>
+                  {pdfUploadError && <div className="text-sm text-red-600">{pdfUploadError}</div>}
+                </div>
               </Field>
             </div>
           </section>

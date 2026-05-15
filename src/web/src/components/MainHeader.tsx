@@ -45,7 +45,8 @@ export default function MainHeader() {
     { role: "checkin_staff", label: "Nhân viên check-in" },
   ]
 
-  const roles = normalizeRoles(user?.roles || []).map(r => roleList.find(role => role.role === r)?.label || r);
+  const roles = normalizeRoles(user?.roles || []);
+  const displayRoles = roleList.filter(r => roles.includes(r.role)).map(r => r.label);
   const isStudent = roles.includes("student");
   const isOrganizer = roles.includes("organizer");
   const isCheckinStaff = roles.includes("checkin_staff");
@@ -67,7 +68,7 @@ export default function MainHeader() {
             <NavLink href="/">Workshop</NavLink>
             {isStudent ? <NavLink href="/registrations">Các lượt đăng ký của tôi</NavLink> : null}
             {isCheckinStaff ? <NavLink href="/checkin">Check-in</NavLink> : null}
-            {isOrganizer ? <NavLink href="/admin/workshops">Ban tổ chức</NavLink> : null}
+            {isOrganizer ? <NavLink href="/admin">Ban tổ chức</NavLink> : null}
           </nav>
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -76,7 +77,7 @@ export default function MainHeader() {
             ) : user ? (
               <div className="flex items-center gap-3">
                 <div className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">
-                  {user.fullName} · {roles.join(", ")}
+                  {user.fullName} · {displayRoles.join(", ")}
                 </div>
                 <Button
                   type="button"

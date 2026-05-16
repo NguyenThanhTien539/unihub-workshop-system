@@ -184,7 +184,7 @@ export default function CreateWorkshopPage() {
                   rows={7}
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500"
                 />
-                <div className="mt-3 flex flex-col gap-2">
+                {/* <div className="mt-3 flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <input id="pdf-file-input" type="file" accept="application/pdf" onChange={onPdfChange} className="hidden" />
                     <label htmlFor="pdf-file-input" className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -200,7 +200,7 @@ export default function CreateWorkshopPage() {
                     {pdfFile ? <span>Đã chọn: {pdfFile.name}. File sẽ được upload sau khi workshop được tạo.</span> : <span className="ml-1">Chỉ hỗ trợ file PDF (tùy chọn)</span>}
                   </div>
                   {pdfUploadError && <div className="text-sm text-red-600">{pdfUploadError}</div>}
-                </div>
+                </div> */}
               </Field>
             </div>
           </section>

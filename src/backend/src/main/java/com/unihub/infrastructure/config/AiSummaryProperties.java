@@ -12,6 +12,7 @@ public record AiSummaryProperties(
     int maxInputChars,
     int timeoutSeconds,
     Storage storage,
+    Worker worker,
     Gemini gemini) {
   public long maxFileSizeBytes() {
     long effectiveMb = maxFileSizeMb <= 0 ? 10 : maxFileSizeMb;
@@ -27,7 +28,20 @@ public record AiSummaryProperties(
   }
 
   public Storage effectiveStorage() {
-    return storage == null ? new Storage("local", "./data/object-storage/workshop-documents") : storage;
+    return storage == null
+        ? new Storage(
+            "minio",
+            "./data/object-storage/workshop-documents",
+            "unihub-documents",
+            "http://minio:9000",
+            "ap-southeast-1",
+            "",
+            "")
+        : storage;
+  }
+
+  public Worker effectiveWorker() {
+    return worker == null ? new Worker(3, 5000, 3.0, 120_000) : worker;
   }
 
   public Gemini effectiveGemini() {
@@ -36,11 +50,64 @@ public record AiSummaryProperties(
         : gemini;
   }
 
-  public record Storage(String type, String localDirectory) {
+  public record Storage(
+      String type,
+      String localDirectory,
+      String bucket,
+      String endpoint,
+      String region,
+      String accessKey,
+      String secretKey) {
+    public String effectiveType() {
+      return type == null || type.isBlank() ? "minio" : type.trim().toLowerCase();
+    }
+
     public String effectiveLocalDirectory() {
       return localDirectory == null || localDirectory.isBlank()
           ? "./data/object-storage/workshop-documents"
           : localDirectory.trim();
+    }
+
+    public String effectiveBucket() {
+      return bucket == null || bucket.isBlank() ? "unihub-documents" : bucket.trim();
+    }
+
+    public String effectiveEndpoint() {
+      return endpoint == null || endpoint.isBlank() ? "http://minio:9000" : endpoint.trim();
+    }
+
+    public String effectiveRegion() {
+      return region == null || region.isBlank() ? "ap-southeast-1" : region.trim();
+    }
+
+    public String effectiveAccessKey() {
+      return accessKey == null ? "" : accessKey.trim();
+    }
+
+    public String effectiveSecretKey() {
+      return secretKey == null ? "" : secretKey.trim();
+    }
+  }
+
+  public record Worker(
+      int maxRetries,
+      long retryInitialDelayMs,
+      double retryMultiplier,
+      long processingTimeoutMs) {
+    public int effectiveMaxRetries() {
+      return Math.max(0, maxRetries);
+    }
+
+    public long effectiveRetryInitialDelayMs() {
+      return retryInitialDelayMs <= 0 ? 5000 : retryInitialDelayMs;
+    }
+
+    public double effectiveRetryMultiplier() {
+      return retryMultiplier < 1 ? 3.0 : retryMultiplier;
+    }
+
+    public long effectiveProcessingTimeoutMs() {
+      return processingTimeoutMs <= 0 ? 120_000 : processingTimeoutMs;
     }
   }
 

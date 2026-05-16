@@ -102,80 +102,55 @@ GET /api/admin/csv-imports/{batchId}/errors
 
 All three endpoints require the `organizer` role. Student and check-in staff tokens receive
 `403 AUTH_FORBIDDEN`.
-## Rate Limiting
 
-The backend uses Redis-backed token-bucket rate limiting so limits still work
-correctly across multiple backend instances. Redis is used only for volatile
-coordination, not as the source of truth for registrations or check-ins.
+## AI Summary PDF storage with MinIO
 
-Protected endpoints:
+Workshop PDFs for AI Summary are stored in object storage. PostgreSQL stores only metadata such as
+`object_key`, filename, content type, file size, upload status, and summary status.
 
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-- `POST /api/registrations/free`
-- `POST /api/registrations/paid`
-- `POST /api/payments/**` and `POST /api/payment/**`
-- `POST /api/checkin/sync`
+Local Docker Compose starts a MinIO console at:
 
-Default limits:
+```text
+http://localhost:9001
+```
 
-- Login: `10/minute` per IP
-- Refresh: `30/minute` per authenticated user, fallback to IP
-- Registration: `5/minute` per authenticated user, fallback to IP
-- Payment: `10/minute` per authenticated user, fallback to IP
-- Check-in sync: `30/minute` per authenticated user, fallback to IP
-- Global API fallback: `120/minute` per IP
+Demo credentials:
 
-Useful environment variables:
+```text
+username: minioadmin
+password: minioadmin123
+```
+
+Default local bucket: `unihub-documents`
+
+Backend storage configuration:
 
 ```env
-APP_RATE_LIMIT_ENABLED=true
-APP_RATE_LIMIT_ALGORITHM=token-bucket
-APP_RATE_LIMIT_TRUST_FORWARDED_FOR=false
-
-APP_RATE_LIMIT_DEFAULT_IP_LIMIT=120
-APP_RATE_LIMIT_DEFAULT_IP_REFILL_TOKENS=120
-APP_RATE_LIMIT_DEFAULT_IP_REFILL_PERIOD_SECONDS=60
-
-APP_RATE_LIMIT_LOGIN_CAPACITY=10
-APP_RATE_LIMIT_LOGIN_REFILL_TOKENS=10
-APP_RATE_LIMIT_LOGIN_REFILL_PERIOD_SECONDS=60
-
-APP_RATE_LIMIT_AUTH_REFRESH_CAPACITY=30
-APP_RATE_LIMIT_AUTH_REFRESH_REFILL_TOKENS=30
-APP_RATE_LIMIT_AUTH_REFRESH_REFILL_PERIOD_SECONDS=60
-
-APP_RATE_LIMIT_REGISTRATION_CAPACITY=5
-APP_RATE_LIMIT_REGISTRATION_REFILL_TOKENS=5
-APP_RATE_LIMIT_REGISTRATION_REFILL_PERIOD_SECONDS=60
-
-APP_RATE_LIMIT_PAYMENT_CAPACITY=10
-APP_RATE_LIMIT_PAYMENT_REFILL_TOKENS=10
-APP_RATE_LIMIT_PAYMENT_REFILL_PERIOD_SECONDS=60
-
-APP_RATE_LIMIT_CHECKIN_SYNC_CAPACITY=30
-APP_RATE_LIMIT_CHECKIN_SYNC_REFILL_TOKENS=30
-APP_RATE_LIMIT_CHECKIN_SYNC_REFILL_PERIOD_SECONDS=60
+APP_AI_SUMMARY_STORAGE_TYPE=minio
+APP_AI_SUMMARY_STORAGE_BUCKET=unihub-documents
+APP_AI_SUMMARY_STORAGE_ENDPOINT=http://minio:9000
+APP_AI_SUMMARY_STORAGE_REGION=ap-southeast-1
+APP_AI_SUMMARY_STORAGE_ACCESS_KEY=minioadmin
+APP_AI_SUMMARY_STORAGE_SECRET_KEY=minioadmin123
 ```
 
-Notes:
+Worker retry configuration:
 
-- `OPTIONS` requests and `/api/health` are skipped.
-- `GET /api/workshops/**` is skipped to avoid throttling read-heavy browsing.
-- If Redis is temporarily unavailable, the limiter fails open so normal API
-  traffic is not blocked by the coordination layer being down.
-
-Quick test examples:
-
-```bash
-curl -i -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"student1@unihub.local","password":"Password123!"}'
+```env
+APP_AI_SUMMARY_WORKER_MAX_RETRIES=3
+APP_AI_SUMMARY_WORKER_RETRY_INITIAL_DELAY_MS=5000
+APP_AI_SUMMARY_WORKER_RETRY_MULTIPLIER=3
+APP_AI_SUMMARY_WORKER_PROCESSING_TIMEOUT_MS=120000
 ```
 
-Repeat the login request more than 10 times inside one minute and expect:
+Use `POST /api/admin/workshops/{workshopId}/documents` to upload a PDF. The upload API writes the
+PDF to MinIO before creating `workshop_documents` and `ai_summaries` rows. If storage is unavailable,
+the API returns `AI_STORAGE_UNAVAILABLE` and does not create a fake successful document.
 
-- HTTP `429 Too Many Requests`
-- body error code `RATE_LIMIT_EXCEEDED`
-- `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and
-  `X-RateLimit-Reset` headers
+The worker reads the PDF from MinIO, extracts text, calls Gemini, and marks the summary as
+`COMPLETED` or `FAILED`. Temporary MinIO read failures are retried with exponential backoff and
+recorded in `retry_count` / `next_retry_at`; stuck `PROCESSING` jobs are recovered after the
+configured timeout.
+
+Do not use the demo MinIO credentials in production, and never commit real object storage secrets or
+uploaded PDF files.

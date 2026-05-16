@@ -11,11 +11,14 @@ public record AiSummary(
     String summaryText,
     String modelName,
     int attemptCount,
+    int retryCount,
     String errorCode,
     String errorMessage,
     LocalDateTime startedAt,
+    LocalDateTime processingStartedAt,
     LocalDateTime completedAt,
     LocalDateTime generatedAt,
+    LocalDateTime nextRetryAt,
     LocalDateTime createdAt,
     LocalDateTime updatedAt) {
 }

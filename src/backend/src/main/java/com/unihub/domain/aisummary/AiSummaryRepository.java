@@ -18,9 +18,19 @@ public interface AiSummaryRepository {
 
   List<AiSummary> findPendingSummaries(int limit);
 
+  List<AiSummary> findStaleProcessingSummaries(LocalDateTime threshold, int limit);
+
   boolean markProcessing(UUID summaryId, LocalDateTime now);
 
   void markCompleted(UUID summaryId, String summaryText, String modelName, LocalDateTime now);
 
   void markFailed(UUID summaryId, String errorCode, String errorMessage, LocalDateTime now);
+
+  void markRetryableFailure(
+      UUID summaryId,
+      int retryCount,
+      LocalDateTime nextRetryAt,
+      String errorCode,
+      String errorMessage,
+      LocalDateTime now);
 }

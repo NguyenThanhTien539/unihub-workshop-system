@@ -93,8 +93,18 @@ app:
     max-input-chars: ${APP_AI_SUMMARY_MAX_INPUT_CHARS:20000}
     timeout-seconds: ${APP_AI_SUMMARY_TIMEOUT_SECONDS:30}
     storage:
-      type: ${APP_AI_SUMMARY_STORAGE_TYPE:local}
+      type: ${APP_AI_SUMMARY_STORAGE_TYPE:minio}
+      bucket: ${APP_AI_SUMMARY_STORAGE_BUCKET:unihub-documents}
+      endpoint: ${APP_AI_SUMMARY_STORAGE_ENDPOINT:http://minio:9000}
+      region: ${APP_AI_SUMMARY_STORAGE_REGION:ap-southeast-1}
+      access-key: ${APP_AI_SUMMARY_STORAGE_ACCESS_KEY:}
+      secret-key: ${APP_AI_SUMMARY_STORAGE_SECRET_KEY:}
       local-directory: ${APP_AI_SUMMARY_STORAGE_LOCAL_DIRECTORY:./data/object-storage/workshop-documents}
+    worker:
+      max-retries: ${APP_AI_SUMMARY_WORKER_MAX_RETRIES:3}
+      retry-initial-delay-ms: ${APP_AI_SUMMARY_WORKER_RETRY_INITIAL_DELAY_MS:5000}
+      retry-multiplier: ${APP_AI_SUMMARY_WORKER_RETRY_MULTIPLIER:3}
+      processing-timeout-ms: ${APP_AI_SUMMARY_WORKER_PROCESSING_TIMEOUT_MS:120000}
     gemini:
       api-key: ${APP_AI_SUMMARY_GEMINI_API_KEY:}
       base-url: ${APP_AI_SUMMARY_GEMINI_BASE_URL:https://generativelanguage.googleapis.com}

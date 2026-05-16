@@ -6,9 +6,11 @@ import com.unihub.infrastructure.config.AiSummaryProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 @Service
+@ConditionalOnProperty(prefix = "app.ai-summary.storage", name = "type", havingValue = "local")
 public class LocalObjectStorageService implements ObjectStorageService {
   private final Path baseDirectory;
 
@@ -42,7 +44,7 @@ public class LocalObjectStorageService implements ObjectStorageService {
   private Path resolveSafePath(String objectKey) {
     Path resolved = baseDirectory.resolve(objectKey).normalize();
     if (!resolved.startsWith(baseDirectory)) {
-      throw new ObjectStorageException("Invalid object key", null);
+      throw new ObjectStorageException("Invalid object key", null, false);
     }
     return resolved;
   }

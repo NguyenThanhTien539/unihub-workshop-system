@@ -59,11 +59,13 @@ public class JdbcAiSummaryRepository implements AiSummaryRepository {
     jdbcTemplate.update("""
         INSERT INTO ai_summaries (
           id, document_id, workshop_id, status, summary_text, model_name, attempt_count,
+          retry_count, next_retry_at, processing_started_at,
           error_code, error_message, last_error_code, last_error_message,
           started_at, completed_at, generated_at, created_at, updated_at
         )
         VALUES (
           :id, :documentId, :workshopId, :status, :summaryText, :modelName, :attemptCount,
+          :retryCount, :nextRetryAt, :processingStartedAt,
           :errorCode, :errorMessage, :errorCode, :errorMessage,
           :startedAt, :completedAt, :generatedAt, :createdAt, :updatedAt
         )
@@ -120,15 +122,38 @@ public class JdbcAiSummaryRepository implements AiSummaryRepository {
   public List<AiSummary> findPendingSummaries(int limit) {
     return jdbcTemplate.query("""
         SELECT id, document_id, workshop_id, status, summary_text, model_name, attempt_count,
+          retry_count, next_retry_at, processing_started_at,
           COALESCE(error_code, last_error_code) AS error_code,
           COALESCE(error_message, last_error_message) AS error_message,
           started_at, completed_at, generated_at, created_at, updated_at
         FROM ai_summaries
         WHERE status = 'PENDING'
+          AND (next_retry_at IS NULL OR next_retry_at <= now())
         ORDER BY created_at ASC
         LIMIT :limit
         """,
         Map.of("limit", Math.max(1, limit)),
+        summaryMapper());
+  }
+
+  @Override
+  public List<AiSummary> findStaleProcessingSummaries(LocalDateTime threshold, int limit) {
+    return jdbcTemplate.query("""
+        SELECT id, document_id, workshop_id, status, summary_text, model_name, attempt_count,
+          retry_count, next_retry_at, processing_started_at,
+          COALESCE(error_code, last_error_code) AS error_code,
+          COALESCE(error_message, last_error_message) AS error_message,
+          started_at, completed_at, generated_at, created_at, updated_at
+        FROM ai_summaries
+        WHERE status = 'PROCESSING'
+          AND processing_started_at IS NOT NULL
+          AND processing_started_at <= :threshold
+        ORDER BY processing_started_at ASC
+        LIMIT :limit
+        """,
+        new MapSqlParameterSource()
+            .addValue("threshold", threshold)
+            .addValue("limit", Math.max(1, limit)),
         summaryMapper());
   }
 
@@ -138,6 +163,7 @@ public class JdbcAiSummaryRepository implements AiSummaryRepository {
         UPDATE ai_summaries
         SET status = 'PROCESSING',
           attempt_count = attempt_count + 1,
+          processing_started_at = :now,
           started_at = :now,
           updated_at = :now
         WHERE id = :summaryId AND status = 'PENDING'
@@ -157,6 +183,8 @@ public class JdbcAiSummaryRepository implements AiSummaryRepository {
           error_message = NULL,
           last_error_code = NULL,
           last_error_message = NULL,
+          next_retry_at = NULL,
+          processing_started_at = NULL,
           completed_at = :now,
           generated_at = :now,
           updated_at = :now
@@ -178,12 +206,44 @@ public class JdbcAiSummaryRepository implements AiSummaryRepository {
           error_message = :errorMessage,
           last_error_code = :errorCode,
           last_error_message = :errorMessage,
+          next_retry_at = NULL,
+          processing_started_at = NULL,
           completed_at = :now,
           updated_at = :now
         WHERE id = :summaryId
         """,
         new MapSqlParameterSource()
             .addValue("summaryId", summaryId)
+            .addValue("errorCode", errorCode)
+            .addValue("errorMessage", errorMessage)
+            .addValue("now", now));
+  }
+
+  @Override
+  public void markRetryableFailure(
+      UUID summaryId,
+      int retryCount,
+      LocalDateTime nextRetryAt,
+      String errorCode,
+      String errorMessage,
+      LocalDateTime now) {
+    jdbcTemplate.update("""
+        UPDATE ai_summaries
+        SET status = 'PENDING',
+          retry_count = :retryCount,
+          next_retry_at = :nextRetryAt,
+          processing_started_at = NULL,
+          error_code = :errorCode,
+          error_message = :errorMessage,
+          last_error_code = :errorCode,
+          last_error_message = :errorMessage,
+          updated_at = :now
+        WHERE id = :summaryId
+        """,
+        new MapSqlParameterSource()
+            .addValue("summaryId", summaryId)
+            .addValue("retryCount", retryCount)
+            .addValue("nextRetryAt", nextRetryAt)
             .addValue("errorCode", errorCode)
             .addValue("errorMessage", errorMessage)
             .addValue("now", now));
@@ -198,6 +258,9 @@ public class JdbcAiSummaryRepository implements AiSummaryRepository {
         .addValue("summaryText", summary.summaryText())
         .addValue("modelName", summary.modelName())
         .addValue("attemptCount", summary.attemptCount())
+        .addValue("retryCount", summary.retryCount())
+        .addValue("nextRetryAt", summary.nextRetryAt())
+        .addValue("processingStartedAt", summary.processingStartedAt())
         .addValue("errorCode", summary.errorCode())
         .addValue("errorMessage", summary.errorMessage())
         .addValue("startedAt", summary.startedAt())
@@ -232,11 +295,14 @@ public class JdbcAiSummaryRepository implements AiSummaryRepository {
         rs.getString("summary_text"),
         rs.getString("model_name"),
         rs.getInt("attempt_count"),
+        rs.getInt("retry_count"),
         rs.getString("error_code"),
         rs.getString("error_message"),
         getLocalDateTime(rs, "started_at"),
+        getLocalDateTime(rs, "processing_started_at"),
         getLocalDateTime(rs, "completed_at"),
         getLocalDateTime(rs, "generated_at"),
+        getLocalDateTime(rs, "next_retry_at"),
         getLocalDateTime(rs, "created_at"),
         getLocalDateTime(rs, "updated_at"));
   }

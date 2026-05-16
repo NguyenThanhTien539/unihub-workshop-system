@@ -12,6 +12,8 @@ import com.unihub.domain.user.UserErrorCode;
 import com.unihub.presentation.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +24,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+  private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
   @ExceptionHandler(AuthException.class)
   public ResponseEntity<ApiResponse<Void>> handleAuthException(AuthException ex) {
     ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
@@ -108,7 +112,10 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<Void>> handleFallback(Exception ex) {
-    ApiResponse<Void> body = ApiResponse.error("INTERNAL_SERVER_ERROR", "Unexpected server error");
+    log.error("Unhandled request error", ex);
+    ApiResponse<Void> body = ApiResponse.error(
+        "INTERNAL_SERVER_ERROR",
+        "Không thể xử lý yêu cầu. Vui lòng thử lại sau.");
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
   }
 

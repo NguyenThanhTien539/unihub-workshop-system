@@ -97,6 +97,24 @@ class AiSummaryCommandServiceTest {
     assertEquals(0, objectStorageService.putCount);
   }
 
+  @Test
+  void storageFailureDoesNotCreateDocumentOrPendingSummary() {
+    objectStorageService.failPut = true;
+
+    AiSummaryException ex = assertThrows(AiSummaryException.class,
+        () -> service.uploadWorkshopDocument(new UploadWorkshopDocumentCommand(
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "agenda.pdf",
+            "application/pdf",
+            5,
+            "%PDF\n".getBytes())));
+
+    assertEquals(AiSummaryErrorCode.AI_STORAGE_UNAVAILABLE, ex.getErrorCode());
+    assertEquals(0, repository.documents.size());
+    assertEquals(0, repository.summaries.size());
+  }
+
   private static AiSummaryProperties properties(long maxFileSizeMb) {
     return new AiSummaryProperties(
         true,
@@ -106,16 +124,28 @@ class AiSummaryCommandServiceTest {
         maxFileSizeMb,
         20_000,
         30,
-        new AiSummaryProperties.Storage("local", "./data/object-storage/workshop-documents"),
+        new AiSummaryProperties.Storage(
+            "local",
+            "./data/object-storage/workshop-documents",
+            "unihub-documents",
+            "http://minio:9000",
+            "ap-southeast-1",
+            "",
+            ""),
+        new AiSummaryProperties.Worker(3, 5000, 3.0, 120_000),
         new AiSummaryProperties.Gemini("", "https://generativelanguage.googleapis.com", "gemini-2.5-flash-lite"));
   }
 
   private static class FakeObjectStorageService implements ObjectStorageService {
     int putCount;
+    boolean failPut;
 
     @Override
     public String putObject(String objectKey, String contentType, byte[] bytes) {
       putCount++;
+      if (failPut) {
+        throw new ObjectStorageException("Storage unavailable", null, true);
+      }
       return objectKey;
     }
 
@@ -162,6 +192,11 @@ class AiSummaryCommandServiceTest {
     }
 
     @Override
+    public List<AiSummary> findStaleProcessingSummaries(LocalDateTime threshold, int limit) {
+      return List.of();
+    }
+
+    @Override
     public boolean markProcessing(UUID summaryId, LocalDateTime now) {
       return false;
     }
@@ -172,6 +207,16 @@ class AiSummaryCommandServiceTest {
 
     @Override
     public void markFailed(UUID summaryId, String errorCode, String errorMessage, LocalDateTime now) {
+    }
+
+    @Override
+    public void markRetryableFailure(
+        UUID summaryId,
+        int retryCount,
+        LocalDateTime nextRetryAt,
+        String errorCode,
+        String errorMessage,
+        LocalDateTime now) {
     }
   }
 

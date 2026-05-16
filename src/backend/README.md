@@ -101,3 +101,55 @@ GET /api/admin/csv-imports/{batchId}/errors
 
 All three endpoints require the `organizer` role. Student and check-in staff tokens receive
 `403 AUTH_FORBIDDEN`.
+
+## AI Summary PDF storage with MinIO
+
+Workshop PDFs for AI Summary are stored in object storage. PostgreSQL stores only metadata such as
+`object_key`, filename, content type, file size, upload status, and summary status.
+
+Local Docker Compose starts a MinIO console at:
+
+```text
+http://localhost:9001
+```
+
+Demo credentials:
+
+```text
+username: minioadmin
+password: minioadmin123
+```
+
+Default local bucket: `unihub-documents`
+
+Backend storage configuration:
+
+```env
+APP_AI_SUMMARY_STORAGE_TYPE=minio
+APP_AI_SUMMARY_STORAGE_BUCKET=unihub-documents
+APP_AI_SUMMARY_STORAGE_ENDPOINT=http://minio:9000
+APP_AI_SUMMARY_STORAGE_REGION=ap-southeast-1
+APP_AI_SUMMARY_STORAGE_ACCESS_KEY=minioadmin
+APP_AI_SUMMARY_STORAGE_SECRET_KEY=minioadmin123
+```
+
+Worker retry configuration:
+
+```env
+APP_AI_SUMMARY_WORKER_MAX_RETRIES=3
+APP_AI_SUMMARY_WORKER_RETRY_INITIAL_DELAY_MS=5000
+APP_AI_SUMMARY_WORKER_RETRY_MULTIPLIER=3
+APP_AI_SUMMARY_WORKER_PROCESSING_TIMEOUT_MS=120000
+```
+
+Use `POST /api/admin/workshops/{workshopId}/documents` to upload a PDF. The upload API writes the
+PDF to MinIO before creating `workshop_documents` and `ai_summaries` rows. If storage is unavailable,
+the API returns `AI_STORAGE_UNAVAILABLE` and does not create a fake successful document.
+
+The worker reads the PDF from MinIO, extracts text, calls Gemini, and marks the summary as
+`COMPLETED` or `FAILED`. Temporary MinIO read failures are retried with exponential backoff and
+recorded in `retry_count` / `next_retry_at`; stuck `PROCESSING` jobs are recovered after the
+configured timeout.
+
+Do not use the demo MinIO credentials in production, and never commit real object storage secrets or
+uploaded PDF files.

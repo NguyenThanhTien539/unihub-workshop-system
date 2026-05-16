@@ -35,7 +35,8 @@ class AiSummaryWorkerServiceTest {
         storage,
         extractor,
         new AiTextCleaner(properties()),
-        provider);
+        provider,
+        properties());
   }
 
   @Test
@@ -80,6 +81,39 @@ class AiSummaryWorkerServiceTest {
     assertEquals(AiSummaryErrorCode.AI_PROVIDER_TIMEOUT.code(), repository.errorCode);
   }
 
+  @Test
+  void workerRetriesWhenObjectStorageReadFailsTemporarily() {
+    storage.failGet = true;
+
+    service.processPendingSummary(repository.summary);
+
+    assertEquals(AiSummaryStatus.PENDING, repository.status);
+    assertEquals(AiSummaryErrorCode.AI_STORAGE_UNAVAILABLE.code(), repository.errorCode);
+    assertEquals(1, repository.retryCount);
+  }
+
+  @Test
+  void workerMarksFailedAfterMaxStorageRetries() {
+    storage.failGet = true;
+    repository.summary = repository.summaryWithRetryCount(3);
+
+    service.processPendingSummary(repository.summary);
+
+    assertEquals(AiSummaryStatus.FAILED, repository.status);
+    assertEquals(AiSummaryErrorCode.AI_STORAGE_UNAVAILABLE.code(), repository.errorCode);
+  }
+
+  @Test
+  void workerRecoversStaleProcessingSummary() {
+    repository.pendingSummaries = List.of();
+    repository.staleSummaries = List.of(repository.summaryWithStatus(AiSummaryStatus.PROCESSING));
+
+    service.processPendingBatch(5);
+
+    assertEquals(AiSummaryStatus.PENDING, repository.status);
+    assertEquals(1, repository.retryCount);
+  }
+
   private static AiSummaryProperties properties() {
     return new AiSummaryProperties(
         true,
@@ -89,12 +123,21 @@ class AiSummaryWorkerServiceTest {
         10,
         20_000,
         30,
-        new AiSummaryProperties.Storage("local", "./data/object-storage/workshop-documents"),
+        new AiSummaryProperties.Storage(
+            "local",
+            "./data/object-storage/workshop-documents",
+            "unihub-documents",
+            "http://minio:9000",
+            "ap-southeast-1",
+            "",
+            ""),
+        new AiSummaryProperties.Worker(3, 5000, 3.0, 120_000),
         new AiSummaryProperties.Gemini("", "https://generativelanguage.googleapis.com", "gemini-2.5-flash-lite"));
   }
 
   private static class FakeObjectStorageService implements ObjectStorageService {
     int getCount;
+    boolean failGet;
 
     @Override
     public String putObject(String objectKey, String contentType, byte[] bytes) {
@@ -104,6 +147,9 @@ class AiSummaryWorkerServiceTest {
     @Override
     public byte[] getObject(String objectKey) {
       getCount++;
+      if (failGet) {
+        throw new ObjectStorageException("Storage unavailable", null, true);
+      }
       return "%PDF\n".getBytes();
     }
   }
@@ -143,7 +189,7 @@ class AiSummaryWorkerServiceTest {
   private static class FakeAiSummaryRepository implements AiSummaryRepository {
     final UUID documentId = UUID.randomUUID();
     final UUID workshopId = UUID.randomUUID();
-    final AiSummary summary = new AiSummary(
+    AiSummary summary = new AiSummary(
         UUID.randomUUID(),
         documentId,
         workshopId,
@@ -151,6 +197,9 @@ class AiSummaryWorkerServiceTest {
         null,
         null,
         0,
+        0,
+        null,
+        null,
         null,
         null,
         null,
@@ -158,10 +207,13 @@ class AiSummaryWorkerServiceTest {
         null,
         LocalDateTime.now(),
         LocalDateTime.now());
+    List<AiSummary> pendingSummaries = List.of(summary);
+    List<AiSummary> staleSummaries = List.of();
     AiSummaryStatus status = AiSummaryStatus.PENDING;
     String summaryText;
     String modelName;
     String errorCode;
+    int retryCount;
 
     @Override
     public WorkshopDocument saveDocument(WorkshopDocument document) {
@@ -202,7 +254,12 @@ class AiSummaryWorkerServiceTest {
 
     @Override
     public List<AiSummary> findPendingSummaries(int limit) {
-      return List.of(summary);
+      return pendingSummaries;
+    }
+
+    @Override
+    public List<AiSummary> findStaleProcessingSummaries(LocalDateTime threshold, int limit) {
+      return staleSummaries;
     }
 
     @Override
@@ -222,6 +279,61 @@ class AiSummaryWorkerServiceTest {
     public void markFailed(UUID summaryId, String errorCode, String errorMessage, LocalDateTime now) {
       status = AiSummaryStatus.FAILED;
       this.errorCode = errorCode;
+    }
+
+    @Override
+    public void markRetryableFailure(
+        UUID summaryId,
+        int retryCount,
+        LocalDateTime nextRetryAt,
+        String errorCode,
+        String errorMessage,
+        LocalDateTime now) {
+      status = AiSummaryStatus.PENDING;
+      this.retryCount = retryCount;
+      this.errorCode = errorCode;
+    }
+
+    AiSummary summaryWithRetryCount(int retryCount) {
+      return new AiSummary(
+          summary.id(),
+          summary.documentId(),
+          summary.workshopId(),
+          summary.status(),
+          summary.summaryText(),
+          summary.modelName(),
+          summary.attemptCount(),
+          retryCount,
+          summary.errorCode(),
+          summary.errorMessage(),
+          summary.startedAt(),
+          summary.processingStartedAt(),
+          summary.completedAt(),
+          summary.generatedAt(),
+          summary.nextRetryAt(),
+          summary.createdAt(),
+          summary.updatedAt());
+    }
+
+    AiSummary summaryWithStatus(AiSummaryStatus status) {
+      return new AiSummary(
+          summary.id(),
+          summary.documentId(),
+          summary.workshopId(),
+          status,
+          summary.summaryText(),
+          summary.modelName(),
+          summary.attemptCount(),
+          summary.retryCount(),
+          summary.errorCode(),
+          summary.errorMessage(),
+          summary.startedAt(),
+          LocalDateTime.now().minusMinutes(5),
+          summary.completedAt(),
+          summary.generatedAt(),
+          summary.nextRetryAt(),
+          summary.createdAt(),
+          summary.updatedAt());
     }
   }
 }

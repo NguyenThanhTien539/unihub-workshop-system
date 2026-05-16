@@ -14,6 +14,20 @@ services:
       timeout: 3s
       retries: 10
 
+  minio:
+    image: minio/minio:latest
+    container_name: unihub-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
   unihub-backend:
     build:
       context: ./src/backend
@@ -26,13 +40,17 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      APP_AI_SUMMARY_STORAGE_TYPE: local
-      APP_AI_SUMMARY_STORAGE_LOCAL_DIRECTORY: /app/data/object-storage/workshop-documents
-    volumes:
-      - ./data/object-storage/workshop-documents:/app/data/object-storage/workshop-documents
+      APP_AI_SUMMARY_STORAGE_TYPE: minio
+      APP_AI_SUMMARY_STORAGE_BUCKET: unihub-documents
+      APP_AI_SUMMARY_STORAGE_ENDPOINT: http://minio:9000
+      APP_AI_SUMMARY_STORAGE_REGION: ap-southeast-1
+      APP_AI_SUMMARY_STORAGE_ACCESS_KEY: minioadmin
+      APP_AI_SUMMARY_STORAGE_SECRET_KEY: minioadmin123
     depends_on:
       redis:
         condition: service_healthy
+      minio:
+        condition: service_started
     restart: unless-stopped
 
   unihub-web:
@@ -50,3 +68,4 @@ services:
 
 volumes:
   redis_data:
+  minio_data:

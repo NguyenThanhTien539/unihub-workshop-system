@@ -43,7 +43,14 @@ class ZaloPayPaymentProviderTest {
         "http://localhost:3000/payments/result",
         true,
         true);
-    provider = new ZaloPayPaymentProvider(new PaymentProperties(15, props), signer, new ObjectMapper(), CLOCK);
+    provider = new ZaloPayPaymentProvider(
+        new PaymentProperties(
+            15,
+            props,
+            new PaymentProperties.CircuitBreaker(true, 5, 60, 1, 5000)),
+        signer,
+        new ObjectMapper(),
+        CLOCK);
   }
 
   @Test

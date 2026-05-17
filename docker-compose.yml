@@ -40,19 +40,23 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+
+      APP_CSV_IMPORT_INPUT_DIRECTORY: /app/data/import
+
       APP_AI_SUMMARY_STORAGE_TYPE: minio
       APP_AI_SUMMARY_STORAGE_BUCKET: unihub-documents
       APP_AI_SUMMARY_STORAGE_ENDPOINT: http://minio:9000
       APP_AI_SUMMARY_STORAGE_REGION: ap-southeast-1
       APP_AI_SUMMARY_STORAGE_ACCESS_KEY: minioadmin
       APP_AI_SUMMARY_STORAGE_SECRET_KEY: minioadmin123
+    volumes:
+      - ./data/import:/app/data/import
     depends_on:
       redis:
         condition: service_healthy
       minio:
         condition: service_started
     restart: unless-stopped
-
   unihub-web:
     build:
       context: ./src/web

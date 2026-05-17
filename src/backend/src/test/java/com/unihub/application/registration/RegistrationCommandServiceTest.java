@@ -62,7 +62,10 @@ class RegistrationCommandServiceTest {
   @BeforeEach
   void setUp() {
     Clock clock = Clock.fixed(Instant.parse("2026-05-08T10:00:00Z"), ZoneOffset.UTC);
-    PaymentProperties paymentProperties = new PaymentProperties(15, null);
+    PaymentProperties paymentProperties = new PaymentProperties(
+        15,
+        null,
+        new PaymentProperties.CircuitBreaker(true, 5, 60, 1, 5000));
     service = new RegistrationCommandService(
         studentRepository,
         registrationRepository,

@@ -1,35 +1,32 @@
 package com.unihub.infrastructure.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = "app.payment")
 public record PaymentProperties(
-    long pendingExpirationMinutes,
-    ZaloPay zalopay,
-    CircuitBreaker circuitBreaker) {
-
-  public PaymentProperties(long pendingExpirationMinutes, ZaloPay zalopay) {
-    this(pendingExpirationMinutes, zalopay, new CircuitBreaker(true, 5, 60, 1, 5000));
-  }
+    @DefaultValue("15") long pendingExpirationMinutes,
+    @DefaultValue ZaloPay zalopay,
+    @DefaultValue CircuitBreaker circuitBreaker) {
 
   public record ZaloPay(
-      String appId,
-      String key1,
-      String key2,
-      String endpoint,
-      int connectTimeoutMs,
-      int readTimeoutMs,
-      String callbackUrl,
-      String frontendReturnUrl,
-      boolean enabled,
-      boolean sandboxMode) {
+      @DefaultValue("") String appId,
+      @DefaultValue("") String key1,
+      @DefaultValue("") String key2,
+      @DefaultValue("https://sb-openapi.zalopay.vn/v2/create") String endpoint,
+      @DefaultValue("3000") int connectTimeoutMs,
+      @DefaultValue("5000") int readTimeoutMs,
+      @DefaultValue("") String callbackUrl,
+      @DefaultValue("") String frontendReturnUrl,
+      @DefaultValue("false") boolean enabled,
+      @DefaultValue("true") boolean sandboxMode) {
   }
 
   public record CircuitBreaker(
-      boolean enabled,
-      int failureThreshold,
-      long openDurationSeconds,
-      int halfOpenMaxCalls,
-      long slowCallThresholdMs) {
+      @DefaultValue("true") boolean enabled,
+      @DefaultValue("5") int failureThreshold,
+      @DefaultValue("60") long openDurationSeconds,
+      @DefaultValue("1") int halfOpenMaxCalls,
+      @DefaultValue("5000") long slowCallThresholdMs) {
   }
 }

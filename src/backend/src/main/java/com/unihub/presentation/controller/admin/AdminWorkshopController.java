@@ -4,6 +4,7 @@ import com.unihub.application.auth.exception.AuthException;
 import com.unihub.application.workshop.CreateSessionCommand;
 import com.unihub.application.workshop.WorkshopCommandService;
 import com.unihub.application.workshop.WorkshopQueryService;
+import com.unihub.application.workshop.WorkshopStatsService;
 import com.unihub.domain.user.UserErrorCode;
 import com.unihub.domain.workshop.Workshop;
 import com.unihub.domain.workshop.WorkshopSession;
@@ -16,7 +17,9 @@ import com.unihub.presentation.dto.request.workshop.UpdateWorkshopRequest;
 import com.unihub.presentation.dto.request.workshop.UpdateWorkshopSessionRequest;
 import com.unihub.presentation.dto.response.workshop.WorkshopDetailResponse;
 import com.unihub.presentation.dto.response.workshop.WorkshopSessionResponse;
+import com.unihub.presentation.dto.response.workshop.WorkshopStatsResponse;
 import com.unihub.presentation.mapper.admin.AdminWorkshopRequestMapper;
+import com.unihub.presentation.mapper.workshop.WorkshopStatsResponseMapper;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -37,15 +40,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminWorkshopController {
   private final WorkshopCommandService workshopCommandService;
   private final WorkshopQueryService workshopQueryService;
+  private final WorkshopStatsService workshopStatsService;
   private final AdminWorkshopRequestMapper adminWorkshopRequestMapper;
+  private final WorkshopStatsResponseMapper workshopStatsResponseMapper;
 
   public AdminWorkshopController(
       WorkshopCommandService workshopCommandService,
       WorkshopQueryService workshopQueryService,
-      AdminWorkshopRequestMapper adminWorkshopRequestMapper) {
+      WorkshopStatsService workshopStatsService,
+      AdminWorkshopRequestMapper adminWorkshopRequestMapper,
+      WorkshopStatsResponseMapper workshopStatsResponseMapper) {
     this.workshopCommandService = workshopCommandService;
     this.workshopQueryService = workshopQueryService;
+    this.workshopStatsService = workshopStatsService;
     this.adminWorkshopRequestMapper = adminWorkshopRequestMapper;
+    this.workshopStatsResponseMapper = workshopStatsResponseMapper;
   }
 
   @GetMapping("/workshops")
@@ -62,6 +71,12 @@ public class AdminWorkshopController {
   public ApiResponse<WorkshopDetailResponse> getWorkshopDetail(@PathVariable UUID workshopId) {
     WorkshopDetailResponse response = workshopQueryService.getAdminWorkshopDetail(workshopId);
     return ApiResponse.success(response);
+  }
+
+  @GetMapping("/workshops/{workshopId}/stats")
+  public ApiResponse<WorkshopStatsResponse> getWorkshopStats(@PathVariable UUID workshopId) {
+    return ApiResponse.success(workshopStatsResponseMapper.toResponse(
+        workshopStatsService.getWorkshopStats(workshopId)));
   }
 
   @PostMapping("/workshops")

@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { clearTokens, getCurrentUser, hasStoredSession, logout, normalizeRoles, type AuthUser } from "../lib/auth";
 import Button from "./Button";
 import { NotificationBell } from "./NotificationBell";
 
 export default function MainHeader() {
+  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -83,7 +86,7 @@ export default function MainHeader() {
                 </div>
                 <Button
                   type="button"
-                  onClick={handleLogout}
+                  onClick={() => void handleLogout(router)}
                   className="rounded-full border border-slate-200 px-4 py-2 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   Đăng xuất
@@ -101,9 +104,11 @@ export default function MainHeader() {
   );
 }
 
-async function handleLogout() {
+async function handleLogout(router: ReturnType<typeof useRouter>) {
   await logout();
-  window.location.href = "/auth";
+  toast.success("Đã đăng xuất.");
+  router.replace("/auth");
+  router.refresh();
 }
 
 function NavLink({ href, children }: { href: string; children: ReactNode }) {

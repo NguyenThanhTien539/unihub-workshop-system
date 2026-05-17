@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { getFriendlyErrorMessage } from "../../../lib/apiClient";
 import { clearTokens, login, normalizeRoles } from "../../../lib/auth";
 
 export default function LoginPageClient() {
@@ -49,18 +51,23 @@ export default function LoginPageClient() {
       }
 
       if (role === "organizer") {
+        toast.success("Đăng nhập thành công.");
         router.replace("/admin/workshops");
         return;
       }
 
       if (role === "checkin") {
+        toast.success("Đăng nhập thành công.");
         router.replace("/checkin");
         return;
       }
 
+      toast.success("Đăng nhập thành công.");
       router.replace("/");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = getFriendlyErrorMessage(err, "Không thể đăng nhập. Vui lòng thử lại.");
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

@@ -81,7 +81,6 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<AdminNotice | null>(initialAiSummaryNotice.notice);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
@@ -90,6 +89,15 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
     initialAiSummaryNotice.summaryStatus,
   );
   const [aiSummary, setAiSummary] = useState<WorkshopAiSummaryResponse | null>(null);
+
+  useEffect(() => {
+    if (!initialAiSummaryNotice.notice) return;
+    const message = initialAiSummaryNotice.notice.message;
+    if (initialAiSummaryNotice.notice.tone === "success") toast.success(message);
+    else if (initialAiSummaryNotice.notice.tone === "warning") toast.warning(message);
+    else if (initialAiSummaryNotice.notice.tone === "error") toast.error(message);
+    else toast.info(message);
+  }, [initialAiSummaryNotice.notice]);
 
   useEffect(() => {
     let mounted = true;
@@ -167,7 +175,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       const detail = await updateWorkshop(id, { title, speaker, description });
       setWorkshop(detail);
       await reloadWorkshop();
-      toast.success("Đã cập nhật workshop.");
+      toast.success("Đã lưu thay đổi.");
       toast.message("Sinh viên đã đăng ký sẽ nhận được thông báo nếu thông tin tham dự thay đổi.");
     } catch (err) {
       const message = getFriendlyErrorMessage(err, "Không thể cập nhật workshop. Vui lòng thử lại.");
@@ -224,7 +232,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       await createWorkshopSession(id, normalizeSession(newSession));
       await reloadWorkshop();
       setNewSession({ ...emptySession(), roomId: rooms[0]?.id || "" });
-      toast.success("Đã thêm buổi workshop.");
+      toast.success("Đã tạo buổi workshop.");
     } catch (err) {
       const message = getFriendlyErrorMessage(err, "Không thể tạo buổi workshop. Vui lòng thử lại.");
       setError(message);
@@ -241,7 +249,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
     try {
       await updateWorkshopSession(sessionId, normalizeSession(form));
       await reloadWorkshop();
-      toast.success("Đã cập nhật workshop.");
+      toast.success("Đã cập nhật buổi workshop.");
       toast.message("Sinh viên đã đăng ký sẽ nhận được thông báo nếu thông tin tham dự thay đổi.");
     } catch (err) {
       const message = getFriendlyErrorMessage(err, "Không thể cập nhật buổi workshop. Vui lòng thử lại.");
@@ -290,7 +298,6 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
 
     setUploadingPdf(true);
     setPdfError(null);
-    setNotice(null);
 
     try {
       const uploadResult = await uploadWorkshopDocument(id, pdfFile);
@@ -306,10 +313,6 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
         summaryText: null,
         generatedAt: null,
         errorCode: null,
-      });
-      setNotice({
-        tone: "success",
-        message: "Tài liệu đã được tải lên. Hệ thống đang tạo tóm tắt.",
       });
       toast.success("Tài liệu đã được tải lên. Hệ thống đang tạo tóm tắt.");
     } catch (err) {
@@ -410,8 +413,6 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       </div>
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-      {notice ? <AdminNoticeBanner notice={notice} /> : null}
-
       <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
         <div className="space-y-6">
           <form onSubmit={handleSaveWorkshop} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -730,19 +731,6 @@ function SessionFormFields({
       {!compact && <div />}
     </>
   );
-}
-
-function AdminNoticeBanner({ notice }: { notice: AdminNotice }) {
-  const className =
-    notice.tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : notice.tone === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-700"
-        : notice.tone === "error"
-          ? "border-red-200 bg-red-50 text-red-700"
-          : "border-sky-200 bg-sky-50 text-sky-700";
-
-  return <div className={`rounded-lg border p-4 text-sm ${className}`}>{notice.message}</div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

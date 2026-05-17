@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, LoaderCircle, TriangleAlert, XCircle } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { getFriendlyErrorMessage } from "../../../lib/apiClient";
 import { getCurrentUser, hasStoredSession, normalizeRoles } from "../../../lib/auth";
 import { listCheckinSessions, validateCheckin, type CheckinSession, type CheckinValidateResponse } from "../../../lib/checkin";
@@ -22,7 +23,6 @@ export default function CheckinPage() {
   const [submitting, setSubmitting] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [result, setResult] = useState<CheckinValidateResponse | null>(null);
 
   const selectedSession = useMemo(
@@ -67,7 +67,6 @@ export default function CheckinPage() {
     if (!selectedSessionId || !qrToken.trim()) return;
 
     setSubmitting(true);
-    setNotice(null);
 
     try {
       const response = await validateCheckin({
@@ -78,22 +77,13 @@ export default function CheckinPage() {
       setResult(response);
 
       if (response.result === "ACCEPTED") {
-        setNotice({
-          tone: "success",
-          message: "Check-in thành công. Sẵn sàng quét mã tiếp theo.",
-        });
+        toast.success("Check-in thành công. Sẵn sàng quét mã tiếp theo.");
       } else {
-        setNotice({
-          tone: "info",
-          message: "Mã này đã được check-in trước đó.",
-        });
+        toast.info("Mã này đã được check-in trước đó.");
       }
     } catch (err) {
       setResult(null);
-      setNotice({
-        tone: "error",
-        message: getFriendlyErrorMessage(err, "Không xác thực được mã QR."),
-      });
+      toast.error(getFriendlyErrorMessage(err, "Không xác thực được mã QR."));
     } finally {
       setSubmitting(false);
     }
@@ -141,7 +131,6 @@ export default function CheckinPage() {
       </div>
 
       {error ? <NoticeBanner notice={{ tone: "error", message: error }} /> : null}
-      {notice ? <NoticeBanner notice={notice} /> : null}
 
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -222,7 +211,6 @@ export default function CheckinPage() {
                 onClick={() => {
                   setQrToken("");
                   setResult(null);
-                  setNotice(null);
                 }}
                 className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >

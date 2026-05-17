@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, QrCode } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { RegisteredWorkshopCard } from "../../../components/RegisteredWorkshopCard";
 import { getFriendlyErrorMessage } from "../../../lib/apiClient";
 import {
@@ -20,18 +21,12 @@ import {
   type RegistrationResponse,
 } from "../../../lib/registrations";
 
-type Notice = {
-  tone: "success" | "error" | "info";
-  message: string;
-};
-
 export default function RegistrationsPage() {
   const [registrations, setRegistrations] = useState<RegistrationResponse[]>(
     [],
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [qrLoadingId, setQrLoadingId] = useState<string | null>(null);
   const [paymentLoadingId, setPaymentLoadingId] = useState<string | null>(null);
   const [qrModal, setQrModal] = useState<{
@@ -93,16 +88,12 @@ export default function RegistrationsPage() {
 
   async function handleShowQr(registration: RegistrationResponse) {
     setQrLoadingId(registration.registrationId);
-    setNotice(null);
 
     try {
       const qr = await getRegistrationQr(registration.registrationId);
       setQrModal({ registration, qr });
     } catch (err) {
-      setNotice({
-        tone: "error",
-        message: getFriendlyErrorMessage(err, "Không tải được mã QR."),
-      });
+      toast.error(getFriendlyErrorMessage(err, "Không tải được mã QR."));
     } finally {
       setQrLoadingId(null);
     }
@@ -112,31 +103,17 @@ export default function RegistrationsPage() {
     if (!registration.paymentIntentId) return;
 
     setPaymentLoadingId(registration.registrationId);
-    setNotice(null);
 
     try {
       const payment = await createPaymentUrl(registration.paymentIntentId);
       if (payment.paymentUrl) {
         window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
-        setNotice({
-          tone: "info",
-          message: "Liên kết thanh toán đã được mở trong tab mới.",
-        });
+        toast.success("Đã tạo yêu cầu thanh toán. Vui lòng hoàn tất thanh toán.");
       } else {
-        setNotice({
-          tone: "info",
-          message:
-            "Đăng ký vẫn chờ thanh toán. Vui lòng thử lại sau ít phút.",
-        });
+        toast.info("Đăng ký vẫn chờ thanh toán. Vui lòng thử lại sau ít phút.");
       }
     } catch (err) {
-      setNotice({
-        tone: "error",
-        message: getFriendlyErrorMessage(
-          err,
-          "Không thể tạo liên kết thanh toán.",
-        ),
-      });
+      toast.error(getFriendlyErrorMessage(err, "Không thể tạo liên kết thanh toán."));
     } finally {
       setPaymentLoadingId(null);
     }
@@ -146,26 +123,18 @@ export default function RegistrationsPage() {
     if (!registration.paymentIntentId) return;
 
     setPaymentLoadingId(registration.registrationId);
-    setNotice(null);
 
     try {
       const status = await getPaymentStatus(registration.paymentIntentId);
       await loadRegistrations();
 
-      setNotice({
-        tone: status.qrAvailable ? "success" : "info",
-        message: status.qrAvailable
-          ? "Thanh toán đã được xác nhận và mã QR đã sẵn sàng."
-          : `Trạng thái thanh toán hiện tại: ${status.status}.`,
-      });
+      if (status.qrAvailable) {
+        toast.success("Thanh toán đã được xác nhận và mã QR đã sẵn sàng.");
+      } else {
+        toast.info("Thanh toán của bạn vẫn đang được xử lý.");
+      }
     } catch (err) {
-      setNotice({
-        tone: "error",
-        message: getFriendlyErrorMessage(
-          err,
-          "không thể kiểm tra được trạng thái thanh toán.",
-        ),
-      });
+      toast.error(getFriendlyErrorMessage(err, "Không thể kiểm tra được trạng thái thanh toán."));
     } finally {
       setPaymentLoadingId(null);
     }
@@ -221,9 +190,8 @@ export default function RegistrationsPage() {
           </div>
         </div> */}
 
-        {notice ? <NoticeBanner notice={notice} /> : null}
         {error ? (
-          <NoticeBanner notice={{ tone: "error", message: error }} />
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         ) : null}
 
         {sortedRegistrations.length === 0 ? (
@@ -337,21 +305,6 @@ export default function RegistrationsPage() {
         </div>
       ) : null}
     </>
-  );
-}
-
-function NoticeBanner({ notice }: { notice: Notice }) {
-  const toneClass =
-    notice.tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : notice.tone === "error"
-        ? "border-red-200 bg-red-50 text-red-700"
-        : "border-sky-200 bg-sky-50 text-sky-700";
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>
-      {notice.message}
-    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { logout } from "../lib/adminAuth";
 import Button from "./Button";
 
@@ -19,6 +20,7 @@ export default function LogoutButton({
 
   async function handleLogout() {
     await logout();
+    toast.success("Đã đăng xuất.");
     router.replace(redirectTo);
     router.refresh();
   }

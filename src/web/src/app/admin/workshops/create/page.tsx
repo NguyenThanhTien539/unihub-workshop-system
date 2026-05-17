@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Button from "../../../../components/Button";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { CalendarPlus, Trash2 } from "lucide-react";
 import { ensureAdminAuth } from "../../../../lib/adminAuth";
 import { getFriendlyErrorMessage } from "../../../../lib/apiClient";
@@ -124,9 +125,12 @@ export default function CreateWorkshopPage() {
         }
       }
 
+      toast.success("Đã tạo workshop.");
       router.replace(`/admin/workshops/${workshop.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không tạo được workshop");
+      const message = getFriendlyErrorMessage(err, "Không tạo được workshop.");
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }

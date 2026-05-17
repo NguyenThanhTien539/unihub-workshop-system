@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   getFriendlyErrorMessage,
   getRetryAfterSeconds,
@@ -48,11 +49,6 @@ import {
 } from "../../../../lib/workshops";
 import Button from "@/components/Button";
 
-type Notice = {
-  tone: "success" | "error" | "info";
-  message: string;
-};
-
 export default function WorkshopDetailPage({
   params,
 }: {
@@ -68,7 +64,6 @@ export default function WorkshopDetailPage({
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [busySessionId, setBusySessionId] = useState<string | null>(null);
   const [confirmSession, setConfirmSession] = useState<WorkshopSession | null>(
     null,
@@ -149,17 +144,12 @@ export default function WorkshopDetailPage({
     if (!confirmSession || !confirmMode) return;
 
     setBusySessionId(confirmSession.id);
-    setNotice(null);
 
     try {
       if (confirmMode === "FREE") {
         await registerFree(confirmSession.id);
         clearPaidRegistrationIdempotencyKey(confirmSession.id);
-        setNotice({
-          tone: "success",
-          message:
-            "Đăng ký thành công. Mã QR đã được tạo. Email xác nhận sẽ được gửi nếu cấu hình email đang hoạt động.",
-        });
+        toast.success("Đăng ký thành công. Mã QR đã sẵn sàng.");
       } else {
         const response = await registerPaid(
           confirmSession.id,
@@ -168,12 +158,9 @@ export default function WorkshopDetailPage({
         if (response.registrationStatus !== "PENDING_PAYMENT") {
           clearPaidRegistrationIdempotencyKey(confirmSession.id);
         }
-        setNotice({
-          tone: "success",
-          message: response.paymentIntentId
-            ? "Đăng ký có phí đã được tạo. Hãy thanh toán để nhận mã QR."
-            : "Đăng ký có phí đã được tạo và đang chờ thanh toán.",
-        });
+        toast.success(response.paymentIntentId
+          ? "Đã tạo yêu cầu thanh toán. Vui lòng hoàn tất thanh toán."
+          : "Đăng ký có phí đã được tạo và đang chờ thanh toán.");
       }
 
       setConfirmSession(null);
@@ -185,12 +172,7 @@ export default function WorkshopDetailPage({
         err,
         "Không đăng ký được buổi này.",
       );
-      setNotice({
-        tone: "error",
-        message: retryAfter
-          ? `${message} Thử lại sau ${retryAfter} giây.`
-          : message,
-      });
+      toast.error(retryAfter ? `${message} Thử lại sau ${retryAfter} giây.` : message);
     } finally {
       setBusySessionId(null);
     }
@@ -200,32 +182,17 @@ export default function WorkshopDetailPage({
     if (!registration.paymentIntentId) return;
 
     setBusySessionId(registration.sessionId);
-    setNotice(null);
 
     try {
       const payment = await createPaymentUrl(registration.paymentIntentId);
       if (payment.paymentUrl) {
         window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
-        setNotice({
-          tone: "info",
-          message:
-            "Đã mở liên kết thanh toán mới. Sau khi thanh toán, hãy quay lại và kiểm tra trạng thái.",
-        });
+        toast.success("Đã tạo yêu cầu thanh toán. Vui lòng hoàn tất thanh toán.");
       } else {
-        setNotice({
-          tone: "info",
-          message:
-            "Đăng ký đang chờ thanh toán. Vui lòng thử lại sau ít phút.",
-        });
+        toast.info("Đăng ký đang chờ thanh toán. Vui lòng thử lại sau ít phút.");
       }
     } catch (err) {
-      setNotice({
-        tone: "error",
-        message: getFriendlyErrorMessage(
-          err,
-          "Không tạo được liên kết thanh toán.",
-        ),
-      });
+      toast.error(getFriendlyErrorMessage(err, "Không tạo được liên kết thanh toán."));
     } finally {
       setBusySessionId(null);
     }
@@ -323,8 +290,6 @@ export default function WorkshopDetailPage({
             </div>
           </div>
         </div>
-
-        {notice ? <NoticeBanner notice={notice} /> : null}
 
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div className="space-y-6">
@@ -730,21 +695,6 @@ function ConfirmationModal({
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function NoticeBanner({ notice }: { notice: Notice }) {
-  const toneClass =
-    notice.tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : notice.tone === "error"
-        ? "border-red-200 bg-red-50 text-red-700"
-        : "border-sky-200 bg-sky-50 text-sky-700";
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>
-      {notice.message}
     </div>
   );
 }

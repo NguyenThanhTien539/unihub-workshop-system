@@ -1,5 +1,6 @@
 package com.unihub.application.workshop;
 
+import com.unihub.application.notification.WorkshopNotificationService;
 import com.unihub.application.workshop.exception.WorkshopException;
 import com.unihub.domain.room.Room;
 import com.unihub.domain.room.RoomRepository;
@@ -24,14 +25,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class WorkshopCommandService {
   private final WorkshopRepository workshopRepository;
   private final RoomRepository roomRepository;
+  private final WorkshopNotificationService workshopNotificationService;
   private final Clock clock;
 
   public WorkshopCommandService(
       WorkshopRepository workshopRepository,
       RoomRepository roomRepository,
+      WorkshopNotificationService workshopNotificationService,
       Clock clock) {
     this.workshopRepository = workshopRepository;
     this.roomRepository = roomRepository;
+    this.workshopNotificationService = workshopNotificationService;
     this.clock = clock;
   }
 
@@ -100,6 +104,10 @@ public class WorkshopCommandService {
         workshop.canceledAt());
 
     workshopRepository.update(updated);
+    workshopNotificationService.queueWorkshopUpdated(
+        workshop.id(),
+        !updated.title().equals(workshop.title()),
+        !updated.speaker().equals(workshop.speaker()));
     return updated;
   }
 
@@ -148,6 +156,7 @@ public class WorkshopCommandService {
     LocalDateTime now = LocalDateTime.now(clock);
     workshopRepository.updateWorkshopStatus(workshopId, WorkshopStatus.CANCELED, workshop.publishedAt(), now);
     workshopRepository.cancelSessionsByWorkshopId(workshopId, now);
+    workshopNotificationService.queueWorkshopCanceled(workshopId);
 
     return new Workshop(
         workshop.id(),
@@ -238,6 +247,8 @@ public class WorkshopCommandService {
     boolean scheduleChanged = !newRoomId.equals(session.roomId())
         || !newStartAt.equals(session.startAt())
         || !newEndAt.equals(session.endAt());
+    boolean roomChanged = !newRoomId.equals(session.roomId());
+    boolean timeChanged = !newStartAt.equals(session.startAt()) || !newEndAt.equals(session.endAt());
 
     if (scheduleChanged && workshopRepository.existsRoomConflict(newRoomId, newStartAt, newEndAt, session.id())) {
       throw new WorkshopException(WorkshopErrorCode.WORKSHOP_ROOM_CONFLICT, HttpStatus.CONFLICT);
@@ -262,6 +273,7 @@ public class WorkshopCommandService {
         session.canceledAt());
 
     workshopRepository.updateSession(updated);
+    workshopNotificationService.queueSessionUpdated(session.id(), roomChanged, timeChanged);
     return updated;
   }
 
@@ -291,6 +303,7 @@ public class WorkshopCommandService {
         now);
 
     workshopRepository.updateSession(canceled);
+    workshopNotificationService.queueSessionCanceled(session.id());
     return canceled;
   }
 

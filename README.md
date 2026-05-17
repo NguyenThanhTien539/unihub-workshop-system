@@ -170,16 +170,15 @@ Mobile chạy bằng terminal để Expo hiển thị QR code trực tiếp và 
 ```powershell
 cd src/mobile
 npm install
-Copy-Item .env.example .env
 ```
 
-Nếu chạy trên điện thoại thật, điện thoại và máy tính phải cùng mạng Wi-Fi/LAN. Lấy IP LAN của máy tính, ví dụ `192.168.1.10`, rồi chỉnh `src/mobile/.env`:
+Tạo file `.env` trong thư mục `src/mobile`, sau đó thêm địa chỉ backend theo IP LAN của máy tính:
 
 ```env
 EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:8080
 ```
 
-Thay `192.168.1.10` bằng IP LAN của máy tính. Sau đó chạy Expo:
+Nếu chạy trên điện thoại thật, điện thoại và máy tính phải cùng mạng Wi-Fi/LAN. Lấy IP LAN của máy tính, ví dụ `192.168.1.10`, rồi thay `192.168.1.10` trong `src/mobile/.env` bằng IP LAN đó. Sau đó chạy Expo:
 
 ```powershell
 npm run start -- --host lan

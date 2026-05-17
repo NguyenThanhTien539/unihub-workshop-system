@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { use, useEffect, useState } from "react";
+import type React from "react";
+import { toast } from "sonner";
 import Button from "../../../../components/Button";
 import {
   Ban,
@@ -24,6 +26,7 @@ import {
   formatSessionTime,
   getAdminWorkshop,
   getDocumentSummaryStatus,
+  getWorkshopStats,
   getWorkshopSummary,
   listRooms,
   publishWorkshop,
@@ -40,6 +43,7 @@ import {
   type WorkshopAiSummaryResponse,
   type WorkshopDetail,
   type WorkshopSession,
+  type WorkshopStats,
 } from "../../../../lib/workshops";
 
 type SessionForm = {
@@ -67,6 +71,8 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
   const id = resolvedParams.id;
   const [initialAiSummaryNotice] = useState<InitialAiSummaryNotice>(() => readAdminWorkshopNotice(id));
   const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null);
+  const [stats, setStats] = useState<WorkshopStats | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [title, setTitle] = useState("");
   const [speaker, setSpeaker] = useState("");
@@ -96,21 +102,24 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       }
 
       try {
-        const [detail, roomData, latestSummary] = await Promise.all([
+        const [detail, roomData, statsData, latestSummary] = await Promise.all([
           getAdminWorkshop(id),
           listRooms(),
+          getWorkshopStats(id).catch(() => null),
           getWorkshopSummary(id).catch(() => null),
         ]);
         if (!mounted) return;
         setWorkshop(detail);
         setRooms(roomData);
+        setStats(statsData);
+        setStatsError(statsData ? null : "Không thể tải thống kê. Vui lòng thử lại.");
         setTitle(detail.title);
         setSpeaker(detail.speaker);
         setDescription(detail.description);
         setAiSummary(latestSummary);
         setNewSession({ ...emptySession(), roomId: roomData[0]?.id || "" });
       } catch (err) {
-        if (mounted) setError(err instanceof Error ? err.message : "Không tải được workshop");
+        if (mounted) setError(getFriendlyErrorMessage(err, "Không thể tải workshop."));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -136,8 +145,13 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
   }, [summaryStatus?.documentId, summaryStatus?.summaryStatus]);
 
   async function reloadWorkshop() {
-    const detail = await getAdminWorkshop(id);
+    const [detail, statsData] = await Promise.all([
+      getAdminWorkshop(id),
+      getWorkshopStats(id).catch(() => null),
+    ]);
     setWorkshop(detail);
+    setStats(statsData);
+    setStatsError(statsData ? null : "Không thể tải thống kê. Vui lòng thử lại.");
     setTitle(detail.title);
     setSpeaker(detail.speaker);
     setDescription(detail.description);
@@ -152,8 +166,13 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
     try {
       const detail = await updateWorkshop(id, { title, speaker, description });
       setWorkshop(detail);
+      await reloadWorkshop();
+      toast.success("Đã cập nhật workshop.");
+      toast.message("Sinh viên đã đăng ký sẽ nhận được thông báo nếu thông tin tham dự thay đổi.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không lưu được workshop");
+      const message = getFriendlyErrorMessage(err, "Không thể cập nhật workshop. Vui lòng thử lại.");
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -166,23 +185,31 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
     try {
       const detail = await publishWorkshop(id);
       setWorkshop(detail);
+      toast.success("Đã công bố workshop.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không xuất bản được workshop");
+      const message = getFriendlyErrorMessage(err, "Không thể công bố workshop. Vui lòng thử lại.");
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
   }
 
   async function handleCancelWorkshop() {
-    if (!window.confirm("Hủy workshop này và tất cả buổi học đang hoạt động?")) return;
+    if (!window.confirm("Hủy workshop này và các buổi đang hoạt động?")) return;
     setSaving(true);
     setError(null);
 
     try {
       const detail = await cancelWorkshop(id);
       setWorkshop(detail);
+      await reloadWorkshop();
+      toast.success("Đã hủy workshop.");
+      toast.message("Sinh viên đã đăng ký sẽ nhận được thông báo hủy.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không hủy được workshop");
+      const message = getFriendlyErrorMessage(err, "Không thể hủy workshop. Vui lòng thử lại.");
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -197,8 +224,11 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       await createWorkshopSession(id, normalizeSession(newSession));
       await reloadWorkshop();
       setNewSession({ ...emptySession(), roomId: rooms[0]?.id || "" });
+      toast.success("Đã thêm buổi workshop.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không tạo được buổi học");
+      const message = getFriendlyErrorMessage(err, "Không thể tạo buổi workshop. Vui lòng thử lại.");
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -211,23 +241,31 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
     try {
       await updateWorkshopSession(sessionId, normalizeSession(form));
       await reloadWorkshop();
+      toast.success("Đã cập nhật workshop.");
+      toast.message("Sinh viên đã đăng ký sẽ nhận được thông báo nếu thông tin tham dự thay đổi.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không lưu được buổi học");
+      const message = getFriendlyErrorMessage(err, "Không thể cập nhật buổi workshop. Vui lòng thử lại.");
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
   }
 
   async function handleCancelSession(sessionId: string) {
-    if (!window.confirm("Hủy buổi học này?")) return;
+    if (!window.confirm("Hủy buổi workshop này?")) return;
     setSaving(true);
     setError(null);
 
     try {
       await cancelWorkshopSession(sessionId);
       await reloadWorkshop();
+      toast.success("Đã hủy buổi workshop.");
+      toast.message("Sinh viên đã đăng ký sẽ nhận được thông báo hủy.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không hủy được buổi học");
+      const message = getFriendlyErrorMessage(err, "Không thể hủy buổi workshop. Vui lòng thử lại.");
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -236,7 +274,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
   function onPdfChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     if (file && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      setPdfError("File phải là PDF");
+      setPdfError("File phải là PDF.");
       setPdfFile(null);
       return;
     }
@@ -246,7 +284,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
 
   async function handleUploadPdf() {
     if (!pdfFile) {
-      setPdfError("Vui lòng chọn file PDF");
+      setPdfError("Vui lòng chọn file PDF.");
       return;
     }
 
@@ -271,10 +309,13 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
       });
       setNotice({
         tone: "success",
-        message: "PDF đã được upload. Backend đang xử lý tóm tắt trong nền.",
+        message: "Tài liệu đã được tải lên. Hệ thống đang tạo tóm tắt.",
       });
+      toast.success("Tài liệu đã được tải lên. Hệ thống đang tạo tóm tắt.");
     } catch (err) {
-      setPdfError(getFriendlyErrorMessage(err, "Upload PDF thất bại."));
+      const message = getFriendlyErrorMessage(err, "Không thể tải PDF lên. Vui lòng thử lại.");
+      setPdfError(message);
+      toast.error(message);
     } finally {
       setUploadingPdf(false);
     }
@@ -302,7 +343,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
         }));
       }
     } catch (err) {
-      setPdfError(getFriendlyErrorMessage(err, "Không cập nhật được trạng thái tóm tắt."));
+      setPdfError(getFriendlyErrorMessage(err, "Không thể cập nhật trạng thái tóm tắt."));
     } finally {
       if (showSpinner) {
         setRefreshingSummaryStatus(false);
@@ -340,7 +381,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
               {statusLabel(workshop.status)}
             </span>
           </div>
-          <p className="mt-1 text-sm text-slate-500">ID: {workshop.id}</p>
+          <p className="mt-1 text-sm text-slate-500">Quản lý lịch, phòng học và tài liệu tóm tắt.</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -354,7 +395,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
             className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <CheckCircle2 size={16} />
-            Xuất bản
+            Công bố
           </Button>
           <Button
             type="button"
@@ -397,7 +438,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
           </form>
 
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-medium text-slate-950">Buổi học hiện có</h3>
+            <h3 className="text-lg font-medium text-slate-950">Buổi workshop hiện có</h3>
             <div className="mt-4 space-y-4">
               {workshop.sessions.length > 0 ? (
                 workshop.sessions.map((session) => (
@@ -411,15 +452,17 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
                   />
                 ))
               ) : (
-                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Workshop chưa có buổi học.</div>
+                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Workshop chưa có buổi nào.</div>
               )}
             </div>
           </section>
         </div>
 
         <aside className="space-y-6">
+          <StatsPanel stats={stats} error={statsError} />
+
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-medium text-slate-950">Thêm buổi học</h3>
+            <h3 className="text-lg font-medium text-slate-950">Thêm buổi workshop</h3>
             <form onSubmit={handleCreateSession} className="mt-5 space-y-4">
               <SessionFormFields form={newSession} rooms={rooms} onChange={setNewSession} />
               <Button
@@ -428,18 +471,18 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
                 className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:bg-slate-300"
               >
                 <CalendarPlus size={16} />
-                Thêm buổi học
+                Thêm buổi workshop
               </Button>
             </form>
           </section>
 
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-medium text-slate-950">Tóm tắt AI từ PDF</h3>
+            <h3 className="text-lg font-medium text-slate-950">Tóm tắt tự động từ PDF</h3>
             <div className="mt-4 space-y-4">
               <div className="flex flex-col gap-3">
-                <input id={`ai-summary-pdf-${id}`} type="file" accept="application/pdf" onChange={onPdfChange} className="hidden" />
+                <input id={`summary-pdf-${id}`} type="file" accept="application/pdf" onChange={onPdfChange} className="hidden" />
                 <div className="flex flex-wrap items-center gap-2">
-                  <label htmlFor={`ai-summary-pdf-${id}`} className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  <label htmlFor={`summary-pdf-${id}`} className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                     Chọn PDF
                   </label>
                   <Button
@@ -449,11 +492,11 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
                     className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:bg-slate-300"
                   >
                     <Upload size={16} />
-                    {uploadingPdf ? "Đang upload..." : "Upload PDF"}
+                    {uploadingPdf ? "Đang tải lên..." : "Tải PDF lên"}
                   </Button>
                 </div>
                 <div className="text-sm text-slate-600">
-                  {pdfFile ? `Đã chọn: ${pdfFile.name}` : "Chọn PDF để backend tạo tóm tắt bất đồng bộ."}
+                  {pdfFile ? `Đã chọn: ${pdfFile.name}` : "Chọn file PDF để hệ thống tự tạo tóm tắt cho sinh viên."}
                 </div>
                 {pdfError ? <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{pdfError}</div> : null}
               </div>
@@ -461,8 +504,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
               {summaryStatus ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                   <div className="space-y-2">
-                    <div><span className="font-medium text-slate-950">Document ID:</span> {summaryStatus.documentId}</div>
-                    <div><span className="font-medium text-slate-950">Upload:</span> {summaryStatus.uploadStatus}</div>
+                    <div><span className="font-medium text-slate-950">Tài liệu:</span> {uploadStatusLabel(summaryStatus.uploadStatus)}</div>
                     <div><span className="font-medium text-slate-950">Trạng thái:</span> {aiStatusLabel(summaryStatus.summaryStatus)}</div>
                     <div><span className="font-medium text-slate-950">Cập nhật:</span> {formatAdminDateTime(summaryStatus.updatedAt)}</div>
                   </div>
@@ -478,7 +520,7 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
                 </div>
               ) : (
                 <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">
-                  Chưa có tài liệu AI summary trong phiên làm việc này.
+                  Chưa có tài liệu tóm tắt cho workshop này.
                 </div>
               )}
             </div>
@@ -493,6 +535,84 @@ export default function WorkshopEditPage({ params }: { params: Promise<{ id: str
         </aside>
       </div>
     </section>
+  );
+}
+
+function StatsPanel({ stats, error }: { stats: WorkshopStats | null; error: string | null }) {
+  if (error) {
+    return (
+      <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
+        {error}
+      </section>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-medium text-slate-950">Thống kê đăng ký</h3>
+        <div className="mt-4 h-24 animate-pulse rounded-md bg-slate-100" />
+      </section>
+    );
+  }
+
+  const attendanceRate = stats.confirmedCount > 0
+    ? Math.round((stats.checkedInCount / stats.confirmedCount) * 100)
+    : 0;
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="text-lg font-medium text-slate-950">Thống kê đăng ký</h3>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <StatValue label="Tổng số chỗ" value={stats.totalCapacity} />
+        <StatValue label="Đã đăng ký" value={stats.confirmedCount} />
+        <StatValue label="Đang giữ chỗ" value={stats.reservedCount} />
+        <StatValue label="Đã check-in" value={stats.checkedInCount} />
+        <StatValue label="Còn trống" value={stats.remainingSeats} />
+        <StatValue label="Tỷ lệ tham dự" value={`${attendanceRate}%`} />
+      </div>
+      <div className="mt-5 space-y-3">
+        {stats.sessions.map((session) => (
+          <div key={session.sessionId} className="rounded-lg border border-slate-200 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-medium text-slate-950">{formatSessionDate(session.startAt)}</div>
+                <div className="mt-1 text-sm text-slate-500">{formatSessionTime(session.startAt, session.endAt)}</div>
+                <div className="mt-1 text-sm text-slate-500">{formatLocation(session)}</div>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                {statusLabel(session.status)}
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+              <CompactStat label="Sức chứa" value={session.capacity} />
+              <CompactStat label="Đã đăng ký" value={session.confirmedCount} />
+              <CompactStat label="Đang giữ chỗ" value={session.reservedCount} />
+              <CompactStat label="Đã check-in" value={session.checkedInCount} />
+              <CompactStat label="Còn trống" value={session.remainingSeats} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StatValue({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-md bg-slate-50 p-3">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className="mt-1 text-xl font-semibold text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function CompactStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div>
+      <span className="text-slate-500">{label}: </span>
+      <span className="font-medium text-slate-900">{value}</span>
+    </div>
   );
 }
 
@@ -548,7 +668,7 @@ function SessionEditor({
           className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
         >
           <Save size={16} />
-          Lưu buổi học
+          Lưu buổi workshop
         </Button>
         <Button
           type="button"
@@ -557,7 +677,7 @@ function SessionEditor({
           className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-slate-400"
         >
           <Trash2 size={16} />
-          Hủy buổi học
+          Hủy buổi workshop
         </Button>
       </div>
     </div>
@@ -670,14 +790,14 @@ function readAdminWorkshopNotice(workshopId: string): InitialAiSummaryNotice {
   }
 
   const key = adminWorkshopNoticeKey(workshopId);
-  const rawNotice = window.sessionStorage.getItem(key);
-  if (!rawNotice) {
+  const storedNotice = window.sessionStorage.getItem(key);
+  if (!storedNotice) {
     return { notice: null, summaryStatus: null };
   }
 
   window.sessionStorage.removeItem(key);
   try {
-    const parsed = JSON.parse(rawNotice) as AdminNotice & Partial<UploadWorkshopDocumentResponse>;
+    const parsed = JSON.parse(storedNotice) as AdminNotice & Partial<UploadWorkshopDocumentResponse>;
     return {
       notice: { tone: parsed.tone, message: parsed.message },
       summaryStatus: parsed.documentId && parsed.uploadStatus && parsed.summaryStatus
@@ -692,7 +812,7 @@ function readAdminWorkshopNotice(workshopId: string): InitialAiSummaryNotice {
     };
   } catch {
     return {
-      notice: { tone: "info", message: rawNotice },
+      notice: { tone: "info", message: storedNotice },
       summaryStatus: null,
     };
   }
@@ -709,9 +829,20 @@ function aiStatusLabel(status: DocumentSummaryStatusResponse["summaryStatus"]) {
     case "PROCESSING":
       return "Đang tạo tóm tắt";
     case "COMPLETED":
-      return "Tóm tắt đã sẵn sàng";
+      return "Đã hoàn tất";
     case "FAILED":
-      return "Không thể tạo tóm tắt";
+      return "Không thể xử lý";
+    default:
+      return status;
+  }
+}
+
+function uploadStatusLabel(status: DocumentSummaryStatusResponse["uploadStatus"]) {
+  switch (status) {
+    case "UPLOADED":
+      return "Đã tải lên";
+    case "FAILED":
+      return "Không thể tải lên";
     default:
       return status;
   }
@@ -720,14 +851,18 @@ function aiStatusLabel(status: DocumentSummaryStatusResponse["summaryStatus"]) {
 function renderAiSummary(summary: WorkshopAiSummaryResponse | null) {
   if (summary?.summaryStatus === "COMPLETED") {
     return summary.summaryText ? (
-      <p className="whitespace-pre-line">{summary.summaryText}</p>
+      <div className="space-y-2">
+        {cleanAiSummaryText(summary.summaryText).map((line, index) => (
+          <p key={`${line}-${index}`}>{line}</p>
+        ))}
+      </div>
     ) : (
       <p>Chưa có tóm tắt cho workshop này.</p>
     );
   }
 
   if (summary?.summaryStatus === "PENDING" || summary?.summaryStatus === "PROCESSING") {
-    return <p>Tóm tắt workshop đang được tạo. Vui lòng quay lại sau.</p>;
+    return <p>Hệ thống đang tạo tóm tắt. Vui lòng quay lại sau.</p>;
   }
 
   if (summary?.summaryStatus === "FAILED") {
@@ -735,6 +870,14 @@ function renderAiSummary(summary: WorkshopAiSummaryResponse | null) {
   }
 
   return <p>Chưa có tóm tắt cho workshop này.</p>;
+}
+
+function cleanAiSummaryText(text: string) {
+  return text
+    .replace(/\*\*/g, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^[-*]\s+/, ""))
+    .filter(Boolean);
 }
 
 function formatAdminDateTime(value?: string | null) {

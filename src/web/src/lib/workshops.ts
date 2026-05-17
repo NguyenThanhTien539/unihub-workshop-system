@@ -4,7 +4,7 @@ import { apiRequest } from "./apiClient";
 
 export type FeeType = "FREE" | "PAID";
 export type WorkshopStatus = "DRAFT" | "PUBLISHED" | "CANCELED" | "ARCHIVED";
-export type SessionStatus = "OPEN" | "CLOSED" | "CANCELED";
+export type SessionStatus = "OPEN" | "CLOSED" | "CANCELED" | "FULL";
 
 export type WorkshopListSession = {
   id: string;
@@ -55,6 +55,31 @@ export type Room = {
   capacity: number;
   mapUrl: string | null;
   status: string;
+};
+
+export type WorkshopSessionStats = {
+  sessionId: string;
+  roomName: string;
+  building: string;
+  startAt: string;
+  endAt: string;
+  capacity: number;
+  confirmedCount: number;
+  reservedCount: number;
+  checkedInCount: number;
+  remainingSeats: number;
+  status: SessionStatus;
+};
+
+export type WorkshopStats = {
+  workshopId: string;
+  title: string;
+  totalCapacity: number;
+  confirmedCount: number;
+  reservedCount: number;
+  checkedInCount: number;
+  remainingSeats: number;
+  sessions: WorkshopSessionStats[];
 };
 
 export type WorkshopFilters = {
@@ -138,7 +163,7 @@ export function formatSessionTime(
   startAt?: string | null,
   endAt?: string | null,
 ) {
-  if (!startAt || !endAt) return "Chua co thoi gian";
+  if (!startAt || !endAt) return "Chưa có thời gian";
   const formatter = new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
@@ -168,16 +193,16 @@ export function formatMoney(amount?: number | null, currency = "VND") {
 }
 
 export function formatLocation(
-  session?: WorkshopListSession | WorkshopSession | null,
+  session?: WorkshopListSession | WorkshopSession | WorkshopSessionStats | null,
 ) {
-  if (!session) return "Chua co phong";
+  if (!session) return "Chưa có phòng";
   return `${session.roomName}, ${session.building}`;
 }
 
 export function formatSeatSummary(
   session?: WorkshopListSession | WorkshopSession | null,
 ) {
-  if (!session) return "Chua co suc chua";
+  if (!session) return "Chưa có sức chứa";
   if ("seatCapacity" in session) {
     return `Còn ${session.remainingSeats}/${session.seatCapacity} chỗ`;
   }
@@ -195,9 +220,11 @@ export function statusLabel(status: string) {
     case "ARCHIVED":
       return "Đã lưu trữ";
     case "OPEN":
-      return "Đang mở đăng ký";
+      return "Đang mở";
     case "CLOSED":
-      return "Đã đóng đăng ký";
+      return "Đã đóng";
+    case "FULL":
+      return "Hết chỗ";
     default:
       return status;
   }
@@ -235,6 +262,12 @@ export async function listAdminWorkshops(filters: WorkshopFilters = {}) {
 
 export async function getAdminWorkshop(id: string) {
   return apiRequest<WorkshopDetail>(`/api/admin/workshops/${id}`, undefined, {
+    auth: true,
+  });
+}
+
+export async function getWorkshopStats(id: string) {
+  return apiRequest<WorkshopStats>(`/api/admin/workshops/${id}/stats`, undefined, {
     auth: true,
   });
 }

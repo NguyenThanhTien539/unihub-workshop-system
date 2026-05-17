@@ -126,7 +126,7 @@ export default function RegistrationsPage() {
         setNotice({
           tone: "info",
           message:
-            "Đăng ký vẫn chờ thanh toán, nhưng backend chưa trả về paymentUrl.",
+            "Đăng ký vẫn chờ thanh toán. Vui lòng thử lại sau ít phút.",
         });
       }
     } catch (err) {

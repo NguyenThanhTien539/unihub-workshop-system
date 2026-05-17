@@ -107,7 +107,7 @@ export default function CreateWorkshopPage() {
             adminWorkshopNoticeKey(workshop.id),
             JSON.stringify({
               tone: "success",
-              message: "Workshop đã được tạo. PDF đang được xử lý để tạo tóm tắt.",
+              message: "Workshop đã được tạo. Hệ thống đang tạo tóm tắt từ PDF.",
               documentId: uploadResult.documentId,
               uploadStatus: uploadResult.uploadStatus,
               summaryStatus: uploadResult.summaryStatus,
@@ -118,7 +118,7 @@ export default function CreateWorkshopPage() {
             adminWorkshopNoticeKey(workshop.id),
             JSON.stringify({
               tone: "warning",
-              message: `Workshop đã được tạo nhưng upload PDF thất bại. Bạn có thể upload lại trong trang chi tiết. ${getFriendlyErrorMessage(uploadError, "")}`.trim(),
+              message: `Workshop đã được tạo nhưng chưa thể tải PDF lên. Bạn có thể tải lại trong trang chi tiết. ${getFriendlyErrorMessage(uploadError, "")}`.trim(),
             }),
           );
         }
@@ -164,7 +164,7 @@ export default function CreateWorkshopPage() {
                 <input
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  placeholder="VD: Nền tảng API với Spring Boot"
+                  placeholder="VD: Xây dựng ứng dụng với Spring Boot"
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500"
                 />
               </Field>
@@ -312,7 +312,7 @@ export default function CreateWorkshopPage() {
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             {error && <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
             <Button type="submit" disabled={submitting} className="w-full">
-              {submitting ? (pdfFile ? "Đang tạo và upload PDF..." : "Đang tạo...") : "Tạo workshop"}
+              {submitting ? (pdfFile ? "Đang tạo và tải PDF lên..." : "Đang tạo...") : "Tạo workshop"}
             </Button>
           </section>
         </aside>

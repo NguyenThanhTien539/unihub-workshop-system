@@ -48,7 +48,7 @@ export async function apiRequest<T>(
 
   if (!response.ok || envelope.success === false) {
     throw new ApiClientError(
-      envelope.error?.message ?? envelope.message ?? "Yêu cầu thất bại.",
+      envelope.error?.message ?? envelope.message ?? "Yêu cầu chưa thực hiện được.",
       response.status,
       envelope.error?.code,
       retryAfter,
@@ -58,19 +58,31 @@ export async function apiRequest<T>(
   return envelope.data as T;
 }
 
-export function getFriendlyErrorMessage(error: unknown, fallback = "Đã xảy ra lỗi. Vui lòng thử lại.") {
+export function getFriendlyErrorMessage(error: unknown, fallback = "Không thể xử lý yêu cầu. Vui lòng thử lại.") {
   if (error instanceof ApiClientError) {
     if (error.status === 429 || error.code === "RATE_LIMIT_EXCEEDED") {
       return "Bạn thao tác quá nhanh. Vui lòng thử lại sau.";
     }
 
     switch (error.code) {
+      case "NOTIFY_ACCESS_DENIED":
+        return "Bạn không có quyền xem thông báo này.";
+      case "NOTIFY_NOT_FOUND":
+        return "Không tìm thấy thông báo.";
       case "AUTH_FORBIDDEN":
         return "Bạn không có quyền thực hiện thao tác này.";
       case "AUTH_TOKEN_MISSING":
       case "AUTH_TOKEN_INVALID":
       case "AUTH_TOKEN_EXPIRED":
         return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+      case "WORKSHOP_NOT_FOUND":
+        return "Không tìm thấy workshop.";
+      case "WORKSHOP_SESSION_NOT_FOUND":
+        return "Không tìm thấy buổi workshop.";
+      case "WORKSHOP_ROOM_CONFLICT":
+        return "Phòng đã có lịch trong thời gian này.";
+      case "WORKSHOP_CAPACITY_BELOW_CONFIRMED":
+        return "Sức chứa mới không được nhỏ hơn số sinh viên đã đăng ký.";
       case "AI_FILE_REQUIRED":
         return "Vui lòng chọn file PDF.";
       case "AI_FILE_TYPE_INVALID":
@@ -78,7 +90,7 @@ export function getFriendlyErrorMessage(error: unknown, fallback = "Đã xảy r
       case "AI_FILE_TOO_LARGE":
         return "File PDF quá lớn.";
       case "AI_STORAGE_UNAVAILABLE":
-        return "Không thể lưu file PDF, vui lòng thử lại.";
+        return "Không thể lưu file PDF. Vui lòng thử lại.";
       case "REG_ALREADY_EXISTS":
         return "Bạn đã đăng ký buổi này rồi.";
       case "REG_SESSION_FULL":
@@ -100,13 +112,13 @@ export function getFriendlyErrorMessage(error: unknown, fallback = "Đã xảy r
       case "CHECKIN_QR_NOT_FOUND":
         return "Không nhận diện được mã QR.";
       default:
-        return error.message || fallback;
+        return error.status >= 500 ? fallback : error.message || fallback;
     }
   }
 
   if (error instanceof Error) {
     if (error.name === "TypeError") {
-      return "Không thể kết nối đến backend.";
+      return "Không thể kết nối đến hệ thống. Vui lòng kiểm tra kết nối và thử lại.";
     }
     return error.message || fallback;
   }
@@ -128,7 +140,7 @@ async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   } catch {
     return {
       success: false,
-      message: response.ok ? "Phản hồi từ máy chủ không hợp lệ." : "Không đọc được phản hồi lỗi từ máy chủ.",
+      message: response.ok ? "Phản hồi chưa hợp lệ." : "Không thể đọc phản hồi từ hệ thống.",
     };
   }
 }

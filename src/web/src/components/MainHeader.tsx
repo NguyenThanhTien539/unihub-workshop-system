@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { clearTokens, getCurrentUser, hasStoredSession, logout, normalizeRoles, type AuthUser } from "../lib/auth";
 import Button from "./Button";
+import { NotificationBell } from "./NotificationBell";
 
 export default function MainHeader() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -38,15 +39,15 @@ export default function MainHeader() {
       mounted = false;
     };
   }, []);
-  
+
   const roleList = [
     { role: "student", label: "Sinh viên" },
     { role: "organizer", label: "Ban tổ chức" },
     { role: "checkin_staff", label: "Nhân viên check-in" },
-  ]
+  ];
 
   const roles = normalizeRoles(user?.roles || []);
-  const displayRoles = roleList.filter(r => roles.includes(r.role)).map(r => r.label);
+  const displayRoles = roleList.filter((item) => roles.includes(item.role)).map((item) => item.label);
   const isStudent = roles.includes("student");
   const isOrganizer = roles.includes("organizer");
   const isCheckinStaff = roles.includes("checkin_staff");
@@ -59,30 +60,31 @@ export default function MainHeader() {
             UniHub Workshop
           </Link>
           <p className="mt-2 text-sm text-slate-600">
-            Workshop, đăng ký, vé QR và check-in đồng bộ trong một nền tảng duy nhất.
+            Khám phá workshop, đăng ký, nhận mã QR và check-in trong một nơi.
           </p>
         </div>
 
         <div className="flex flex-col gap-4 lg:items-end">
           <nav className="flex flex-wrap gap-2 text-sm font-medium">
             <NavLink href="/">Workshop</NavLink>
-            {isStudent ? <NavLink href="/registrations">Các lượt đăng ký của tôi</NavLink> : null}
+            {isStudent ? <NavLink href="/registrations">Đăng ký của tôi</NavLink> : null}
             {isCheckinStaff ? <NavLink href="/checkin">Check-in</NavLink> : null}
             {isOrganizer ? <NavLink href="/admin">Ban tổ chức</NavLink> : null}
           </nav>
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
             {loading ? (
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">Đang kiểm tra phiên...</span>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">Đang kiểm tra phiên đăng nhập...</span>
             ) : user ? (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <NotificationBell />
                 <div className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">
                   {user.fullName} · {displayRoles.join(", ")}
                 </div>
                 <Button
                   type="button"
                   onClick={handleLogout}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-slate-700 transition hover:border-slate-300 hover:bg-black"
+                  className="rounded-full border border-slate-200 px-4 py-2 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   Đăng xuất
                 </Button>

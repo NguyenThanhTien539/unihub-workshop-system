@@ -215,7 +215,7 @@ export default function WorkshopDetailPage({
         setNotice({
           tone: "info",
           message:
-            "Đăng ký đang chờ thanh toán, nhưng backend chưa trả paymentUrl.",
+            "Đăng ký đang chờ thanh toán. Vui lòng thử lại sau ít phút.",
         });
       }
     } catch (err) {
@@ -344,7 +344,11 @@ export default function WorkshopDetailPage({
                 </h2>
                 <div className="mt-3 text-sm leading-6 text-slate-700">
                   {aiSummary.summaryStatus === "COMPLETED" ? (
-                    <p className="whitespace-pre-line">{aiSummary.summaryText}</p>
+                  <div className="space-y-2">
+                    {cleanSummaryText(aiSummary.summaryText ?? "").map((line, index) => (
+                      <p key={`${line}-${index}`}>{line}</p>
+                    ))}
+                  </div>
                   ) : aiSummary.summaryStatus === "FAILED" ? (
                     <p>Tóm tắt hiện chưa khả dụng.</p>
                   ) : (
@@ -361,8 +365,8 @@ export default function WorkshopDetailPage({
                     Buổi học và đăng ký
                   </h2>
                   <p className="text-sm text-slate-500">
-                    Số chỗ, trạng thái thanh toán và thao tác đăng ký được đồng
-                    bộ từ API backend.
+                    Số chỗ, trạng thái thanh toán và thao tác đăng ký luôn được
+                    cập nhật theo tình trạng mới nhất.
                   </p>
                 </div>
                 {isStudent ? (
@@ -426,7 +430,7 @@ export default function WorkshopDetailPage({
                               </InlineTag>
                               {registration ? (
                                 <InlineTag tone="sky">
-                                  {registration.registrationStatus}
+                                  {registrationStatusLabel(registration.registrationStatus)}
                                 </InlineTag>
                               ) : null}
                             </div>
@@ -820,4 +824,12 @@ function registrationStatusLabel(status: string) {
     default:
       return status;
   }
+}
+
+function cleanSummaryText(text: string) {
+  return text
+    .replace(/\*\*/g, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^[-*]\s+/, ""))
+    .filter(Boolean);
 }

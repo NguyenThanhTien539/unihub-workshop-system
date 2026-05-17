@@ -127,7 +127,7 @@ export default function CheckinPage() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-950">Quầy check-in</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Nhập mã QR thủ công để kiểm thử. Ứng dụng mobile dùng cùng endpoint backend.
+              Nhập mã QR thủ công để xác thực lượt tham dự của sinh viên.
             </p>
           </div>
           <button

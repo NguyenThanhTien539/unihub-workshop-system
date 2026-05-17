@@ -47,7 +47,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     if (resolved == null) {
       filterChain.doFilter(request, response);
       return;
-    }
+    } 
 
     RateLimitResult result = rateLimiter.check(resolved.key(), resolved.policy());
     addHeaders(response, result);

@@ -1,0 +1,4 @@
+﻿student_id,full_name,email,faculty,major,class_name,status
+CSV001,Nguyen Van CSV One,csv001@unihub.local,Information Technology,Software Engineering,SE-01,ACTIVE
+CSV002,Tran Thi CSV Two,csv002@unihub.local,Information Technology,Information Systems,IS-01,ACTIVE
+CSV003,Le Van CSV Three,csv003@unihub.local,Information Technology,Computer Science,CS-01,INACTIVE

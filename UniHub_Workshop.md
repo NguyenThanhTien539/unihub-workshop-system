@@ -52,7 +52,7 @@ Hệ thống quản lý sinh viên hiện tại của trường chưa có API. C
 
 **Tải trọng đột biến:** Dự kiến khoảng 12.000 sinh viên truy cập trong 10 phút đầu khi mở đăng ký, trong đó 60% dồn vào 3 phút đầu tiên. Hệ thống cần có cơ chế bảo vệ backend API khỏi bị quá tải, ngăn chặn các client gửi request liên tục và đảm bảo tính công bằng giữa các sinh viên đăng ký.
 
-**Thanh toán không ổn định:** Nếu cổng thanh toán gặp sự cố, sinh viên vẫn phải xem được lịch workshop và thông tin sự kiện bình thường. Luồng đăng ký có phí cần xử lý tình huống thanh toán timeout mà không gây ra trừ tiền hai lần, đồng thời các tính năng không liên quan đến thanh toán vẫn phải hoạt động bình thường khi cổng thanh toán gặp sự cố kéo dài.
+**Thanh toán không ổn định:** Nếu cổng thanh toán gặp sự cố, sinh viên vẫn phải xem được lịch workshop và thông tin sự kiện bình thường. Luồng đăng ký có phí cần xử lý tình huống thanh toán timeout màV không gây ra trừ tiền hai lần, đồng thời các tính năng không liên quan đến thanh toán vẫn phải hoạt động bình thường khi cổng thanh toán gặp sự cố kéo dài.
 
 **Check-in offline:** Nhân sự ở khu vực mất mạng vẫn phải check-in được cho sinh viên; dữ liệu không được mất khi kết nối trở lại.
 

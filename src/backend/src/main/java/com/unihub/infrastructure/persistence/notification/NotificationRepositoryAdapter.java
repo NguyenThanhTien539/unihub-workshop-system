@@ -62,6 +62,25 @@ public class NotificationRepositoryAdapter implements NotificationRepository {
   }
 
   @Override
+  public Optional<Notification> findByEventIdRecipientAndChannel(
+      String eventId,
+      UUID recipientUserId,
+      NotificationChannel channel) {
+    String sql = BASE_SELECT + """
+        WHERE event_id = :eventId
+          AND recipient_user_id = :recipientUserId
+          AND channel = :channel
+        LIMIT 1
+        """;
+    MapSqlParameterSource params = new MapSqlParameterSource()
+        .addValue("eventId", eventId)
+        .addValue("recipientUserId", recipientUserId)
+        .addValue("channel", channel.name());
+    List<Notification> rows = jdbcTemplate.query(sql, params, rowMapper());
+    return rows.stream().findFirst();
+  }
+
+  @Override
   public Notification save(Notification notification) {
     jdbcTemplate.update(SQL_INSERT, params(notification));
     return notification;
@@ -78,6 +97,20 @@ public class NotificationRepositoryAdapter implements NotificationRepository {
     String sql = BASE_SELECT + " WHERE id = :id LIMIT 1";
     List<Notification> rows = jdbcTemplate.query(sql, new MapSqlParameterSource("id", notificationId), rowMapper());
     return rows.stream().findFirst();
+  }
+
+  @Override
+  public List<Notification> findByRecipientUserId(UUID recipientUserId, int limit) {
+    String sql = BASE_SELECT + """
+        WHERE recipient_user_id = :recipientUserId
+          AND channel = 'IN_APP'
+        ORDER BY created_at DESC
+        LIMIT :limit
+        """;
+    MapSqlParameterSource params = new MapSqlParameterSource()
+        .addValue("recipientUserId", recipientUserId)
+        .addValue("limit", Math.max(1, limit));
+    return jdbcTemplate.query(sql, params, rowMapper());
   }
 
   private MapSqlParameterSource params(Notification notification) {

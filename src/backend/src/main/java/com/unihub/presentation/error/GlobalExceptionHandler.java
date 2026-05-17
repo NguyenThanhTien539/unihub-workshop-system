@@ -4,6 +4,7 @@ import com.unihub.application.auth.exception.AuthException;
 import com.unihub.application.aisummary.AiSummaryException;
 import com.unihub.application.checkin.CheckinException;
 import com.unihub.application.csvimport.CsvImportException;
+import com.unihub.application.notification.NotificationException;
 import com.unihub.application.payment.exception.PaymentException;
 import com.unihub.application.registration.exception.RegistrationException;
 import com.unihub.application.workshop.exception.WorkshopException;
@@ -64,6 +65,12 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(AiSummaryException.class)
   public ResponseEntity<ApiResponse<Void>> handleAiSummaryException(AiSummaryException ex) {
+    ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
+    return ResponseEntity.status(ex.getStatus()).body(body);
+  }
+
+  @ExceptionHandler(NotificationException.class)
+  public ResponseEntity<ApiResponse<Void>> handleNotificationException(NotificationException ex) {
     ApiResponse<Void> body = ApiResponse.error(ex.getErrorCode().code(), ex.getMessage());
     return ResponseEntity.status(ex.getStatus()).body(body);
   }

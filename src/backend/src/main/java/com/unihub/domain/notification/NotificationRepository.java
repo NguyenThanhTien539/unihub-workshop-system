@@ -1,11 +1,17 @@
 package com.unihub.domain.notification;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface NotificationRepository {
   Optional<Notification> findByEventIdAndChannel(String eventId, NotificationChannel channel);
+
+  Optional<Notification> findByEventIdRecipientAndChannel(
+      String eventId,
+      UUID recipientUserId,
+      NotificationChannel channel);
 
   default Optional<Notification> findEmailByEventId(String eventId) {
     return findByEventIdAndChannel(eventId, NotificationChannel.EMAIL);
@@ -16,6 +22,8 @@ public interface NotificationRepository {
   Notification update(Notification notification);
 
   Optional<Notification> findById(UUID notificationId);
+
+  List<Notification> findByRecipientUserId(UUID recipientUserId, int limit);
 
   default Notification markSent(Notification notification, LocalDateTime updatedAt) {
     return update(new Notification(

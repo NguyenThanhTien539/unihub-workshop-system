@@ -33,6 +33,7 @@ public class PaymentCommandService {
   private final PaymentRepository paymentRepository;
   private final RegistrationRepository registrationRepository;
   private final ZaloPayClient zaloPayClient;
+  private final PaymentCircuitBreaker paymentCircuitBreaker;
   private final QrTicketService qrTicketService;
   private final RegistrationConfirmationMailService registrationConfirmationMailService;
   private final TransactionTemplate transactionTemplate;
@@ -43,6 +44,7 @@ public class PaymentCommandService {
       PaymentRepository paymentRepository,
       RegistrationRepository registrationRepository,
       ZaloPayClient zaloPayClient,
+      PaymentCircuitBreaker paymentCircuitBreaker,
       QrTicketService qrTicketService,
       RegistrationConfirmationMailService registrationConfirmationMailService,
       TransactionTemplate transactionTemplate,
@@ -51,6 +53,7 @@ public class PaymentCommandService {
     this.paymentRepository = paymentRepository;
     this.registrationRepository = registrationRepository;
     this.zaloPayClient = zaloPayClient;
+    this.paymentCircuitBreaker = paymentCircuitBreaker;
     this.qrTicketService = qrTicketService;
     this.registrationConfirmationMailService = registrationConfirmationMailService;
     this.transactionTemplate = transactionTemplate;
@@ -63,10 +66,10 @@ public class PaymentCommandService {
       return prepared.reusableResult();
     }
 
-    PaymentIntent providerOrder = zaloPayClient.createOrder(
+    PaymentIntent providerOrder = paymentCircuitBreaker.execute(() -> zaloPayClient.createOrder(
         prepared.paymentIntent(),
         prepared.registrationView(),
-        command.userId());
+        command.userId()));
     PaymentIntent persisted = transactionTemplate.execute(status -> persistProviderOrder(providerOrder));
     return toCreateOrderResult(persisted);
   }

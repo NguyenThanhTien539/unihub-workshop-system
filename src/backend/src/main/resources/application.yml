@@ -64,6 +64,12 @@ app:
     image-size: ${APP_QR_IMAGE_SIZE:320}
   payment:
     pending-expiration-minutes: ${APP_PAYMENT_PENDING_EXPIRATION_MINUTES:15}
+    circuit-breaker:
+      enabled: ${APP_PAYMENT_CIRCUIT_BREAKER_ENABLED:true}
+      failure-threshold: ${APP_PAYMENT_CIRCUIT_BREAKER_FAILURE_THRESHOLD:5}
+      open-duration-seconds: ${APP_PAYMENT_CIRCUIT_BREAKER_OPEN_DURATION_SECONDS:60}
+      half-open-max-calls: ${APP_PAYMENT_CIRCUIT_BREAKER_HALF_OPEN_MAX_CALLS:1}
+      slow-call-threshold-ms: ${APP_PAYMENT_CIRCUIT_BREAKER_SLOW_CALL_THRESHOLD_MS:5000}
     zalopay:
       app-id: ${APP_PAYMENT_ZALOPAY_APP_ID:}
       key1: ${APP_PAYMENT_ZALOPAY_KEY1:}

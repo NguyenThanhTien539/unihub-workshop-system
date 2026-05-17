@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,6 +33,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,6 +53,8 @@ class PaymentCommandServiceTest {
   private RegistrationRepository registrationRepository;
   @Mock
   private ZaloPayClient zaloPayClient;
+  @Mock
+  private PaymentCircuitBreaker paymentCircuitBreaker;
   @Mock
   private QrTicketService qrTicketService;
   @Mock
@@ -72,6 +76,7 @@ class PaymentCommandServiceTest {
         paymentRepository,
         registrationRepository,
         zaloPayClient,
+        paymentCircuitBreaker,
         qrTicketService,
         registrationConfirmationMailService,
         transactionTemplate,
@@ -95,6 +100,8 @@ class PaymentCommandServiceTest {
         ((TransactionCallback<?>) invocation.getArgument(0)).doInTransaction(null));
     lenient().when(registrationRepository.update(any())).thenAnswer(invocation -> invocation.getArgument(0));
     lenient().when(paymentRepository.update(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    lenient().doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(0)).get())
+        .when(paymentCircuitBreaker).execute(any());
   }
 
   @Test
@@ -249,6 +256,25 @@ class PaymentCommandServiceTest {
   }
 
   @Test
+  void openCircuitRejectsBeforeCallingProvider() {
+    PaymentIntent paymentIntent = pendingGatewayIntent();
+    when(paymentRepository.findByIdForUpdate(paymentIntentId)).thenReturn(Optional.of(paymentIntent));
+    when(registrationRepository.findViewByIdForStudent(registrationId, studentId))
+        .thenReturn(Optional.of(paidRegistrationView()));
+    doThrow(new PaymentException(
+            PaymentErrorCode.PAYMENT_GATEWAY_UNAVAILABLE,
+            HttpStatus.SERVICE_UNAVAILABLE))
+        .when(paymentCircuitBreaker).execute(any());
+
+    PaymentException ex = assertThrows(PaymentException.class,
+        () -> service.createZaloPayPaymentUrl(new CreatePaymentUrlCommand(userId, paymentIntentId)));
+
+    assertEquals(PaymentErrorCode.PAYMENT_GATEWAY_UNAVAILABLE, ex.getErrorCode());
+    verify(zaloPayClient, never()).createOrder(any(), any(), any());
+    verify(paymentRepository, never()).update(any());
+  }
+
+  @Test
   void expirationJobMarksPendingPaymentExpiredAndReleasesSeat() {
     PaymentIntent paymentIntent = new PaymentIntent(paymentIntentId, registrationId, "ZALOPAY", "idem", "gw-123",
         PaymentStatus.PENDING_PAYMENT, BigDecimal.valueOf(199000), "VND", "https://pay",
@@ -277,6 +303,30 @@ class PaymentCommandServiceTest {
     return new PaymentIntent(paymentIntentId, registrationId, "ZALOPAY", "idem", "gw-123", PaymentStatus.PENDING_PAYMENT,
         BigDecimal.valueOf(199000), "VND", "https://pay", LocalDateTime.of(2026, 5, 8, 10, 15), null, null,
         LocalDateTime.of(2026, 5, 8, 10, 0), LocalDateTime.of(2026, 5, 8, 10, 1));
+  }
+
+  private com.unihub.domain.registration.RegistrationView paidRegistrationView() {
+    return new com.unihub.domain.registration.RegistrationView(
+        registrationId,
+        studentId,
+        UUID.randomUUID(),
+        "Workshop",
+        sessionId,
+        "Room A",
+        "H1",
+        LocalDateTime.of(2026, 6, 1, 8, 0),
+        LocalDateTime.of(2026, 6, 1, 10, 0),
+        RegistrationStatus.PENDING_PAYMENT,
+        RegistrationType.PAID,
+        paymentIntentId,
+        PaymentStatus.PENDING_GATEWAY,
+        BigDecimal.valueOf(199000),
+        "VND",
+        LocalDateTime.of(2026, 5, 8, 10, 15),
+        null,
+        false,
+        LocalDateTime.of(2026, 5, 8, 10, 0),
+        null);
   }
 
   private PaymentIntent succeededIntent() {

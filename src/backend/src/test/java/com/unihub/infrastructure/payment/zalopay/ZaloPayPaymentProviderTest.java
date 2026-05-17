@@ -136,7 +136,7 @@ class ZaloPayPaymentProviderTest {
     PaymentException ex = assertThrows(PaymentException.class,
         () -> provider.createOrder(paymentIntent, registrationView, UUID.randomUUID()));
 
-    assertEquals(PaymentErrorCode.PAYMENT_PROVIDER_UNAVAILABLE, ex.getErrorCode());
-    assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatus());
+    assertEquals(PaymentErrorCode.PAYMENT_TIMEOUT, ex.getErrorCode());
+    assertEquals(HttpStatus.GATEWAY_TIMEOUT, ex.getStatus());
   }
 }

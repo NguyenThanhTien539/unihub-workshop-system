@@ -71,10 +71,23 @@ export function getFriendlyErrorMessage(error: unknown, fallback = "Không thể
         return "Không tìm thấy thông báo.";
       case "AUTH_FORBIDDEN":
         return "Bạn không có quyền thực hiện thao tác này.";
-      case "AUTH_TOKEN_MISSING":
       case "AUTH_TOKEN_INVALID":
+        return "Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.";
+      case "AUTH_TOKEN_MISSING":
       case "AUTH_TOKEN_EXPIRED":
         return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+      case "PAYMENT_GATEWAY_UNAVAILABLE":
+      case "PAYMENT_PROVIDER_UNAVAILABLE":
+      case "PAYMENT_PROVIDER_DISABLED":
+        return "Cổng thanh toán hiện không khả dụng. Vui lòng thử lại sau.";
+      case "PAYMENT_TIMEOUT":
+        return "Cổng thanh toán phản hồi quá lâu. Vui lòng thử lại sau.";
+      case "PAYMENT_PROVIDER_ERROR":
+      case "PAYMENT_PROVIDER_REJECTED":
+        return "Không thể tạo yêu cầu thanh toán. Vui lòng thử lại sau.";
+      case "PAYMENT_IDEMPOTENCY_CONFLICT":
+      case "PAYMENT_IDEMPOTENCY_KEY_CONFLICT":
+        return "Yêu cầu thanh toán này đã được xử lý. Vui lòng kiểm tra lại trạng thái.";
       case "WORKSHOP_NOT_FOUND":
         return "Không tìm thấy workshop.";
       case "WORKSHOP_SESSION_NOT_FOUND":
@@ -88,9 +101,9 @@ export function getFriendlyErrorMessage(error: unknown, fallback = "Không thể
       case "AI_FILE_TYPE_INVALID":
         return "File phải là PDF.";
       case "AI_FILE_TOO_LARGE":
-        return "File PDF quá lớn.";
+        return "File PDF quá lớn. Vui lòng chọn file nhỏ hơn.";
       case "AI_STORAGE_UNAVAILABLE":
-        return "Không thể lưu file PDF. Vui lòng thử lại.";
+        return "Không thể lưu file PDF. Vui lòng thử lại sau.";
       case "REG_ALREADY_EXISTS":
         return "Bạn đã đăng ký buổi này rồi.";
       case "REG_SESSION_FULL":

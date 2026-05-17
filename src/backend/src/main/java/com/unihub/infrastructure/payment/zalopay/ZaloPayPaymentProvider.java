@@ -112,7 +112,7 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
           .body(formParams)
           .retrieve()
           .body(String.class);
-      logger.info("ZaloPay create order response: {}", responseBody);
+      logger.debug("ZaloPay create order response: {}", responseBody);
       ZaloPayCreateOrderResponse response = parseCreateOrderResponse(responseBody);
       logger.info(
           "ZaloPay create order parsed: returnCode={}, returnMessage={}, orderUrlPresent={}",
@@ -123,7 +123,7 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
         throw new PaymentException(
             PaymentErrorCode.PAYMENT_PROVIDER_REJECTED,
             HttpStatus.BAD_GATEWAY,
-            response.returnMessage());
+            PaymentErrorCode.PAYMENT_PROVIDER_REJECTED.defaultMessage());
       }
 
       return new PaymentIntent(
@@ -145,14 +145,13 @@ public class ZaloPayPaymentProvider implements ZaloPayClient {
       throw ex;
     } catch (ResourceAccessException ex) {
       throw new PaymentException(
-          PaymentErrorCode.PAYMENT_PROVIDER_UNAVAILABLE,
-          HttpStatus.BAD_GATEWAY);
+          PaymentErrorCode.PAYMENT_TIMEOUT,
+          HttpStatus.GATEWAY_TIMEOUT);
     } catch (RestClientResponseException ex) {
       logger.warn("ZaloPay create order HTTP error: {}", ex.getResponseBodyAsString());
       throw new PaymentException(
           PaymentErrorCode.PAYMENT_PROVIDER_REJECTED,
-          HttpStatus.BAD_GATEWAY,
-          ex.getResponseBodyAsString());
+          HttpStatus.BAD_GATEWAY);
     } catch (Exception ex) {
       throw new PaymentException(
           PaymentErrorCode.PAYMENT_PROVIDER_ERROR,
